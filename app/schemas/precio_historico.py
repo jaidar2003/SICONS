@@ -11,6 +11,7 @@ class PrecioHistoricoCreate(BaseModel):
     fecha: date
     precio_original: Decimal = Field(ge=0, decimal_places=2)
     moneda: str = Field(default="ARS", min_length=1, max_length=10)
+    numero_comprobante: str | None = Field(default=None, max_length=50)
     observaciones: str | None = None
 
 

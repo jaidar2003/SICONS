@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, DateTime, String, Text, func
+from sqlalchemy import BigInteger, DateTime, Identity, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -12,8 +12,9 @@ if TYPE_CHECKING:
 
 class Fuente(Base):
     __tablename__ = "fuentes"
+    __table_args__ = (UniqueConstraint("nombre", name="fuentes_nombre_key"),)
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
     nombre: Mapped[str] = mapped_column(String(150))
     tipo_fuente: Mapped[str | None] = mapped_column(String(50))
     descripcion: Mapped[str | None] = mapped_column(Text)

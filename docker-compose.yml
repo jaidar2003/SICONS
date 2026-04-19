@@ -12,7 +12,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app
+    command: >
+      sh -c "alembic upgrade head &&
+      python -m app.db.seed &&
+      python -m app.db.import_cemento_facturas &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app"
 
   postgres:
     image: postgres:16-alpine
@@ -26,7 +30,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./db:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s

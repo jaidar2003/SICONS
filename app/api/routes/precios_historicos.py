@@ -4,12 +4,13 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.db.session import get_db
 from app.models import Fuente, Material, PrecioHistorico, Presentacion
-from app.schemas import PrecioHistoricoCreate, PrecioHistoricoRead
+from app.schemas import PrecioHistoricoCreate, PrecioHistoricoRead, PuntoSeriePrecioRead
 from app.services.pricing import calcular_precio_normalizado
+from app.services.series import PrecioSerieInput, construir_serie_precios
 
 
 router = APIRouter(tags=["precios historicos"])
@@ -45,6 +46,40 @@ def listar_precios_por_material(
         .order_by(PrecioHistorico.fecha.desc(), PrecioHistorico.id.desc())
     )
     return list(db.scalars(stmt))
+
+
+@router.get("/materiales/{material_id}/serie-precios", response_model=list[PuntoSeriePrecioRead])
+def obtener_serie_precios_material(
+    material_id: int,
+    desde: date | None = None,
+    hasta: date | None = None,
+    db: Session = Depends(get_db),
+):
+    material = db.get(Material, material_id)
+    if material is None:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+
+    stmt = (
+        select(PrecioHistorico)
+        .options(joinedload(PrecioHistorico.fuente))
+        .where(PrecioHistorico.material_id == material_id)
+        .order_by(PrecioHistorico.fecha.asc(), PrecioHistorico.id.asc())
+    )
+    if desde is not None:
+        stmt = stmt.where(PrecioHistorico.fecha >= desde)
+    if hasta is not None:
+        stmt = stmt.where(PrecioHistorico.fecha <= hasta)
+
+    registros = [
+        PrecioSerieInput(
+            fecha=precio.fecha,
+            precio_normalizado=precio.precio_normalizado,
+            unidad_base=material.unidad_base,
+            fuente=precio.fuente.nombre if precio.fuente else None,
+        )
+        for precio in db.scalars(stmt)
+    ]
+    return construir_serie_precios(registros)
 
 
 @router.post("/precios-historicos", response_model=PrecioHistoricoRead, status_code=status.HTTP_201_CREATED)

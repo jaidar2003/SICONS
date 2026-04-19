@@ -1,14 +1,39 @@
 # Base de datos SICONS
 
-Scripts iniciales para PostgreSQL.
+El esquema de PostgreSQL se versiona con Alembic en `db/migrations`.
 
-Con Docker Compose, estos scripts se ejecutan automaticamente la primera vez que se crea el volumen de PostgreSQL.
+## Migraciones
 
-## Orden de ejecucion
+Aplicar hasta la ultima version:
 
 ```bash
-psql "$DATABASE_URL" -f db/001_initial_schema.sql
-psql "$DATABASE_URL" -f db/002_seed_materiales.sql
+.venv/bin/python -m alembic upgrade head
+```
+
+Ver revision actual:
+
+```bash
+.venv/bin/python -m alembic current
+```
+
+Crear una migracion nueva:
+
+```bash
+.venv/bin/python -m alembic revision -m "descripcion_del_cambio"
+```
+
+Crear una migracion autogenerada a partir de modelos SQLAlchemy:
+
+```bash
+.venv/bin/python -m alembic revision --autogenerate -m "descripcion_del_cambio"
+```
+
+## Seed demo
+
+El seed principal esta implementado en Python para poder ejecutarlo desde Docker sin depender de `psql` dentro del contenedor de API:
+
+```bash
+.venv/bin/python -m app.db.seed
 ```
 
 ## Modelo inicial

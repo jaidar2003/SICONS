@@ -20,6 +20,13 @@ docker compose up -d postgres
 docker compose up -d api
 ```
 
+Al arrancar, la API ejecuta:
+
+```bash
+alembic upgrade head
+python -m app.db.seed
+```
+
 4. Verificar que la base esta lista:
 
 ```bash
@@ -32,17 +39,7 @@ docker compose exec postgres pg_isready -U sicons -d sicons
 docker compose exec postgres psql -U sicons -d sicons
 ```
 
-La primera vez que se crea el volumen, PostgreSQL ejecuta automaticamente los scripts de `db/`:
-
-- `001_initial_schema.sql`
-- `002_seed_materiales.sql`
-
-Si cambias esos scripts despues de haber levantado la base, tenes que recrear el volumen para que se ejecuten de nuevo:
-
-```bash
-docker compose down -v
-docker compose up -d postgres
-```
+El esquema se versiona con Alembic. Los datos demo se cargan con un seed idempotente, por lo que correrlo mas de una vez no duplica registros.
 
 ## Conexion
 
@@ -82,8 +79,47 @@ Endpoints iniciales:
 - `GET /precios-historicos`
 - `POST /precios-historicos`
 - `GET /materiales/{material_id}/precios`
+- `GET /materiales/{material_id}/serie-precios`
 
 Al crear un precio historico con `presentacion_id`, la API calcula `precio_normalizado` como `precio_original / cantidad_base`.
+
+El endpoint de serie historica limpia agrupa registros por fecha, calcula promedio diario, equivalencias comerciales para 25 kg y 50 kg, fuentes y variacion porcentual contra el punto anterior:
+
+```bash
+curl "http://localhost:8000/materiales/1/serie-precios?desde=2025-07-01&hasta=2026-03-31"
+```
+
+## Migraciones
+
+Aplicar migraciones:
+
+```bash
+.venv/bin/python -m alembic upgrade head
+```
+
+Ver revision actual:
+
+```bash
+.venv/bin/python -m alembic current
+```
+
+Crear una nueva migracion:
+
+```bash
+.venv/bin/python -m alembic revision -m "descripcion_del_cambio"
+```
+
+Crear una migracion autogenerada desde los modelos:
+
+```bash
+.venv/bin/python -m alembic revision --autogenerate -m "descripcion_del_cambio"
+```
+
+Ejecutar seed demo:
+
+```bash
+.venv/bin/python -m app.db.seed
+```
 
 ## Estructura del backend
 
@@ -96,6 +132,12 @@ app/
 ├── schemas/          # Schemas Pydantic por entidad
 ├── services/         # Logica de negocio reutilizable
 └── main.py           # Ensambla la app FastAPI
+```
+
+```text
+db/
+├── migrations/       # Migraciones Alembic
+└── seed/             # Seeds SQL auxiliares/documentales
 ```
 
 Los tests viven en `tests/` y se ejecutan con:
