@@ -3,6 +3,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://sicons:sicons@localhost:5432/sicons"
+    auth_secret_key: str = "sicons-dev-secret-change-me"
+    auth_token_ttl_minutes: int = 480
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

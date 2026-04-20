@@ -67,6 +67,7 @@ URLs:
 - API: http://localhost:8000
 - Documentacion interactiva: http://localhost:8000/docs
 - Healthcheck: http://localhost:8000/health
+- Frontend: http://localhost:3000
 
 Endpoints iniciales:
 

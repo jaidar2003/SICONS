@@ -6,8 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
+from app.api.dependencies import require_admin
 from app.db.session import get_db
-from app.models import Fuente, Material, PrecioHistorico, Presentacion
+from app.models import Fuente, Material, PrecioHistorico, Presentacion, Usuario
 from app.schemas import PrecioHistoricoCreate, PrecioHistoricoRead, PuntoSeriePrecioRead
 from app.services.pricing import calcular_precio_normalizado
 from app.services.series import PrecioSerieInput, construir_serie_precios
@@ -83,7 +84,11 @@ def obtener_serie_precios_material(
 
 
 @router.post("/precios-historicos", response_model=PrecioHistoricoRead, status_code=status.HTTP_201_CREATED)
-def crear_precio_historico(payload: PrecioHistoricoCreate, db: Session = Depends(get_db)) -> PrecioHistorico:
+def crear_precio_historico(
+    payload: PrecioHistoricoCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_admin),
+) -> PrecioHistorico:
     material = db.get(Material, payload.material_id)
     if material is None:
         raise HTTPException(status_code=404, detail="Material no encontrado")

@@ -1,4 +1,13 @@
 services:
+  frontend:
+    build: ./frontend
+    container_name: sicons-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
   api:
     build: .
     container_name: sicons-api
