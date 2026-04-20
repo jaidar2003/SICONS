@@ -1,90 +1,197 @@
+<p align="center">
+  <img src="frontend/logo.png" alt="SICONS" width="180" />
+</p>
+
 # SICONS
 
-## Desarrollo local con Docker
+SICONS es un sistema de apoyo a la toma de decisiones para la compra de materiales de construccion.
 
-1. Crear la configuracion local:
+La idea no es solo guardar precios, sino ayudar a responder preguntas concretas:
+
+- cuanto aumento un material
+- como comparar precios cuando cambia la presentacion
+- cuanto cuesta realmente por kg, metro o unidad
+- como evoluciono el precio en el tiempo
+- que impacto podria tener comprar ahora o mas adelante
+
+El foco principal esta en el comprador de materiales. El administrador existe para mantener la base de datos limpia y confiable.
+
+## Estado actual
+
+El proyecto ya tiene:
+
+- backend con FastAPI
+- base PostgreSQL con Docker
+- migraciones con Alembic
+- frontend web
+- login con roles
+- carga de precios historicos solo para admin
+- consulta de historial para cliente y admin
+- normalizacion automatica de precios
+- grafico historico
+- filtros por material y periodo
+- datos reales de cemento
+
+## Demo local
+
+Levantar todo:
 
 ```bash
 cp .env.example .env
+docker compose up -d --build
 ```
 
-2. Levantar PostgreSQL:
+URLs principales:
+
+```text
+Frontend: http://localhost:3000
+API:      http://localhost:8000
+Swagger:  http://localhost:8000/docs
+```
+
+Ver estado de los servicios:
 
 ```bash
-docker compose up -d postgres
+docker compose ps
 ```
 
-3. Levantar tambien la API:
+Apagar:
 
 ```bash
-docker compose up -d api
+docker compose down
 ```
 
-Al arrancar, la API ejecuta:
+## Usuarios de prueba
 
-```bash
-alembic upgrade head
-python -m app.db.seed
+Admin:
+
+```text
+usuario: admin
+clave:   admin123
 ```
 
-4. Verificar que la base esta lista:
+Puede:
 
-```bash
-docker compose exec postgres pg_isready -U sicons -d sicons
+- consultar historial
+- ver graficos
+- filtrar datos
+- registrar precios historicos
+
+Cliente:
+
+```text
+usuario: cliente
+clave:   cliente123
 ```
 
-5. Entrar a `psql`:
+Puede:
 
-```bash
-docker compose exec postgres psql -U sicons -d sicons
+- consultar historial
+- ver graficos
+- filtrar datos
+- analizar variaciones
+
+No puede cargar precios.
+
+## Stack
+
+Backend:
+
+- FastAPI
+- SQLAlchemy
+- PostgreSQL
+- Alembic
+- Pydantic
+
+Frontend:
+
+- HTML
+- CSS
+- JavaScript
+- Chart.js
+- Nginx
+
+Infra local:
+
+- Docker Compose
+
+## Conceptos principales
+
+### Material
+
+Representa el producto que se quiere analizar.
+
+Ejemplos:
+
+- Cemento Portland
+- Pastina 6 kg
+- Cano PVC 20 mm x 3 m
+
+### Presentacion
+
+Representa como se vende un material.
+
+Ejemplos:
+
+- Bolsa 25 kg
+- Bolsa 50 kg
+- Cano 3 m
+
+### Precio historico
+
+Guarda el precio real de un material en una fecha determinada.
+
+Incluye:
+
+- material
+- presentacion
+- fuente
+- fecha
+- precio original
+- precio normalizado
+- comprobante
+- observaciones
+
+### Normalizacion
+
+La normalizacion permite comparar precios aunque cambie la presentacion comercial.
+
+Ejemplo:
+
+```text
+Bolsa 25 kg = $ 6.250
+Precio normalizado = 6.250 / 25 = $ 250 por kg
 ```
 
-El esquema se versiona con Alembic. Los datos demo se cargan con un seed idempotente, por lo que correrlo mas de una vez no duplica registros.
+Asi se puede comparar contra una bolsa de 50 kg o contra cualquier otra presentacion.
 
-## Conexion
+## Endpoints utiles
 
-```env
-DATABASE_URL=postgresql://sicons:sicons@localhost:5432/sicons
+Login:
+
+```http
+POST /auth/login
+GET  /auth/me
 ```
 
-## API
+Catalogos:
 
-Con Docker:
-
-```bash
-docker compose up -d api
+```http
+GET  /materiales
+GET  /presentaciones
+GET  /fuentes
 ```
 
-Con la venv local:
+Precios:
 
-```bash
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/uvicorn app.main:app --reload
+```http
+GET  /precios-historicos
+POST /precios-historicos
+GET  /materiales/{material_id}/precios
+GET  /materiales/{material_id}/serie-precios
 ```
 
-URLs:
-
-- API: http://localhost:8000
-- Documentacion interactiva: http://localhost:8000/docs
-- Healthcheck: http://localhost:8000/health
-- Frontend: http://localhost:3000
-
-Endpoints iniciales:
-
-- `GET /materiales`
-- `POST /materiales`
-- `GET /presentaciones`
-- `POST /presentaciones`
-- `GET /fuentes`
-- `POST /fuentes`
-- `GET /precios-historicos`
-- `POST /precios-historicos`
-- `GET /materiales/{material_id}/precios`
-- `GET /materiales/{material_id}/serie-precios`
-
-Al crear un precio historico con `presentacion_id`, la API calcula `precio_normalizado` como `precio_original / cantidad_base`.
-
-El endpoint de serie historica limpia agrupa registros por fecha, calcula promedio diario, equivalencias comerciales para 25 kg y 50 kg, fuentes y variacion porcentual contra el punto anterior:
+Serie historica del cemento:
 
 ```bash
 curl "http://localhost:8000/materiales/1/serie-precios?desde=2025-07-01&hasta=2026-03-31"
@@ -104,45 +211,66 @@ Ver revision actual:
 .venv/bin/python -m alembic current
 ```
 
-Crear una nueva migracion:
+Validar modelos contra migraciones:
 
 ```bash
-.venv/bin/python -m alembic revision -m "descripcion_del_cambio"
+.venv/bin/python -m alembic check
 ```
 
-Crear una migracion autogenerada desde los modelos:
+## Tests
+
+Ejecutar tests:
 
 ```bash
-.venv/bin/python -m alembic revision --autogenerate -m "descripcion_del_cambio"
+.venv/bin/python -m pytest -q
 ```
 
-Ejecutar seed demo:
-
-```bash
-.venv/bin/python -m app.db.seed
-```
-
-## Estructura del backend
+## Estructura
 
 ```text
 app/
-├── api/routes/       # Endpoints HTTP por recurso
-├── core/             # Configuracion de la aplicacion
-├── db/               # Base ORM y sesiones SQLAlchemy
-├── models/           # Modelos SQLAlchemy por entidad
-├── schemas/          # Schemas Pydantic por entidad
-├── services/         # Logica de negocio reutilizable
-└── main.py           # Ensambla la app FastAPI
+├── api/              Endpoints y dependencias HTTP
+├── core/             Configuracion y seguridad
+├── db/               Sesion, seed e importadores
+├── models/           Modelos SQLAlchemy
+├── schemas/          Schemas Pydantic
+├── services/         Logica de negocio
+└── main.py           App FastAPI
+```
+
+```text
+frontend/
+├── index.html
+├── styles.css
+├── app.js
+├── logo.png
+├── pestana.png
+├── Dockerfile
+└── nginx.conf
 ```
 
 ```text
 db/
-├── migrations/       # Migraciones Alembic
-└── seed/             # Seeds SQL auxiliares/documentales
+├── migrations/
+└── seed/
 ```
 
-Los tests viven en `tests/` y se ejecutan con:
+## Vision del producto
 
-```bash
-.venv/bin/python -m pytest
+SICONS apunta a convertirse en una herramienta de inteligencia de compras para obras chicas y medianas.
+
+La evolucion natural del proyecto es:
+
+1. ordenar datos historicos
+2. normalizar precios
+3. analizar variaciones
+4. predecir precios futuros
+5. estimar impacto economico
+6. comparar comprar ahora contra comprar despues
+
+En una frase:
+
+```text
+SICONS ayuda a anticipar aumentos de materiales y decidir mejor cuando comprar.
 ```
+
