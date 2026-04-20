@@ -4,5 +4,5 @@
 .pytest_cache/
 __pycache__/
 *.pyc
-docs/CONTEXT.md
+CONTEXT.md
 frontend/node_modules/
