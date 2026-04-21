@@ -159,6 +159,34 @@ shared -> infraestructura comun reutilizable
 
 Los paquetes historicos `app.api`, `app.models`, `app.schemas`, `app.services`, `app.core` y `app.db` quedan como compatibilidad temporal y reexportan desde la nueva estructura.
 
+El frontend usa JavaScript vanilla modular por feature. No requiere build step.
+
+```text
+frontend/
+  app.js
+  src/
+    app.js
+    features/
+      admin/
+      auth/
+      catalog/
+      pricing/
+    shared/
+      api/
+      state/
+      ui/
+```
+
+Reglas del frontend:
+
+```text
+frontend/src/app.js compone la aplicacion.
+features/* contiene UI y API propias de cada dominio.
+shared/* contiene HTTP, estado global minimo, elementos DOM y formatters.
+features no deben depender entre si salvo por flujos explicitos de composicion.
+shared no importa features.
+```
+
 ## Conceptos principales
 
 ### Material
