@@ -21,3 +21,11 @@ class PrecioHistoricoRead(PrecioHistoricoCreate):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PrecioHistoricoRangoRead(BaseModel):
+    desde: date | None
+    hasta: date | None
+    hoy: date
+    tiene_fechas_futuras: bool
+    hasta_real: date | None

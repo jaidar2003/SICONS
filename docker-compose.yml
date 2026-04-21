@@ -25,6 +25,7 @@ services:
       sh -c "alembic upgrade head &&
       python -m app.db.seed &&
       python -m app.db.import_cemento_facturas &&
+      python -m app.db.import_sika_pastina &&
       uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app"
 
   postgres:

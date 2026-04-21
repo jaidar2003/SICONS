@@ -124,8 +124,7 @@ Representa el producto que se quiere analizar.
 Ejemplos:
 
 - Cemento Portland
-- Pastina 6 kg
-- Cano PVC 20 mm x 3 m
+- Pastina Klaukol
 
 ### Presentacion
 
@@ -273,4 +272,3 @@ En una frase:
 ```text
 SICONS ayuda a anticipar aumentos de materiales y decidir mejor cuando comprar.
 ```
-
