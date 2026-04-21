@@ -1,31 +1,4 @@
-from datetime import date, datetime
-from decimal import Decimal
-
-from pydantic import BaseModel, ConfigDict, Field
+from app.modules.pricing.interfaces.schemas import PrecioHistoricoCreate, PrecioHistoricoRangoRead, PrecioHistoricoRead
 
 
-class PrecioHistoricoCreate(BaseModel):
-    material_id: int
-    presentacion_id: int | None = None
-    fuente_id: int | None = None
-    fecha: date
-    precio_original: Decimal = Field(ge=0, decimal_places=2)
-    moneda: str = Field(default="ARS", min_length=1, max_length=10)
-    numero_comprobante: str | None = Field(default=None, max_length=50)
-    observaciones: str | None = None
-
-
-class PrecioHistoricoRead(PrecioHistoricoCreate):
-    id: int
-    precio_normalizado: Decimal
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class PrecioHistoricoRangoRead(BaseModel):
-    desde: date | None
-    hasta: date | None
-    hoy: date
-    tiene_fechas_futuras: bool
-    hasta_real: date | None
+__all__ = ["PrecioHistoricoCreate", "PrecioHistoricoRangoRead", "PrecioHistoricoRead"]

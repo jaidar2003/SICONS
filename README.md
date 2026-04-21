@@ -115,6 +115,50 @@ Infra local:
 
 - Docker Compose
 
+## Arquitectura
+
+El backend sigue un monolito modular con arquitectura hexagonal incremental.
+
+```text
+app/
+  modules/
+    auth/
+    catalog/
+    pricing/
+    health/
+
+  shared/
+    config/
+    database/
+    security/
+```
+
+Cada modulo se organiza por capas:
+
+```text
+domain/
+  Reglas puras del negocio.
+
+application/
+  Casos de uso y orquestacion.
+
+infrastructure/
+  Modelos SQLAlchemy, repositorios y dependencias tecnicas.
+
+interfaces/
+  Rutas FastAPI, dependencias HTTP y schemas Pydantic.
+```
+
+La regla de dependencias es:
+
+```text
+interfaces -> application -> domain
+infrastructure -> application/domain
+shared -> infraestructura comun reutilizable
+```
+
+Los paquetes historicos `app.api`, `app.models`, `app.schemas`, `app.services`, `app.core` y `app.db` quedan como compatibilidad temporal y reexportan desde la nueva estructura.
+
 ## Conceptos principales
 
 ### Material

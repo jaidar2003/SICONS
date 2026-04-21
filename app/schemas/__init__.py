@@ -1,9 +1,6 @@
-from app.schemas.auth import LoginRequest, LoginResponse, UsuarioRead
-from app.schemas.fuente import FuenteCreate, FuenteRead
-from app.schemas.material import MaterialCreate, MaterialRead
-from app.schemas.precio_historico import PrecioHistoricoCreate, PrecioHistoricoRangoRead, PrecioHistoricoRead
-from app.schemas.presentacion import PresentacionCreate, PresentacionRead
-from app.schemas.serie_precio import PuntoSeriePrecioRead
+from app.modules.auth.interfaces.schemas import LoginRequest, LoginResponse, UsuarioRead
+from app.modules.catalog.interfaces.schemas import FuenteCreate, FuenteRead, MaterialCreate, MaterialRead, PresentacionCreate, PresentacionRead
+from app.modules.pricing.interfaces.schemas import PrecioHistoricoCreate, PrecioHistoricoRangoRead, PrecioHistoricoRead, PuntoSeriePrecioRead
 
 
 __all__ = [

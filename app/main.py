@@ -1,7 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, fuentes, health, materiales, precios_historicos, presentaciones
+from app.modules.auth.interfaces import routes as auth
+from app.modules.catalog.interfaces import fuentes, materiales, presentaciones
+from app.modules.health.interfaces import routes as health
+from app.modules.pricing.interfaces import routes as precios_historicos
 
 
 def create_app() -> FastAPI:

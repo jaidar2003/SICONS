@@ -1,7 +1,4 @@
-from decimal import Decimal
+from app.modules.pricing.domain.rules import calcular_precio_normalizado
 
 
-def calcular_precio_normalizado(precio_original: Decimal, cantidad_base: Decimal) -> Decimal:
-    if cantidad_base <= 0:
-        raise ValueError("cantidad_base debe ser mayor a cero")
-    return precio_original / cantidad_base
+__all__ = ["calcular_precio_normalizado"]
