@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="frontend/logo.png" alt="SICONS" width="180" />
+ <img src="frontend/logo.png" alt="SICONS" width="180" />
 </p>
 
 # SICONS
@@ -45,8 +45,8 @@ URLs principales:
 
 ```text
 Frontend: http://localhost:3000
-API:      http://localhost:8000
-Swagger:  http://localhost:8000/docs
+API: http://localhost:8000
+Swagger: http://localhost:8000/docs
 ```
 
 Ver estado de los servicios:
@@ -67,7 +67,7 @@ Admin:
 
 ```text
 usuario: admin
-clave:   admin123
+clave: admin123
 ```
 
 Puede:
@@ -81,7 +81,7 @@ Cliente:
 
 ```text
 usuario: cliente
-clave:   cliente123
+clave: cliente123
 ```
 
 Puede:
@@ -105,9 +105,10 @@ Backend:
 
 Frontend:
 
-- HTML
-- CSS
-- JavaScript
+- Vite
+- React
+- Material UI
+- Tailwind CSS
 - Chart.js
 - Nginx
 
@@ -121,32 +122,32 @@ El backend sigue un monolito modular con arquitectura hexagonal incremental.
 
 ```text
 app/
-  modules/
-    auth/
-    catalog/
-    pricing/
-    health/
+ modules/
+ auth/
+ catalog/
+ pricing/
+ health/
 
-  shared/
-    config/
-    database/
-    security/
+ shared/
+ config/
+ database/
+ security/
 ```
 
 Cada modulo se organiza por capas:
 
 ```text
 domain/
-  Reglas puras del negocio.
+ Reglas puras del negocio.
 
 application/
-  Casos de uso y orquestacion.
+ Casos de uso y orquestacion.
 
 infrastructure/
-  Modelos SQLAlchemy, repositorios y dependencias tecnicas.
+ Modelos SQLAlchemy, repositorios y dependencias tecnicas.
 
 interfaces/
-  Rutas FastAPI, dependencias HTTP y schemas Pydantic.
+ Rutas FastAPI, dependencias HTTP y schemas Pydantic.
 ```
 
 La regla de dependencias es:
@@ -159,30 +160,38 @@ shared -> infraestructura comun reutilizable
 
 Los paquetes historicos `app.api`, `app.models`, `app.schemas`, `app.services`, `app.core` y `app.db` quedan como compatibilidad temporal y reexportan desde la nueva estructura.
 
-El frontend usa JavaScript vanilla modular por feature. No requiere build step.
+El frontend usa Vite + React, con componentes organizados por feature. Material UI aporta componentes y tema visual; Tailwind queda como capa utilitaria de layout/spacing.
 
 ```text
 frontend/
-  app.js
-  src/
-    app.js
-    features/
-      admin/
-      auth/
-      catalog/
-      pricing/
-    shared/
-      api/
-      state/
-      ui/
+ package.json
+ vite.config.js
+ tailwind.config.js
+ index.html
+ src/
+ main.jsx
+ app/
+ App.jsx
+ config.js
+ theme.js
+ features/
+ admin/
+ auth/
+ catalog/
+ layout/
+ pricing/
+ shared/
+ api/
+ components/
+ utils/
 ```
 
 Reglas del frontend:
 
 ```text
-frontend/src/app.js compone la aplicacion.
-features/* contiene UI y API propias de cada dominio.
-shared/* contiene HTTP, estado global minimo, elementos DOM y formatters.
+frontend/src/app/App.jsx compone la aplicacion.
+features/* contiene componentes y API propias de cada dominio.
+shared/* contiene cliente HTTP, componentes transversales y formatters.
 features no deben depender entre si salvo por flujos explicitos de composicion.
 shared no importa features.
 ```
@@ -196,7 +205,7 @@ Representa el producto que se quiere analizar.
 Ejemplos:
 
 - Cemento Portland
-- Pastina Klaukol
+- Pastina 
 
 ### Presentacion
 
@@ -242,24 +251,24 @@ Login:
 
 ```http
 POST /auth/login
-GET  /auth/me
+GET /auth/me
 ```
 
 Catalogos:
 
 ```http
-GET  /materiales
-GET  /presentaciones
-GET  /fuentes
+GET /materiales
+GET /presentaciones
+GET /fuentes
 ```
 
 Precios:
 
 ```http
-GET  /precios-historicos
+GET /precios-historicos
 POST /precios-historicos
-GET  /materiales/{material_id}/precios
-GET  /materiales/{material_id}/serie-precios
+GET /materiales/{material_id}/precios
+GET /materiales/{material_id}/serie-precios
 ```
 
 Serie historica del cemento:
@@ -267,6 +276,14 @@ Serie historica del cemento:
 ```bash
 curl "http://localhost:8000/materiales/1/serie-precios?desde=2025-07-01&hasta=2026-03-31"
 ```
+
+Entrenamiento inicial con Prophet sobre la serie mensual del cemento:
+
+```bash
+.venv/bin/python -m app.train_prophet_cemento
+```
+
+El script arma la serie mensual, la convierte al formato `ds`/`y` y hace un split cronologico `train`/`test` del 80/20.
 
 ## Migraciones
 
@@ -300,13 +317,13 @@ Ejecutar tests:
 
 ```text
 app/
-├── api/              Endpoints y dependencias HTTP
-├── core/             Configuracion y seguridad
-├── db/               Sesion, seed e importadores
-├── models/           Modelos SQLAlchemy
-├── schemas/          Schemas Pydantic
-├── services/         Logica de negocio
-└── main.py           App FastAPI
+├── api/ Endpoints y dependencias HTTP
+├── core/ Configuracion y seguridad
+├── db/ Sesion, seed e importadores
+├── models/ Modelos SQLAlchemy
+├── schemas/ Schemas Pydantic
+├── services/ Logica de negocio
+└── main.py App FastAPI
 ```
 
 ```text

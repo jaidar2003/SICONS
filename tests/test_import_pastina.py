@@ -1,0 +1,88 @@
+from datetime import date
+from decimal import Decimal
+from types import SimpleNamespace
+
+from app.db.import_pastina import grouped_prices, normalize_invoice, parse_date, parse_decimal, upsert_precio
+from app.models import PrecioHistorico
+
+
+class FakeScalarDb:
+    def __init__(self, existing=None) -> None:
+        self.existing = existing
+        self.added = None
+
+    def scalar(self, _stmt):
+        return self.existing
+
+    def add(self, value) -> None:
+        self.added = value
+
+
+def test_proveedor_parsers_normalizan_fecha_importe_y_comprobante() -> None:
+    assert parse_date("13/02/2026") == date(2026, 2, 13)
+    assert parse_date("04-11-24") == date(2024, 11, 4)
+    assert parse_decimal("$2.213,31") == Decimal("2213.31")
+    assert normalize_invoice("63-16764") == "0063-00016764"
+    assert normalize_invoice("0063-00003809") == "0063-00003809"
+
+
+def test_grouped_prices_consolida_filas_por_factura() -> None:
+    prices, skipped = grouped_prices()
+
+    assert len(prices) == 16
+    assert skipped == 24
+    first = prices[0]
+    assert first.numero_comprobante == "0063-00016764"
+    assert first.fecha == date(2026, 2, 13)
+    assert first.precio_sin_iva == Decimal("2213.31")
+    assert first.precio_original == Decimal("2678.11")
+    assert first.precio_normalizado == Decimal("2678.1100")
+    assert first.articulos == ("PASTINA BLENDA X 1 KG BOX", "PASTINA TALCO X 1 KG BOX")
+
+
+def test_upsert_precio_inserta_si_no_existe() -> None:
+    price = grouped_prices()[0][0]
+    db = FakeScalarDb()
+
+    result = upsert_precio(
+        db,
+        precio=price,
+        material=SimpleNamespace(id=4),
+        presentacion=SimpleNamespace(id=7),
+        fuente=SimpleNamespace(id=9),
+    )
+
+    assert result == "inserted"
+    assert isinstance(db.added, PrecioHistorico)
+    assert db.added.material_id == 4
+    assert db.added.presentacion_id == 7
+    assert db.added.fuente_id == 9
+    assert db.added.numero_comprobante == "0063-00016764"
+
+
+def test_upsert_precio_no_cambia_registro_identico() -> None:
+    price = grouped_prices()[0][0]
+    existing = SimpleNamespace(
+        material_id=4,
+        presentacion_id=7,
+        fecha=price.fecha,
+        precio_original=price.precio_original,
+        precio_normalizado=price.precio_normalizado,
+        moneda="ARS",
+        observaciones=(
+            "Importado desde carga manual Proveedor Pastina 1 kg - Proveedor - "
+            "Px lista s/IVA 2213.31 - Articulos: PASTINA BLENDA X 1 KG BOX; PASTINA TALCO X 1 KG BOX"
+        ),
+    )
+    db = FakeScalarDb(existing=existing)
+
+    result = upsert_precio(
+        db,
+        precio=price,
+        material=SimpleNamespace(id=4),
+        presentacion=SimpleNamespace(id=7),
+        fuente=SimpleNamespace(id=9),
+    )
+
+    assert result == "unchanged"
+    assert db.added is None
