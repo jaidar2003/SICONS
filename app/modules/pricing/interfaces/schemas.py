@@ -70,3 +70,38 @@ class ForecastResponseRead(BaseModel):
     ultimo_precio_observado: Decimal
     metricas: ForecastMetricasRead
     puntos: list[ForecastPuntoRead]
+
+
+class MaterialCriticidadItemCreate(BaseModel):
+    material_id: int
+    cantidad_requerida: Decimal = Field(gt=0, decimal_places=4)
+
+
+class MaterialCriticidadCreate(BaseModel):
+    horizonte_meses: int = Field(default=3, ge=1, le=12)
+    alpha: Decimal = Field(default=Decimal("0.50"), ge=0, decimal_places=2)
+    beta: Decimal = Field(default=Decimal("0.50"), ge=0, decimal_places=2)
+    materiales: list[MaterialCriticidadItemCreate] = Field(min_length=1)
+
+
+class MaterialCriticidadRead(BaseModel):
+    material_id: int
+    material_nombre: str
+    unidad_base: str
+    cantidad_requerida: Decimal
+    precio_actual_normalizado: Decimal
+    precio_proyectado_normalizado: Decimal
+    impacto_absoluto: Decimal
+    variacion_esperada_porcentual: Decimal
+    impacto_normalizado: Decimal
+    variacion_normalizada: Decimal
+    criticidad: Decimal
+    nivel_criticidad: str
+    explicacion: str
+
+
+class MaterialCriticidadResponseRead(BaseModel):
+    horizonte_meses: int
+    alpha: Decimal
+    beta: Decimal
+    materiales: list[MaterialCriticidadRead]

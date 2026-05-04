@@ -11,6 +11,7 @@ from app.modules.auth.infrastructure.models import Usuario
 from app.modules.auth.interfaces.dependencies import require_admin
 from app.modules.pricing.application.backtesting import construir_folds_temporales
 from app.modules.pricing.application.forecasting import BEST_PROPHET_CONFIG, construir_dataset_prophet, generar_fechas_mensuales, inicio_mes_siguiente
+from app.modules.pricing.application.priorities import MaterialPriorityInput, priorizar_materiales_criticos
 from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion
 from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual, construir_serie_precios
 from app.modules.pricing.domain.rules import calcular_precio_normalizado
@@ -19,6 +20,9 @@ from app.modules.pricing.interfaces.schemas import (
     ForecastMetricasRead,
     ForecastPuntoRead,
     ForecastResponseRead,
+    MaterialCriticidadCreate,
+    MaterialCriticidadRead,
+    MaterialCriticidadResponseRead,
     PrecioHistoricoCreate,
     PrecioHistoricoRangoRead,
     PrecioHistoricoRead,
@@ -217,6 +221,24 @@ def _pronosticar_futuro(pd, Prophet, dataset, regresores_df, horizonte_meses: in
     return puntos
 
 
+def _forecast_material(
+    material: Material,
+    horizonte_meses: int,
+    pd,
+    Prophet,
+    db: Session,
+) -> tuple[list, ForecastMetricasRead, list[ForecastPuntoRead]]:
+    puntos = _serie_mensual_material(material, db)
+    dataset = construir_dataset_prophet(puntos, objetivo="precio_promedio_normalizado")
+    if len(dataset) < 24 + horizonte_meses:
+        raise HTTPException(status_code=422, detail=f"No hay suficientes puntos mensuales para generar el forecast de {material.nombre}")
+
+    regresores_df = _cargar_regresores_mensuales(pd)
+    metricas = _backtesting_forecast(pd, Prophet, dataset, regresores_df, horizonte_meses)
+    forecast = _pronosticar_futuro(pd, Prophet, dataset, regresores_df, horizonte_meses, material.unidad_base)
+    return dataset, metricas, forecast
+
+
 @router.get("/precios-historicos/rango", response_model=PrecioHistoricoRangoRead)
 def obtener_rango_precios_historicos(db: Session = Depends(get_db)) -> PrecioHistoricoRangoRead:
     hoy = date.today()
@@ -318,16 +340,9 @@ def obtener_forecast_material(
     if material is None:
         raise HTTPException(status_code=404, detail="Material no encontrado")
 
-    puntos = _serie_mensual_material(material, db)
-    dataset = construir_dataset_prophet(puntos, objetivo="precio_promedio_normalizado")
-    if len(dataset) < 24 + horizonte_meses:
-        raise HTTPException(status_code=422, detail="No hay suficientes puntos mensuales para generar el forecast solicitado")
-
     cmdstanpy, pd, Prophet, CmdStanPyBackend, IStanBackend = _importar_dependencias_forecast()
     _configurar_cmdstan(cmdstanpy, CmdStanPyBackend, IStanBackend)
-    regresores_df = _cargar_regresores_mensuales(pd)
-    metricas = _backtesting_forecast(pd, Prophet, dataset, regresores_df, horizonte_meses)
-    forecast = _pronosticar_futuro(pd, Prophet, dataset, regresores_df, horizonte_meses, material.unidad_base)
+    dataset, metricas, forecast = _forecast_material(material, horizonte_meses, pd, Prophet, db)
 
     return ForecastResponseRead(
         material_id=material.id,
@@ -340,6 +355,45 @@ def obtener_forecast_material(
         ultimo_precio_observado=Decimal(f"{dataset[-1].y:.2f}"),
         metricas=metricas,
         puntos=forecast,
+    )
+
+
+@router.post("/materiales/criticidad", response_model=MaterialCriticidadResponseRead)
+def priorizar_materiales_por_criticidad(
+    payload: MaterialCriticidadCreate,
+    db: Session = Depends(get_db),
+) -> MaterialCriticidadResponseRead:
+    if payload.alpha == 0 and payload.beta == 0:
+        raise HTTPException(status_code=422, detail="alpha y beta no pueden ser ambos cero")
+
+    cmdstanpy, pd, Prophet, CmdStanPyBackend, IStanBackend = _importar_dependencias_forecast()
+    _configurar_cmdstan(cmdstanpy, CmdStanPyBackend, IStanBackend)
+
+    materiales_prioridad: list[MaterialPriorityInput] = []
+    for item in payload.materiales:
+        material = db.get(Material, item.material_id)
+        if material is None:
+            raise HTTPException(status_code=404, detail=f"Material no encontrado: {item.material_id}")
+
+        dataset, _, forecast = _forecast_material(material, payload.horizonte_meses, pd, Prophet, db)
+        punto_objetivo = forecast[-1]
+        materiales_prioridad.append(
+            MaterialPriorityInput(
+                material_id=material.id,
+                material_nombre=material.nombre,
+                unidad_base=material.unidad_base,
+                cantidad_requerida=item.cantidad_requerida,
+                precio_actual_normalizado=Decimal(f"{dataset[-1].y:.2f}"),
+                precio_proyectado_normalizado=punto_objetivo.precio_proyectado,
+            )
+        )
+
+    ranking = priorizar_materiales_criticos(materiales_prioridad, alpha=payload.alpha, beta=payload.beta)
+    return MaterialCriticidadResponseRead(
+        horizonte_meses=payload.horizonte_meses,
+        alpha=payload.alpha,
+        beta=payload.beta,
+        materiales=[MaterialCriticidadRead(**resultado.__dict__) for resultado in ranking],
     )
 
 

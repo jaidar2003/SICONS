@@ -150,3 +150,31 @@ Cada decision incluye:
 - Justificacion: `OR-Tools` resulta mas adecuado cuando aparecen restricciones logisticas, multiples proveedores, calendarizacion, asignacion o decisiones combinatorias de mayor escala. Ese no es todavia el problema principal del MVP.
 - Impacto en el sistema: la arquitectura puede evolucionar por etapas, manteniendo primero una solucion simple y defendible, y escalando solo cuando el alcance lo exija.
 - Limitaciones o trabajo futuro: si la epica 5 incorpora restricciones logisticas o de calendarizacion, sera necesario reevaluar si `PuLP` sigue siendo suficiente o si corresponde migrar a herramientas mas amplias.
+
+## DT-11
+
+- Fecha aproximada: mayo de 2026
+- Area: producto y toma de decisiones
+- Decision tomada: incorporar una capa de decision economica sobre el forecast como base de la Epica 5.
+- Problema que resuelve: permite pasar de la simple proyeccion de precios a recomendaciones de accion concretas sobre cuando comprar, que priorizar y como asignar presupuesto.
+- Alternativas consideradas:
+  - limitar el sistema a mostrar solo precios actuales y proyectados;
+  - incorporar directamente un solver sin reglas intermedias;
+  - usar desde el inicio herramientas mas amplias de optimizacion combinatoria.
+- Justificacion: `Prophet` ya cumple el rol de proveedor de precios futuros. Sobre esa base, resulta metodologicamente mas ordenado incorporar primero reglas simples para `HU24`, `HU21` y `HU22`, y reservar `PuLP` para `HU23`, donde aparece de forma explicita la restriccion presupuestaria.
+- Impacto en el sistema: la arquitectura evoluciona en dos capas complementarias, una de forecasting y otra de decision economica, lo que facilita explicar, validar e implementar cada responsabilidad por separado.
+- Limitaciones o trabajo futuro: si el problema incorpora restricciones logisticas, multiples proveedores o decisiones combinatorias mas complejas, debera reevaluarse el uso de `OR-Tools` como alternativa futura.
+
+## DT-12
+
+- Fecha aproximada: mayo de 2026
+- Area: implementacion de decision economica
+- Decision tomada: implementar `HU24` como primera capa de priorizacion de materiales criticos.
+- Problema que resuelve: permite rankear materiales segun urgencia de compra antes de incorporar recomendaciones de compra o optimizacion con restriccion presupuestaria.
+- Alternativas consideradas:
+  - avanzar directamente a `HU21` sin una capa previa de criticidad;
+  - incorporar un solver desde el inicio;
+  - resolver la priorizacion solo de forma cualitativa y no cuantificada.
+- Justificacion: `HU24` consume precios actuales y proyectados ya provistos por el modulo de pricing/forecasting, no modifica la logica de `Prophet` y permite validar una capa inicial de decision economica sin introducir aun complejidad de optimizacion. La criticidad se definio combinando variacion esperada normalizada e impacto absoluto normalizado, evitando sumar directamente porcentajes con montos monetarios.
+- Impacto en el sistema: se incorpora una capacidad nueva de ranking de materiales criticos, con reglas testeables, explicacion funcional y base metodologica reutilizable para `HU21`, `HU22` y `HU23`.
+- Limitaciones o trabajo futuro: `PuLP` se mantiene reservado para `HU23`, cuando aparezca formalmente la restriccion presupuestaria. La capa actual prioriza materiales, pero todavia no recomienda estrategias completas de compra.
