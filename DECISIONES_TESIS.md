@@ -1,0 +1,152 @@
+# DECISIONES_TESIS
+
+Este documento registra decisiones tomadas durante el desarrollo de `SICONS`. No reemplaza al `README.md` ni a la documentacion tecnica, sino que funciona como respaldo metodologico para justificar el diseno del sistema y facilitar la redaccion posterior del informe de tesis.
+
+## Formato de registro
+
+Cada decision incluye:
+
+- codigo de decision;
+- fecha aproximada;
+- area;
+- decision tomada;
+- problema que resuelve;
+- alternativas consideradas;
+- justificacion;
+- impacto en el sistema;
+- limitaciones o trabajo futuro.
+
+---
+
+## DT-01
+
+- Fecha aproximada: abril de 2026
+- Area: modelado de datos y forecasting
+- Decision tomada: usar `precio_promedio_normalizado`, expresado en `ARS/kg`, como variable principal del forecast de cemento.
+- Problema que resuelve: evita inconsistencias cuando un mismo material aparece relevado en distintas presentaciones comerciales y permite construir una serie temporal comparable.
+- Alternativas consideradas:
+  - trabajar con precio por bolsa u otra presentacion comercial;
+  - modelar series separadas por presentacion.
+- Justificacion: la normalizacion por unidad base permite comparar observaciones heterogeneas en una misma escala economica y reduce el riesgo de que cambios de presentacion distorsionen la serie principal.
+- Impacto en el sistema: la capa de forecasting, el backtesting y la proyeccion economica trabajan sobre una unica unidad de analisis metodologicamente consistente.
+- Limitaciones o trabajo futuro: si en el futuro se incorporan materiales cuya unidad base no sea `kg`, habra que mantener el mismo criterio de normalizacion sobre la unidad comparable correspondiente.
+
+## DT-02
+
+- Fecha aproximada: abril de 2026
+- Area: visualizacion y experiencia de usuario
+- Decision tomada: usar equivalencias de bolsas de `25 kg` y `50 kg` solo para visualizacion y comparacion comercial.
+- Problema que resuelve: permite comunicar resultados de forma mas intuitiva para usuarios habituados a comprar por bolsa, sin comprometer la consistencia metodologica del modelo.
+- Alternativas consideradas:
+  - mostrar unicamente precios normalizados por `kg`;
+  - usar el precio por bolsa como variable principal del modelo.
+- Justificacion: las equivalencias comerciales mejoran la interpretabilidad para el usuario, pero no deben reemplazar a la variable metodologicamente correcta del forecast.
+- Impacto en el sistema: el frontend muestra equivalencias comerciales, mientras que el backend y la evaluacion del modelo conservan `ARS/kg` como referencia principal.
+- Limitaciones o trabajo futuro: si se agregan nuevas presentaciones relevantes, deberan incorporarse como equivalencias de visualizacion sin alterar la variable base del forecasting.
+
+## DT-03
+
+- Fecha aproximada: abril de 2026
+- Area: metodologia de forecasting
+- Decision tomada: usar `Prophet` como modelo principal de forecasting para la proyeccion de precios de cemento.
+- Problema que resuelve: provee una base reproducible para generar proyecciones temporales y comparar variantes con y sin regresores externos.
+- Alternativas consideradas:
+  - baselines simples como promedio movil;
+  - otros enfoques de series temporales no incorporados al MVP.
+- Justificacion: `Prophet` ofrece una implementacion accesible, interpretable y adecuada para experimentacion incremental, ademas de integrarse de forma directa con el stack Python del proyecto.
+- Impacto en el sistema: el flujo productivo de forecast y los experimentos metodologicos comparten una misma familia de modelos, lo que simplifica comparaciones y mantenimiento.
+- Limitaciones o trabajo futuro: `Prophet` no garantiza por si solo el mejor desempeno frente a todos los baselines; su uso debe seguir validandose con backtesting temporal.
+
+## DT-04
+
+- Fecha aproximada: mayo de 2026
+- Area: seleccion de modelo
+- Decision tomada: seleccionar `prophet_oficial_mayorista` como modelo preferido actual por su desempeno en backtesting.
+- Problema que resuelve: fija un modelo productivo vigente sobre una base cuantitativa y evita cambios arbitrarios entre variantes experimentales.
+- Alternativas consideradas:
+  - `prophet_oficial`;
+  - variantes con `IPC`;
+  - variantes con otros regresores externos.
+- Justificacion: en el estado actual del proyecto, `prophet_oficial_mayorista` obtuvo el mejor resultado de backtesting documentado para los horizontes analizados, con especial robustez a `3 meses`.
+- Impacto en el sistema: el sistema expone una decision metodologica concreta y mantiene una separacion clara entre modelo productivo y variantes experimentales.
+- Limitaciones o trabajo futuro: la seleccion no se considera definitiva; si nuevas variantes superan consistentemente al modelo actual, la decision debera revisarse.
+
+## DT-05
+
+- Fecha aproximada: mayo de 2026
+- Area: validacion y metricas
+- Decision tomada: usar `MAPE` como metrica principal de comparacion y `MAE`, `folds` y efectividad informal como soporte.
+- Problema que resuelve: establece un criterio cuantitativo central para comparar modelos y evita evaluaciones ambiguas.
+- Alternativas consideradas:
+  - priorizar `MAE` como metrica principal;
+  - usar una unica metrica resumen;
+  - basar la comparacion en apreciacion visual.
+- Justificacion: `MAPE` permite interpretar el error relativo en terminos porcentuales, lo cual facilita la comparacion entre horizontes y variantes. `MAE`, cantidad de `folds` y efectividad informal complementan esa lectura.
+- Impacto en el sistema: la UI, la documentacion y la evaluacion metodologica quedan alineadas alrededor de un criterio principal comun.
+- Limitaciones o trabajo futuro: la efectividad informal se usa solo como apoyo comunicacional y no debe reemplazar a `MAPE` en decisiones metodologicas.
+
+## DT-06
+
+- Fecha aproximada: mayo de 2026
+- Area: criterio metodologico
+- Decision tomada: no elegir modelos unicamente por la plausibilidad visual del forecast.
+- Problema que resuelve: evita seleccionar variantes que parecen razonables en el grafico, pero que no sostienen su desempeno al evaluarse temporalmente.
+- Alternativas consideradas:
+  - priorizar la forma visual de la curva proyectada;
+  - ajustar el modelo buscando trayectorias economicamente intuitivas sin validacion suficiente.
+- Justificacion: una proyeccion visualmente plausible no implica mejor capacidad predictiva. La eleccion del modelo debe apoyarse en backtesting temporal y metricas consistentes.
+- Impacto en el sistema: fortalece la defendibilidad metodologica del proyecto y reduce el riesgo de sobreajuste narrativo.
+- Limitaciones o trabajo futuro: la plausibilidad visual sigue siendo una verificacion cualitativa util, pero subordinada a la validacion cuantitativa.
+
+## DT-07
+
+- Fecha aproximada: mayo de 2026
+- Area: experimentacion con regresores
+- Decision tomada: mantener las variantes con `IPC` como experimentales mientras no superen en backtesting al modelo principal.
+- Problema que resuelve: evita promover a produccion variantes que agregan complejidad metodologica sin demostrar una mejora consistente.
+- Alternativas consideradas:
+  - incorporar `IPC` al flujo productivo por su atractivo interpretativo;
+  - usar `IPC` como regresor fijo por criterio economico.
+- Justificacion: las pruebas realizadas muestran que sumar `IPC` no garantiza una mejora respecto del modelo preferido actual y, en algunos casos, empeora el resultado.
+- Impacto en el sistema: el pipeline productivo se mantiene estable y las variantes con `IPC` quedan acotadas al espacio de experimentacion.
+- Limitaciones o trabajo futuro: si en futuras pruebas `IPC` aporta mejoras consistentes y reproducibles, podra reevaluarse su incorporacion.
+
+## DT-08
+
+- Fecha aproximada: mayo de 2026
+- Area: producto y capa de negocio
+- Decision tomada: resolver la epica de impacto economico como una capa deterministica construida sobre los forecasts ya generados.
+- Problema que resuelve: permite estimar costos futuros, comparar compra actual versus compra futura y agregar escenarios economicos sin introducir un segundo modelo predictivo.
+- Alternativas consideradas:
+  - entrenar un modelo especifico para costo de obra;
+  - incorporar optimizacion antes de resolver calculos basicos de impacto.
+- Justificacion: en esta etapa, el problema principal consiste en trasladar precios proyectados a decisiones economicas simples. Eso puede resolverse con reglas y calculos deterministas sobre la salida del forecast.
+- Impacto en el sistema: las epicas de proyeccion de costos reutilizan `Prophet` como proveedor de precio futuro unitario y agregan una capa separada de calculo economico.
+- Limitaciones o trabajo futuro: esta capa no optimiza decisiones bajo restricciones complejas; solo cuantifica escenarios e impacto presupuestario.
+
+## DT-09
+
+- Fecha aproximada: mayo de 2026
+- Area: optimizacion de compras
+- Decision tomada: evaluar `PuLP` como primera herramienta de optimizacion para la epica 5.
+- Problema que resuelve: brinda una forma clara y defendible de modelar decisiones de compra bajo restricciones de presupuesto, cantidades requeridas y criticidad de materiales.
+- Alternativas consideradas:
+  - implementar reglas fijas sin solver;
+  - incorporar directamente `OR-Tools`;
+  - postergar totalmente la capa de optimizacion.
+- Justificacion: `PuLP` se adapta bien a problemas iniciales de programacion lineal o entera mixta, mantiene baja la complejidad de implementacion y facilita la explicacion metodologica en tesis.
+- Impacto en el sistema: permite proyectar una capa de decision por encima del forecast sin reemplazar el modelo de precios ni alterar la logica actual de `Prophet`.
+- Limitaciones o trabajo futuro: antes de implementar optimizacion completa, deben definirse con precision las reglas de negocio, variables de decision y restricciones del problema.
+
+## DT-10
+
+- Fecha aproximada: mayo de 2026
+- Area: evolucion futura de optimizacion
+- Decision tomada: reservar `OR-Tools` como alternativa futura para problemas combinatorios mas complejos.
+- Problema que resuelve: evita sobredimensionar la solucion actual y deja abierta una ruta de evolucion si el problema de compra crece en complejidad.
+- Alternativas consideradas:
+  - adoptar `OR-Tools` desde el inicio;
+  - limitar permanentemente la optimizacion a modelos lineales simples.
+- Justificacion: `OR-Tools` resulta mas adecuado cuando aparecen restricciones logisticas, multiples proveedores, calendarizacion, asignacion o decisiones combinatorias de mayor escala. Ese no es todavia el problema principal del MVP.
+- Impacto en el sistema: la arquitectura puede evolucionar por etapas, manteniendo primero una solucion simple y defendible, y escalando solo cuando el alcance lo exija.
+- Limitaciones o trabajo futuro: si la epica 5 incorpora restricciones logisticas o de calendarizacion, sera necesario reevaluar si `PuLP` sigue siendo suficiente o si corresponde migrar a herramientas mas amplias.
