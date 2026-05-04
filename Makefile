@@ -1,4 +1,4 @@
-.PHONY: dev up down logs ps restart rebuild bootstrap bootstrap-all
+.PHONY: dev up down logs ps restart rebuild bootstrap bootstrap-all precompute-forecasts
 
 dev:
 	docker compose up -d --build
@@ -9,6 +9,9 @@ bootstrap:
 	docker compose --profile ops run --rm bootstrap
 
 bootstrap-all: dev bootstrap
+
+precompute-forecasts:
+	docker compose run --rm api python -m app.modules.pricing.application.precompute_forecasts
 
 down:
 	docker compose down

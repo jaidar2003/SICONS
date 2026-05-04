@@ -220,3 +220,17 @@ Cada decision incluye:
 - Justificacion: el costo principal del endpoint de forecast proviene del entrenamiento y backtesting repetidos de `Prophet`. Una cache en memoria permite bajar ese costo de forma inmediata sin alterar el modelo productivo, manteniendo ademas una invalidacion simple basada en cambios reales de la serie.
 - Impacto en el sistema: el modulo de pricing reutiliza resultados recientes cuando la firma del dataset y el horizonte coinciden, lo que mejora la eficiencia del serving y reduce trabajo redundante dentro del proceso de la API.
 - Limitaciones o trabajo futuro: la cache actual es local al proceso y no reemplaza una estrategia mas robusta de precomputacion, persistencia compartida o ejecucion asincrona. Sigue siendo una mitigacion intermedia mientras el forecast continúe sirviendose request-time.
+
+## DT-16
+
+- Fecha aproximada: mayo de 2026
+- Area: precomputacion de forecasting
+- Decision tomada: incorporar snapshots persistidos de forecast y un comando explicito de precomputacion para materiales activos.
+- Problema que resuelve: permite reutilizar resultados de forecast entre reinicios del proceso web y evita depender exclusivamente de una cache en memoria calentada por trafico HTTP.
+- Alternativas consideradas:
+  - mantener solo cache local por proceso;
+  - crear de inmediato una tabla nueva en base de datos para snapshots;
+  - dejar toda la precomputacion para una etapa posterior.
+- Justificacion: una persistencia simple en archivo, con firma del dataset y horizonte como clave, permite avanzar hacia un serving mas estable sin introducir todavia una migracion adicional ni complejizar prematuramente la infraestructura. El comando de precomputacion hace explicito el paso operativo y separa mejor serving de calculo batch.
+- Impacto en el sistema: `forecast_service` puede reutilizar snapshots persistidos, y el proyecto cuenta con un entrypoint operativo para precomputar forecasts de materiales activos en horizontes definidos.
+- Limitaciones o trabajo futuro: la persistencia actual en archivo sigue siendo una solucion transicional. Si el sistema evoluciona a multiinstancia, colas o mayor concurrencia, convendra migrar estos snapshots a una persistencia compartida o a un pipeline batch mas robusto.

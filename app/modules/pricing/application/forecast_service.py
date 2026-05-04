@@ -10,12 +10,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.modules.catalog.infrastructure.models import Material
+from app.modules.pricing.application.forecast_cache import ForecastCacheEntry, ForecastCacheKey
 from app.modules.pricing.application.backtesting import construir_folds_temporales
 from app.modules.pricing.application.forecasting import BEST_PROPHET_CONFIG, construir_dataset_prophet, generar_fechas_mensuales, inicio_mes_siguiente
 from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual
 from app.modules.pricing.infrastructure.forecast_runtime import configurar_cmdstan, importar_dependencias_forecast
 from app.modules.pricing.infrastructure.models import PrecioHistorico
 from app.modules.pricing.infrastructure.regressors import cargar_regresores_mensuales, proyectar_regresores_futuros
+from app.modules.pricing.infrastructure.forecast_snapshots import cargar_forecast_snapshot, guardar_forecast_snapshot
 from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead
 from app.shared.config.settings import settings
 
@@ -30,19 +32,6 @@ class ForecastMaterialResult:
     dataset: list
     metricas: ForecastMetricasRead
     forecast: list[ForecastPuntoRead]
-
-
-@dataclass(frozen=True)
-class ForecastCacheKey:
-    material_id: int
-    horizonte_meses: int
-    dataset_signature: str
-
-
-@dataclass
-class ForecastCacheEntry:
-    result: ForecastMaterialResult
-    expires_at: float
 
 
 _forecast_cache: dict[ForecastCacheKey, ForecastCacheEntry] = {}
@@ -90,6 +79,7 @@ def guardar_forecast_cacheado(
         result=deepcopy(result),
         expires_at=monotonic() + settings.forecast_cache_ttl_seconds,
     )
+    guardar_forecast_snapshot(cache_key, result)
     return deepcopy(result)
 
 
@@ -226,7 +216,39 @@ def forecast_material(
     if forecast_cacheado is not None:
         return forecast_cacheado
 
+    cache_key = ForecastCacheKey(
+        material_id=material.id,
+        horizonte_meses=horizonte_meses,
+        dataset_signature=dataset_signature,
+    )
+    forecast_persistido = cargar_forecast_snapshot(cache_key)
+    if forecast_persistido is not None:
+        _forecast_cache[cache_key] = ForecastCacheEntry(
+            result=deepcopy(forecast_persistido),
+            expires_at=monotonic() + settings.forecast_cache_ttl_seconds,
+        )
+        return deepcopy(forecast_persistido)
+
     cmdstanpy, pd, Prophet, CmdStanPyBackend, IStanBackend = importar_dependencias_forecast()
     configurar_cmdstan(cmdstanpy, CmdStanPyBackend, IStanBackend)
     forecast_result = _forecast_material(material, horizonte_meses, dataset, pd, Prophet)
     return guardar_forecast_cacheado(material.id, horizonte_meses, dataset_signature, forecast_result)
+
+
+def precomputar_forecasts_materiales(
+    db: Session,
+    horizontes: tuple[int, ...] = (3, 6, 12),
+) -> list[tuple[int, int]]:
+    materiales = list(
+        db.scalars(
+            select(Material)
+            .where(Material.activo.is_(True))
+            .order_by(Material.id.asc())
+        )
+    )
+    completados: list[tuple[int, int]] = []
+    for material in materiales:
+        for horizonte in horizontes:
+            forecast_material(material, horizonte, db)
+            completados.append((material.id, horizonte))
+    return completados

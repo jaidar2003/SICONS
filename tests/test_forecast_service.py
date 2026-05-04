@@ -57,6 +57,14 @@ def test_forecast_material_reutiliza_cache_para_la_misma_serie(monkeypatch) -> N
         lambda: (object(), object(), object(), object(), object()),
     )
     monkeypatch.setattr(
+        "app.modules.pricing.application.forecast_service.cargar_forecast_snapshot",
+        lambda cache_key: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.pricing.application.forecast_service.guardar_forecast_snapshot",
+        lambda cache_key, result: None,
+    )
+    monkeypatch.setattr(
         "app.modules.pricing.application.forecast_service.configurar_cmdstan",
         lambda *args: None,
     )
@@ -92,6 +100,14 @@ def test_forecast_material_invalida_cache_si_cambia_el_dataset(monkeypatch) -> N
     monkeypatch.setattr(
         "app.modules.pricing.application.forecast_service.importar_dependencias_forecast",
         lambda: (object(), object(), object(), object(), object()),
+    )
+    monkeypatch.setattr(
+        "app.modules.pricing.application.forecast_service.cargar_forecast_snapshot",
+        lambda cache_key: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.pricing.application.forecast_service.guardar_forecast_snapshot",
+        lambda cache_key, result: None,
     )
     monkeypatch.setattr(
         "app.modules.pricing.application.forecast_service.configurar_cmdstan",

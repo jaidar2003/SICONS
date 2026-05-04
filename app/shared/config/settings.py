@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     auth_secret_key: str = "sicons-dev-secret-change-me"
     auth_token_ttl_minutes: int = 480
     forecast_cache_ttl_seconds: int = 1800
+    forecast_snapshot_path: str = "tmp/forecast_snapshots.json"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
