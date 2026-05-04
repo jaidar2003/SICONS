@@ -2,6 +2,8 @@ import LoginIcon from "@mui/icons-material/Login";
 import { Alert, Box, Button, Card, CardContent, TextField, Typography } from "@mui/material";
 import { useState } from "react";
 
+import bwLogo from "../../../bwlogo.jpeg";
+
 export function LoginPage({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -28,7 +30,7 @@ export function LoginPage({ onLogin }) {
         <CardContent className="grid gap-5 p-6">
           <Box className="grid justify-items-center gap-3 text-center">
             <Box className="inline-flex h-16 w-28 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-              <img src="/bwlogo.jpeg" alt="BuildWise" className="h-auto w-full object-contain" />
+              <img src={bwLogo} alt="BuildWise" className="h-auto w-full object-contain" />
             </Box>
             <Typography color="primary" fontSize={13} fontWeight={800}>
               Acceso

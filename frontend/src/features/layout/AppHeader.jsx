@@ -2,6 +2,7 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import { Box, Button, Container, FormControlLabel, Switch, Typography } from "@mui/material";
 
 import { StatusBadge } from "../../shared/components/StatusBadge.jsx";
+import bwLogo from "../../../bwlogo.jpeg";
 
 export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowPrices }) {
   return (
@@ -9,7 +10,7 @@ export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowP
       <Container maxWidth="lg" className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <Box>
           <Box className="mb-4 inline-flex min-h-[96px] w-[180px] items-center justify-center rounded-[18px] border border-white/30 bg-white px-4 py-3 shadow-md1">
-            <img src="/bwlogo.jpeg" alt="BuildWise" className="h-auto w-full object-contain" />
+            <img src={bwLogo} alt="BuildWise" className="h-auto w-full object-contain" />
           </Box>
           <Typography variant="h1">BuildWise</Typography>
           <Typography color="rgba(255,255,255,.82)" mt={1.25} maxWidth={680}>
