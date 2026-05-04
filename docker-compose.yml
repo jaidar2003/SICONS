@@ -22,11 +22,24 @@ services:
       postgres:
         condition: service_healthy
     command: >
+      sh -c "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  bootstrap:
+    build: .
+    container_name: sicons-bootstrap
+    profiles: ["ops"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sicons}:${POSTGRES_PASSWORD:-sicons}@postgres:5432/${POSTGRES_DB:-sicons}
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
       sh -c "alembic upgrade head &&
       python -m app.db.seed &&
       python -m app.db.import_cemento_facturas &&
-      python -m app.db.import_pastina &&
-      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app"
+      python -m app.db.import_pastina"
 
   postgres:
     image: postgres:16-alpine

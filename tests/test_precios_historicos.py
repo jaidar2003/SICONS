@@ -5,9 +5,9 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from app.api.routes.precios_historicos import crear_precio_historico
-from app.models import Fuente, Material, Presentacion
-from app.schemas import PrecioHistoricoCreate
+from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion
+from app.modules.pricing.interfaces.routes import crear_precio_historico
+from app.modules.pricing.interfaces.schemas import PrecioHistoricoCreate
 
 
 class FakeDb:

@@ -1,18 +1,18 @@
 from dataclasses import dataclass
-from pathlib import Path
 
-import cmdstanpy
-from sqlalchemy import select
-
-from app.modules.catalog.infrastructure.models import Material
+from app.experiments.pricing.common import (
+    DEFAULT_DATASET_START,
+    cargar_dolar_mensual,
+    cargar_ipc_mensual,
+    configurar_cmdstan,
+    construir_dataset_material,
+    importar_dependencias_prophet,
+)
 from app.modules.pricing.application.backtesting import construir_folds_temporales
-from app.modules.pricing.application.forecasting import ProphetRow, construir_dataset_prophet
-from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual
-from app.modules.pricing.infrastructure.models import PrecioHistorico
-from app.shared.database.session import SessionLocal
+from app.modules.pricing.application.forecasting import ProphetRow
 
 
-DATASET_START = "2022-01-01"
+DATASET_START = DEFAULT_DATASET_START
 BLUE_CSV = "tmp/dolares_2022/dolar_blue_historico.csv"
 OFICIAL_CSV = "tmp/dolares_2022/dolar_oficial_historico.csv"
 MAYORISTA_CSV = "tmp/dolares_2022/dolar_mayorista_historico.csv"
@@ -35,53 +35,15 @@ class ResultadoModelo:
 
 
 def _importar_dependencias():
-    try:
-        import pandas as pd
-        from prophet import Prophet
-        from prophet.models import CmdStanPyBackend, IStanBackend
-    except ImportError as exc:
-        raise RuntimeError("Faltan dependencias para correr el experimento con regresores.") from exc
-    return pd, Prophet, CmdStanPyBackend, IStanBackend
+    return importar_dependencias_prophet("Faltan dependencias para correr el experimento con regresores.")
 
 
 def _configurar_cmdstan(CmdStanPyBackend, IStanBackend) -> None:
-    cmdstan_global = Path.home() / ".cmdstan" / "cmdstan-2.38.0"
-    if not cmdstan_global.exists():
-        raise RuntimeError("No se encontro CmdStan en ~/.cmdstan/cmdstan-2.38.0.")
-
-    cmdstanpy.set_cmdstan_path(str(cmdstan_global))
-
-    def fixed_init(self):
-        cmdstanpy.set_cmdstan_path(str(cmdstan_global))
-        IStanBackend.__init__(self)
-
-    CmdStanPyBackend.__init__ = fixed_init
+    configurar_cmdstan(CmdStanPyBackend, IStanBackend, "No se encontro CmdStan en ~/.cmdstan/cmdstan-2.38.0.")
 
 
 def _obtener_dataset_cemento(pd) -> list[ProphetRow]:
-    start = pd.to_datetime(DATASET_START).date()
-    with SessionLocal() as db:
-        material = db.scalar(select(Material).where(Material.nombre == "Cemento Portland"))
-        if material is None:
-            raise RuntimeError("No existe el material Cemento Portland en la base")
-
-        stmt = (
-            select(PrecioHistorico)
-            .where(PrecioHistorico.material_id == material.id, PrecioHistorico.fecha >= start)
-            .order_by(PrecioHistorico.fecha.asc(), PrecioHistorico.id.asc())
-        )
-        registros = [
-            PrecioSerieInput(
-                fecha=precio.fecha,
-                precio_normalizado=precio.precio_normalizado,
-                unidad_base=material.unidad_base,
-                fuente=precio.fuente.nombre if precio.fuente else None,
-                numero_comprobante=precio.numero_comprobante,
-            )
-            for precio in db.scalars(stmt)
-        ]
-    puntos = construir_serie_mensual(registros)
-    return construir_dataset_prophet(puntos, objetivo="precio_promedio_normalizado")
+    return construir_dataset_material("Cemento Portland", frecuencia="mensual", objetivo="precio_promedio_normalizado", dataset_start=DATASET_START)
 
 
 def _a_dataframe(pd, filas: list[ProphetRow]):
@@ -89,21 +51,11 @@ def _a_dataframe(pd, filas: list[ProphetRow]):
 
 
 def _cargar_dolar_mensual(pd, path_csv: str, columna_salida: str):
-    df = pd.read_csv(path_csv)
-    df["fecha"] = pd.to_datetime(df["fecha"])
-    df["venta"] = pd.to_numeric(df["venta"], errors="coerce")
-    df = df[df["fecha"] >= pd.to_datetime(DATASET_START)].copy()
-    df["ds"] = df["fecha"].dt.to_period("M").dt.to_timestamp()
-    return df.groupby("ds", as_index=False)["venta"].mean().rename(columns={"venta": columna_salida})
+    return cargar_dolar_mensual(pd, path_csv, columna_salida, dataset_start=DATASET_START)
 
 
 def _cargar_ipc_mensual(pd):
-    df = pd.read_csv(IPC_CSV)
-    df["fecha"] = pd.to_datetime(df["fecha"])
-    df["ipc"] = pd.to_numeric(df["ipc"], errors="coerce")
-    df = df[df["fecha"] >= pd.to_datetime(DATASET_START)].copy()
-    df = df.rename(columns={"fecha": "ds"})
-    return df[["ds", "ipc"]].copy()
+    return cargar_ipc_mensual(pd, IPC_CSV, dataset_start=DATASET_START)
 
 
 def _combinar_regresores(base_df, otros_df):

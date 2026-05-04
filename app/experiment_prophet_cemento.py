@@ -2,15 +2,15 @@ from dataclasses import dataclass
 from itertools import product
 from pathlib import Path
 
-import cmdstanpy
-from sqlalchemy import select
-
-from app.modules.catalog.infrastructure.models import Material
+from app.experiments.pricing.common import (
+    construir_dataset_material,
+    configurar_cmdstan,
+    importar_dependencias_prophet,
+    obtener_registros_material,
+)
 from app.modules.pricing.application.backtesting import construir_folds_temporales
 from app.modules.pricing.application.forecasting import ProphetRow, construir_dataset_prophet
 from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual, construir_serie_precios
-from app.modules.pricing.infrastructure.models import PrecioHistorico
-from app.shared.database.session import SessionLocal
 
 
 @dataclass(frozen=True)
@@ -37,54 +37,22 @@ class ResultadoExperimento:
 
 
 def _importar_dependencias_prophet():
-    try:
-        import pandas as pd
-        from prophet import Prophet
-        from prophet.models import CmdStanPyBackend, IStanBackend
-    except ImportError as exc:
-        raise RuntimeError(
-            "Faltan dependencias para entrenar Prophet. Instala al menos `pandas` y `prophet` en tu entorno."
-        ) from exc
-    return pd, Prophet, CmdStanPyBackend, IStanBackend
+    return importar_dependencias_prophet(
+        "Faltan dependencias para entrenar Prophet. Instala al menos `pandas` y `prophet` en tu entorno."
+    )
 
 
 def _configurar_cmdstan(CmdStanPyBackend, IStanBackend) -> None:
-    cmdstan_global = Path.home() / ".cmdstan" / "cmdstan-2.38.0"
-    if not cmdstan_global.exists():
-        raise RuntimeError(
-            "No se encontro CmdStan en ~/.cmdstan/cmdstan-2.38.0. Ejecuta `python -c \"import cmdstanpy; cmdstanpy.install_cmdstan()\"`."
-        )
-
-    cmdstanpy.set_cmdstan_path(str(cmdstan_global))
-
-    def fixed_init(self):
-        cmdstanpy.set_cmdstan_path(str(cmdstan_global))
-        IStanBackend.__init__(self)
-
-    CmdStanPyBackend.__init__ = fixed_init
+    configurar_cmdstan(
+        CmdStanPyBackend,
+        IStanBackend,
+        "No se encontro CmdStan en ~/.cmdstan/cmdstan-2.38.0. Ejecuta `python -c \"import cmdstanpy; cmdstanpy.install_cmdstan()\"`.",
+    )
 
 
 def _obtener_registros_cemento() -> list[PrecioSerieInput]:
-    with SessionLocal() as db:
-        material = db.scalar(select(Material).where(Material.nombre == "Cemento Portland"))
-        if material is None:
-            raise RuntimeError("No existe el material Cemento Portland en la base")
-
-        stmt = (
-            select(PrecioHistorico)
-            .where(PrecioHistorico.material_id == material.id)
-            .order_by(PrecioHistorico.fecha.asc(), PrecioHistorico.id.asc())
-        )
-        return [
-            PrecioSerieInput(
-                fecha=precio.fecha,
-                precio_normalizado=precio.precio_normalizado,
-                unidad_base=material.unidad_base,
-                fuente=precio.fuente.nombre if precio.fuente else None,
-                numero_comprobante=precio.numero_comprobante,
-            )
-            for precio in db.scalars(stmt)
-        ]
+    _, registros = obtener_registros_material("Cemento Portland")
+    return registros
 
 
 def _construir_dataset(registros: list[PrecioSerieInput], frecuencia: str) -> list[ProphetRow]:

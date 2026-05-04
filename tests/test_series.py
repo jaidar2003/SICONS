@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
-from app.services.series import PrecioSerieInput, construir_serie_mensual, construir_serie_precios
+from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual, construir_serie_precios
 
 
 def test_construir_serie_precios_agrupa_por_fecha_y_calcula_equivalencias() -> None:

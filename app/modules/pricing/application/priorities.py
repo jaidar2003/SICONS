@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+from app.modules.catalog.infrastructure.models import Material
+from app.modules.pricing.application.forecast_service import forecast_material
 from app.modules.pricing.domain.rules import (
     calcular_impacto_absoluto,
     calcular_puntaje_criticidad,
@@ -8,6 +13,11 @@ from app.modules.pricing.domain.rules import (
     etiquetar_criticidad,
     explicar_priorizacion,
     normalizar_valores,
+)
+from app.modules.pricing.interfaces.schemas import (
+    MaterialCriticidadCreate,
+    MaterialCriticidadRead,
+    MaterialCriticidadResponseRead,
 )
 
 
@@ -106,4 +116,36 @@ def priorizar_materiales_criticos(
         resultados,
         key=lambda item: (item.criticidad, item.impacto_absoluto, item.variacion_esperada_porcentual),
         reverse=True,
+    )
+
+
+def priorizar_materiales_desde_forecast(
+    payload: MaterialCriticidadCreate,
+    db: Session,
+) -> MaterialCriticidadResponseRead:
+    materiales_prioridad: list[MaterialPriorityInput] = []
+    for item in payload.materiales:
+        material = db.get(Material, item.material_id)
+        if material is None:
+            raise HTTPException(status_code=404, detail=f"Material no encontrado: {item.material_id}")
+
+        forecast_result = forecast_material(material, payload.horizonte_meses, db)
+        punto_objetivo = forecast_result.forecast[-1]
+        materiales_prioridad.append(
+            MaterialPriorityInput(
+                material_id=material.id,
+                material_nombre=material.nombre,
+                unidad_base=material.unidad_base,
+                cantidad_requerida=item.cantidad_requerida,
+                precio_actual_normalizado=Decimal(f"{forecast_result.dataset[-1].y:.2f}"),
+                precio_proyectado_normalizado=punto_objetivo.precio_proyectado,
+            )
+        )
+
+    ranking = priorizar_materiales_criticos(materiales_prioridad, alpha=payload.alpha, beta=payload.beta)
+    return MaterialCriticidadResponseRead(
+        horizonte_meses=payload.horizonte_meses,
+        alpha=payload.alpha,
+        beta=payload.beta,
+        materiales=[MaterialCriticidadRead(**resultado.__dict__) for resultado in ranking],
     )

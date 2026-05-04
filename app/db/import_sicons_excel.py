@@ -12,8 +12,9 @@ from sqlalchemy.orm import Session
 
 from app.db.seed import get_or_create_fuente, get_or_create_material, get_or_create_presentacion
 from app.db.session import SessionLocal
-from app.models import Fuente, Material, PrecioHistorico, Presentacion
-from app.services.pricing import calcular_precio_normalizado
+from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion
+from app.modules.pricing.domain.rules import calcular_precio_normalizado
+from app.modules.pricing.infrastructure.models import PrecioHistorico
 
 
 WORKBOOK_NS = {

@@ -1,9 +1,14 @@
-.PHONY: dev up down logs ps restart rebuild
+.PHONY: dev up down logs ps restart rebuild bootstrap bootstrap-all
 
 dev:
 	docker compose up -d --build
 
 up: dev
+
+bootstrap:
+	docker compose --profile ops run --rm bootstrap
+
+bootstrap-all: dev bootstrap
 
 down:
 	docker compose down

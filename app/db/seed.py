@@ -3,9 +3,10 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.security import hash_password, verify_password
 from app.db.session import SessionLocal
-from app.models import Fuente, Material, Presentacion, Usuario
+from app.modules.auth.infrastructure.models import Usuario
+from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion
+from app.shared.security.tokens import hash_password, verify_password
 
 
 def get_or_create_material(

@@ -3,7 +3,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from app.db.import_pastina import grouped_prices, normalize_invoice, parse_date, parse_decimal, upsert_precio
-from app.models import PrecioHistorico
+from app.modules.pricing.infrastructure.models import PrecioHistorico
 
 
 class FakeScalarDb:

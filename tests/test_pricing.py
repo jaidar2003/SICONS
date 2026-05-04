@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.services.pricing import calcular_precio_normalizado
+from app.modules.pricing.domain.rules import calcular_precio_normalizado
 
 
 def test_calcular_precio_normalizado() -> None:

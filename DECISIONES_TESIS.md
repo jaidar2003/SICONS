@@ -178,3 +178,31 @@ Cada decision incluye:
 - Justificacion: `HU24` consume precios actuales y proyectados ya provistos por el modulo de pricing/forecasting, no modifica la logica de `Prophet` y permite validar una capa inicial de decision economica sin introducir aun complejidad de optimizacion. La criticidad se definio combinando variacion esperada normalizada e impacto absoluto normalizado, evitando sumar directamente porcentajes con montos monetarios.
 - Impacto en el sistema: se incorpora una capacidad nueva de ranking de materiales criticos, con reglas testeables, explicacion funcional y base metodologica reutilizable para `HU21`, `HU22` y `HU23`.
 - Limitaciones o trabajo futuro: `PuLP` se mantiene reservado para `HU23`, cuando aparezca formalmente la restriccion presupuestaria. La capa actual prioriza materiales, pero todavia no recomienda estrategias completas de compra.
+
+## DT-13
+
+- Fecha aproximada: mayo de 2026
+- Area: arquitectura de forecasting
+- Decision tomada: separar el serving productivo de forecasting de los scripts de experimentacion offline.
+- Problema que resuelve: evita que la logica experimental, los accesos auxiliares a datos y la configuracion tecnica de Prophet queden mezclados con el flujo HTTP productivo.
+- Alternativas consideradas:
+  - mantener scripts y serving compartiendo helpers dispersos dentro de `routes.py`;
+  - duplicar logica entre experimentos y serving;
+  - mover toda la experimentacion fuera del repositorio principal.
+- Justificacion: el forecasting es un componente central de `SICONS` y requiere distinguir claramente entre pipeline productivo y pipeline experimental. La separacion permite que los experimentos sigan evolucionando sin contaminar la interfaz publica ni aumentar el acoplamiento del modulo de pricing.
+- Impacto en el sistema: el serving productivo queda concentrado en `application` e `infrastructure`, mientras que la experimentacion se apoya en un espacio propio bajo `app/experiments`, con responsabilidades mas claras y reutilizacion controlada.
+- Limitaciones o trabajo futuro: la separacion actual ordena el codigo, pero no elimina todavia el costo computacional del forecast request-time ni incorpora mecanismos de cache, precomputacion o ejecucion asincrona.
+
+## DT-14
+
+- Fecha aproximada: mayo de 2026
+- Area: despliegue y operacion
+- Decision tomada: separar el runtime web del bootstrap operativo de base de datos y carga inicial de datos.
+- Problema que resuelve: evita que el contenedor de la API ejecute migraciones, seed e imports cada vez que arranca el servicio web.
+- Alternativas consideradas:
+  - mantener un unico comando de arranque con migraciones, seed, imports y `uvicorn`;
+  - delegar toda la preparacion de datos a instrucciones manuales no versionadas;
+  - posponer la separacion operativa hasta una etapa posterior.
+- Justificacion: mezclar bootstrap destructivo con el proceso web principal genera arranques lentos, dificulta releases controlados y consolida una practica valida solo para prototipos. Separar ambos flujos mejora la previsibilidad operativa y acerca el proyecto a un estandar mas serio de despliegue.
+- Impacto en el sistema: `docker-compose` distingue ahora el servicio `api` del servicio `bootstrap`, y `Makefile` expone un comando operativo explicito para correr migraciones y cargas iniciales cuando corresponda.
+- Limitaciones o trabajo futuro: esta separacion mejora el control operativo, pero aun falta definir mejor la estrategia de entornos, la idempotencia completa de imports y el endurecimiento del despliegue productivo.
