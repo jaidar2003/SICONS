@@ -37,9 +37,9 @@ services:
         condition: service_healthy
     command: >
       sh -c "alembic upgrade head &&
-      python -m app.db.seed &&
-      python -m app.db.import_cemento_facturas &&
-      python -m app.db.import_pastina"
+      python -m app.operations.bootstrap.seed &&
+      python -m app.operations.bootstrap.import_cemento_facturas &&
+      python -m app.operations.bootstrap.import_pastina"
 
   postgres:
     image: postgres:16-alpine

@@ -234,3 +234,17 @@ Cada decision incluye:
 - Justificacion: una persistencia simple en archivo, con firma del dataset y horizonte como clave, permite avanzar hacia un serving mas estable sin introducir todavia una migracion adicional ni complejizar prematuramente la infraestructura. El comando de precomputacion hace explicito el paso operativo y separa mejor serving de calculo batch.
 - Impacto en el sistema: `forecast_service` puede reutilizar snapshots persistidos, y el proyecto cuenta con un entrypoint operativo para precomputar forecasts de materiales activos en horizontes definidos.
 - Limitaciones o trabajo futuro: la persistencia actual en archivo sigue siendo una solucion transicional. Si el sistema evoluciona a multiinstancia, colas o mayor concurrencia, convendra migrar estos snapshots a una persistencia compartida o a un pipeline batch mas robusto.
+
+## DT-17
+
+- Fecha aproximada: mayo de 2026
+- Area: organizacion operativa y compatibilidad legacy
+- Decision tomada: mover los entrypoints operativos de bootstrap a un namespace explicito `app.operations.bootstrap`, dejando `app.db` como capa de compatibilidad minima.
+- Problema que resuelve: reduce la ambiguedad del paquete `app.db`, que mezclaba compatibilidad historica con scripts operativos reales, y deja mas clara la frontera entre infraestructura compartida y tareas de inicializacion/importacion.
+- Alternativas consideradas:
+  - mantener todos los scripts en `app.db`;
+  - eliminar de inmediato los paths legacy sin transicion;
+  - mezclar bootstrap con comandos informales fuera del repositorio.
+- Justificacion: un namespace operativo explicito mejora la legibilidad del proyecto, facilita explicar la arquitectura y permite migrar de manera incremental sin romper de golpe referencias existentes. La compatibilidad minima en `app.db` evita una ruptura innecesaria mientras se termina de limpiar el remanente legacy.
+- Impacto en el sistema: los comandos operativos principales pasan a vivir en `app.operations.bootstrap`, mientras `docker-compose` y los tests dejan de depender directamente de `app.db` como contrato primario.
+- Limitaciones o trabajo futuro: todavia queda compatibilidad legacy en algunos wrappers de `app.db`. El cierre definitivo requerira remover esos puentes cuando no existan referencias activas que los necesiten.

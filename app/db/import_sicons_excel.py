@@ -10,11 +10,11 @@ from xml.etree import ElementTree as ET
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.seed import get_or_create_fuente, get_or_create_material, get_or_create_presentacion
-from app.db.session import SessionLocal
+from app.operations.bootstrap.seed import get_or_create_fuente, get_or_create_material, get_or_create_presentacion
 from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion
 from app.modules.pricing.domain.rules import calcular_precio_normalizado
 from app.modules.pricing.infrastructure.models import PrecioHistorico
+from app.shared.database.session import SessionLocal
 
 
 WORKBOOK_NS = {
