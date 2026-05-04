@@ -1,5 +1,5 @@
 <p align="center">
- <img src="bwlogo.png" alt="BuildWise" width="220" />
+ <img src="frontend/bwlogo.jpeg" alt="BuildWise" width="260" />
 </p>
 
 # BuildWise
@@ -410,8 +410,8 @@ frontend/
 ├── index.html
 ├── styles.css
 ├── app.js
-├── logo.png
-├── pestana.png
+├── bwlogo.jpeg
+├── favicon.jpeg
 ├── Dockerfile
 └── nginx.conf
 ```

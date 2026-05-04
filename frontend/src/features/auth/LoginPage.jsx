@@ -25,8 +25,11 @@ export function LoginPage({ onLogin }) {
   return (
     <Box className="mx-auto -mt-12 w-[min(420px,calc(100%-32px))] pb-12">
       <Card>
-        <CardContent className="grid gap-4 p-6">
-          <Box>
+        <CardContent className="grid gap-5 p-6">
+          <Box className="grid justify-items-center gap-3 text-center">
+            <Box className="inline-flex h-16 w-28 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+              <img src="/bwlogo.jpeg" alt="BuildWise" className="h-auto w-full object-contain" />
+            </Box>
             <Typography color="primary" fontSize={13} fontWeight={800}>
               Acceso
             </Typography>
