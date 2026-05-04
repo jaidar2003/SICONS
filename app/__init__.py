@@ -1,1 +1,1 @@
-"""SICONS API package."""
+"""BuildWise API package."""

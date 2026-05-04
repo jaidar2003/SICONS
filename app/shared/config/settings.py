@@ -2,8 +2,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+psycopg://sicons:sicons@localhost:5432/sicons"
-    auth_secret_key: str = "sicons-dev-secret-change-me"
+    database_url: str = "postgresql+psycopg://buildwise:buildwise@localhost:5432/buildwise"
+    auth_secret_key: str = "buildwise-dev-secret-change-me"
     auth_token_ttl_minutes: int = 480
     forecast_cache_ttl_seconds: int = 1800
     forecast_snapshot_path: str = "tmp/forecast_snapshots.json"

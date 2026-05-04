@@ -31,7 +31,7 @@ export function LoginPage({ onLogin }) {
               Acceso
             </Typography>
             <Typography variant="h2" mt={0.5}>
-              Ingresar a SICONS
+              Ingresar a BuildWise
             </Typography>
           </Box>
           {error ? <Alert severity="error">{error}</Alert> : null}
@@ -54,4 +54,3 @@ export function LoginPage({ onLogin }) {
     </Box>
   );
 }
-

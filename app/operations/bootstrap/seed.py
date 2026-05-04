@@ -148,7 +148,7 @@ def seed(db: Session) -> None:
     get_or_create_usuario(
         db,
         username="admin",
-        nombre="Duenio SICONS",
+        nombre="Duenio BuildWise",
         password="admin123",
         rol="admin",
     )

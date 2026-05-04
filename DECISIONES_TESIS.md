@@ -1,6 +1,6 @@
 # DECISIONES_TESIS
 
-Este documento registra decisiones tomadas durante el desarrollo de `SICONS`. No reemplaza al `README.md` ni a la documentacion tecnica, sino que funciona como respaldo metodologico para justificar el diseno del sistema y facilitar la redaccion posterior del informe de tesis.
+Este documento registra decisiones tomadas durante el desarrollo de `BuildWise`. No reemplaza al `README.md` ni a la documentacion tecnica, sino que funciona como respaldo metodologico para justificar el diseno del sistema y facilitar la redaccion posterior del informe de tesis.
 
 ## Formato de registro
 
@@ -189,7 +189,7 @@ Cada decision incluye:
   - mantener scripts y serving compartiendo helpers dispersos dentro de `routes.py`;
   - duplicar logica entre experimentos y serving;
   - mover toda la experimentacion fuera del repositorio principal.
-- Justificacion: el forecasting es un componente central de `SICONS` y requiere distinguir claramente entre pipeline productivo y pipeline experimental. La separacion permite que los experimentos sigan evolucionando sin contaminar la interfaz publica ni aumentar el acoplamiento del modulo de pricing.
+- Justificacion: el forecasting es un componente central de `BuildWise` y requiere distinguir claramente entre pipeline productivo y pipeline experimental. La separacion permite que los experimentos sigan evolucionando sin contaminar la interfaz publica ni aumentar el acoplamiento del modulo de pricing.
 - Impacto en el sistema: el serving productivo queda concentrado en `application` e `infrastructure`, mientras que la experimentacion se apoya en un espacio propio bajo `app/experiments`, con responsabilidades mas claras y reutilizacion controlada.
 - Limitaciones o trabajo futuro: la separacion actual ordena el codigo, pero no elimina todavia el costo computacional del forecast request-time ni incorpora mecanismos de cache, precomputacion o ejecucion asincrona.
 

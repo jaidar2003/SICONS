@@ -11,6 +11,8 @@ import { fetchFuentes, fetchMateriales, fetchPresentaciones } from "../features/
 import { AppHeader } from "../features/layout/AppHeader.jsx";
 import { AnomaliesCard } from "../features/pricing/AnomaliesCard.jsx";
 import { ComparisonCard } from "../features/pricing/ComparisonCard.jsx";
+import { CostPlannerCard } from "../features/pricing/CostPlannerCard.jsx";
+import { CostProjectionCard } from "../features/pricing/CostProjectionCard.jsx";
 import { FiltersBar } from "../features/pricing/FiltersBar.jsx";
 import { ForecastCard } from "../features/pricing/ForecastCard.jsx";
 import { HistoryTable } from "../features/pricing/HistoryTable.jsx";
@@ -277,6 +279,14 @@ export function App() {
                   setForecastHorizon(value);
                   loadSerieData({ materialId: selectedMaterialId, horizon: value }).catch((loadError) => setError(loadError.message));
                 }}
+              />
+              <CostProjectionCard forecast={forecast} selectedMaterial={selectedMaterial} showPrices={showPrices} />
+              <CostPlannerCard
+                materiales={materiales}
+                selectedMaterialId={selectedMaterialId}
+                forecastHorizon={forecastHorizon}
+                token={token}
+                showPrices={showPrices}
               />
 
               {isAdmin && showPriceForm ? (

@@ -1,4 +1,4 @@
-# Base de datos SICONS
+# Base de datos BuildWise
 
 El esquema de PostgreSQL se versiona con Alembic en `db/migrations`.
 

@@ -1,10 +1,10 @@
 <p align="center">
- <img src="frontend/logo.png" alt="SICONS" width="180" />
+ <img src="bwlogo.png" alt="BuildWise" width="220" />
 </p>
 
-# SICONS
+# BuildWise
 
-SICONS es un sistema de apoyo a la toma de decisiones para la compra de materiales de construccion.
+BuildWise es un sistema de apoyo a la toma de decisiones para la compra de materiales de construccion.
 
 La idea no es solo guardar precios, sino ayudar a responder preguntas concretas:
 
@@ -424,7 +424,7 @@ db/
 
 ## Vision del producto
 
-SICONS apunta a convertirse en una herramienta de inteligencia de compras para obras chicas y medianas.
+BuildWise apunta a convertirse en una herramienta de inteligencia de compras para obras chicas y medianas.
 
 La evolucion natural del proyecto es:
 
@@ -438,7 +438,7 @@ La evolucion natural del proyecto es:
 En una frase:
 
 ```text
-SICONS ayuda a anticipar aumentos de materiales y decidir mejor cuando comprar.
+BuildWise ayuda a anticipar aumentos de materiales y decidir mejor cuando comprar.
 ```
 
 ## Historias de usuario y trazabilidad funcional
@@ -485,7 +485,7 @@ Estado actual: `Implementada`.
 
 - `HU8` Comparar materiales entre si.
 Como comprador de materiales, quiero comparar la evolucion de precios de distintos materiales para identificar cuales presentan mayor variacion o riesgo de aumento.
-Estado actual: `Pendiente`.
+Estado actual: `Implementada`.
 
 - `HU9` Identificar variaciones porcentuales de precios.
 Como comprador de materiales, quiero ver el porcentaje de variacion de un material entre dos fechas para dimensionar cuanto aumento o disminuyo.
@@ -493,7 +493,7 @@ Estado actual: `Parcial`.
 
 - `HU10` Detectar cambios bruscos o anomalias.
 Como usuario del sistema, quiero identificar meses con aumentos o cambios atipicos para detectar comportamientos relevantes en la serie historica.
-Estado actual: `Pendiente`.
+Estado actual: `Implementada`.
 
 ### Epica 3. Predicción de precios
 
@@ -503,42 +503,42 @@ Estado actual: `Parcial`.
 
 - `HU12` Visualizar la proyeccion futura junto al historico.
 Como comprador de materiales, quiero ver en un mismo grafico los precios historicos y la proyeccion futura para comprender la evolucion esperada del material.
-Estado actual: `Parcial`.
+Estado actual: `Implementada`.
 
 - `HU13` Obtener la variacion esperada entre precio actual y precio proyectado.
 Como comprador de materiales, quiero conocer la diferencia y el porcentaje de variacion entre el precio actual y el estimado para evaluar el impacto economico futuro.
-Estado actual: `Parcial`.
+Estado actual: `Implementada`.
 
 - `HU14` Estimar precios a distintos horizontes temporales.
 Como comprador de materiales, quiero obtener estimaciones a `3`, `6` y `12` meses para planificar la compra segun distintas etapas de la obra.
-Estado actual: `Parcial`.
+Estado actual: `Implementada`.
 
 - `HU15` Consultar el nivel de confianza o error del modelo.
 Como usuario del sistema, quiero conocer una medida de error o fiabilidad de la prediccion para interpretar los resultados con mayor criterio.
-Estado actual: `Parcial`.
+Estado actual: `Implementada`.
 Nota metodologica: la fiabilidad del modelo se documenta actualmente mediante `MAPE`, `MAE`, cantidad de `folds` y efectividad informal. La metrica principal de comparacion sigue siendo `MAPE`.
 
 ### Epica 4. Proyección de costos de obra
 
 - `HU16` Proyectar el costo futuro segun la cantidad necesaria.
 Como comprador de materiales, quiero indicar la cantidad de material que necesito para calcular cuanto podria gastar si lo compro mas adelante.
-Estado actual: `Pendiente`.
+Estado actual: `Implementada`.
 
 - `HU17` Comparar el costo de comprar ahora versus comprar despues.
 Como comprador de materiales, quiero comparar el costo actual con el costo futuro estimado para decidir si me conviene comprar ahora o esperar.
-Estado actual: `Pendiente`.
+Estado actual: `Implementada`.
 
 - `HU18` Simular escenarios de compra.
 Como comprador de materiales, quiero simular distintos escenarios temporales de compra para evaluar como impacta el momento de adquisicion en mi presupuesto.
-Estado actual: `Pendiente`.
+Estado actual: `Implementada`.
 
 - `HU19` Estimar el costo futuro de varios materiales de una obra.
 Como comprador de materiales, quiero ingresar varios materiales y sus cantidades para proyectar el costo total estimado de una parte de la obra.
-Estado actual: `Pendiente`.
+Estado actual: `Implementada`.
 
 - `HU20` Obtener un resumen del impacto presupuestario.
 Como comprador de materiales, quiero recibir un resumen del aumento estimado de costos para tomar decisiones con una vision global del presupuesto.
-Estado actual: `Pendiente`.
+Estado actual: `Implementada`.
 
 ### Epica 5. Optimización de compras
 
@@ -556,7 +556,7 @@ Estado actual: `Pendiente`.
 
 - `HU24` Priorizar materiales criticos.
 Como comprador de materiales, quiero identificar cuales materiales tienen mayor riesgo de aumento para priorizar su compra antes que otros.
-Estado actual: `Pendiente`.
+Estado actual: `Implementada`.
 
 ### Epica 6. Asistencia conversacional
 

@@ -2,11 +2,11 @@
 
 ## Proposito
 
-Este archivo funciona como contexto operativo para asistentes IA que trabajen sobre `SICONS`. No reemplaza al `README.md`: el `README` es la documentacion formal del proyecto, mientras que este archivo resume decisiones tecnicas, convenciones y puntos de cuidado para intervenir en el repo sin contradecir criterios ya adoptados.
+Este archivo funciona como contexto operativo para asistentes IA que trabajen sobre `BuildWise`. No reemplaza al `README.md`: el `README` es la documentacion formal del proyecto, mientras que este archivo resume decisiones tecnicas, convenciones y puntos de cuidado para intervenir en el repo sin contradecir criterios ya adoptados.
 
 ## Contexto del proyecto
 
-- Proyecto: `SICONS`
+- Proyecto: `BuildWise`
 - Dominio: seguimiento historico, normalizacion y forecasting de precios de materiales de construccion
 - Stack principal: `FastAPI`, `PostgreSQL`, `React`, `Material UI`, `Prophet`, `Docker Compose`
 - Enfoque arquitectonico: monolito modular con arquitectura hexagonal incremental

@@ -12,7 +12,7 @@ export function ForecastCard({ forecast, serie, horizonteMeses, onChangeHorizon,
       <CardContent>
         <SectionHeader
           title="Forecast mensual"
-          description="Modelo Prophet con dolar oficial y mayorista como regresores externos."
+          description="Proyeccion mensual con metricas de fiabilidad obtenidas por backtesting temporal."
           badge={`Horizonte ${horizonteMeses} meses`}
           action={
             <ButtonGroup size="small" variant="outlined">
@@ -39,6 +39,10 @@ export function ForecastCard({ forecast, serie, horizonteMeses, onChangeHorizon,
                 helper={showPrices ? forecast.ultima_fecha_observada : forecast.ultima_fecha_observada}
               />
             </Box>
+
+            <Alert severity="info">
+              La fiabilidad se interpreta principalmente con `MAPE`. `MAE`, cantidad de folds y efectividad informal complementan la lectura del resultado.
+            </Alert>
 
             <Alert severity="warning">{forecast.supuesto_regresores}</Alert>
 

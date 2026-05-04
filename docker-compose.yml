@@ -1,7 +1,7 @@
 services:
   frontend:
     build: ./frontend
-    container_name: sicons-frontend
+    container_name: buildwise-frontend
     restart: unless-stopped
     ports:
       - "3000:80"
@@ -10,10 +10,10 @@ services:
 
   api:
     build: .
-    container_name: sicons-api
+    container_name: buildwise-api
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sicons}:${POSTGRES_PASSWORD:-sicons}@postgres:5432/${POSTGRES_DB:-sicons}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-buildwise}:${POSTGRES_PASSWORD:-buildwise}@postgres:5432/${POSTGRES_DB:-buildwise}
     ports:
       - "8000:8000"
     volumes:
@@ -26,10 +26,10 @@ services:
 
   bootstrap:
     build: .
-    container_name: sicons-bootstrap
+    container_name: buildwise-bootstrap
     profiles: ["ops"]
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sicons}:${POSTGRES_PASSWORD:-sicons}@postgres:5432/${POSTGRES_DB:-sicons}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-buildwise}:${POSTGRES_PASSWORD:-buildwise}@postgres:5432/${POSTGRES_DB:-buildwise}
     volumes:
       - .:/app
     depends_on:
@@ -43,12 +43,12 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    container_name: sicons-postgres
+    container_name: buildwise-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-sicons}
-      POSTGRES_USER: ${POSTGRES_USER:-sicons}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sicons}
+      POSTGRES_DB: ${POSTGRES_DB:-buildwise}
+      POSTGRES_USER: ${POSTGRES_USER:-buildwise}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-buildwise}
     ports:
       - "5432:5432"
     volumes:

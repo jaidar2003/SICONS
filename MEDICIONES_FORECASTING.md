@@ -2,7 +2,7 @@
 
 ## Alcance
 
-Este documento resume las métricas obtenidas hasta el momento para el pronóstico del precio del cemento en `SICONS`.
+Este documento resume las métricas obtenidas hasta el momento para el pronóstico del precio del cemento en `BuildWise`.
 
 Supuestos principales usados en esta etapa:
 

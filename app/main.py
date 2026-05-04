@@ -8,7 +8,7 @@ from app.modules.pricing.interfaces import routes as precios_historicos
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="SICONS API", version="0.1.0")
+    app = FastAPI(title="BuildWise API", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
