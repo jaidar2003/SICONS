@@ -1,6 +1,9 @@
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from time import monotonic
+import hashlib
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -14,6 +17,7 @@ from app.modules.pricing.infrastructure.forecast_runtime import configurar_cmdst
 from app.modules.pricing.infrastructure.models import PrecioHistorico
 from app.modules.pricing.infrastructure.regressors import cargar_regresores_mensuales, proyectar_regresores_futuros
 from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead
+from app.shared.config.settings import settings
 
 
 FORECAST_DATASET_START = date(2022, 1, 1)
@@ -28,8 +32,69 @@ class ForecastMaterialResult:
     forecast: list[ForecastPuntoRead]
 
 
+@dataclass(frozen=True)
+class ForecastCacheKey:
+    material_id: int
+    horizonte_meses: int
+    dataset_signature: str
+
+
+@dataclass
+class ForecastCacheEntry:
+    result: ForecastMaterialResult
+    expires_at: float
+
+
+_forecast_cache: dict[ForecastCacheKey, ForecastCacheEntry] = {}
+
+
 def _a_dataframe(pd, filas):
     return pd.DataFrame([{"ds": pd.to_datetime(fila.ds), "y": fila.y} for fila in filas])
+
+
+def construir_firma_dataset(dataset: list) -> str:
+    digest = hashlib.sha256()
+    for fila in dataset:
+        digest.update(f"{fila.ds.isoformat()}|{fila.y:.8f}".encode())
+    return digest.hexdigest()
+
+
+def obtener_forecast_cacheado(material_id: int, horizonte_meses: int, dataset_signature: str) -> ForecastMaterialResult | None:
+    cache_key = ForecastCacheKey(
+        material_id=material_id,
+        horizonte_meses=horizonte_meses,
+        dataset_signature=dataset_signature,
+    )
+    entry = _forecast_cache.get(cache_key)
+    ahora = monotonic()
+    if entry is None:
+        return None
+    if entry.expires_at <= ahora:
+        _forecast_cache.pop(cache_key, None)
+        return None
+    return deepcopy(entry.result)
+
+
+def guardar_forecast_cacheado(
+    material_id: int,
+    horizonte_meses: int,
+    dataset_signature: str,
+    result: ForecastMaterialResult,
+) -> ForecastMaterialResult:
+    cache_key = ForecastCacheKey(
+        material_id=material_id,
+        horizonte_meses=horizonte_meses,
+        dataset_signature=dataset_signature,
+    )
+    _forecast_cache[cache_key] = ForecastCacheEntry(
+        result=deepcopy(result),
+        expires_at=monotonic() + settings.forecast_cache_ttl_seconds,
+    )
+    return deepcopy(result)
+
+
+def limpiar_forecast_cache() -> None:
+    _forecast_cache.clear()
 
 
 def serie_mensual_material(material: Material, db: Session):
@@ -136,15 +201,10 @@ def pronosticar_futuro(pd, Prophet, dataset, regresores_df, horizonte_meses: int
 def _forecast_material(
     material: Material,
     horizonte_meses: int,
+    dataset: list,
     pd,
     Prophet,
-    db: Session,
 ) -> ForecastMaterialResult:
-    puntos = serie_mensual_material(material, db)
-    dataset = construir_dataset_prophet(puntos, objetivo="precio_promedio_normalizado")
-    if len(dataset) < 24 + horizonte_meses:
-        raise HTTPException(status_code=422, detail=f"No hay suficientes puntos mensuales para generar el forecast de {material.nombre}")
-
     regresores_df = cargar_regresores_mensuales(pd)
     metricas = backtesting_forecast(pd, Prophet, dataset, regresores_df, horizonte_meses)
     forecast = pronosticar_futuro(pd, Prophet, dataset, regresores_df, horizonte_meses, material.unidad_base)
@@ -156,6 +216,17 @@ def forecast_material(
     horizonte_meses: int,
     db: Session,
 ) -> ForecastMaterialResult:
+    puntos = serie_mensual_material(material, db)
+    dataset = construir_dataset_prophet(puntos, objetivo="precio_promedio_normalizado")
+    if len(dataset) < 24 + horizonte_meses:
+        raise HTTPException(status_code=422, detail=f"No hay suficientes puntos mensuales para generar el forecast de {material.nombre}")
+
+    dataset_signature = construir_firma_dataset(dataset)
+    forecast_cacheado = obtener_forecast_cacheado(material.id, horizonte_meses, dataset_signature)
+    if forecast_cacheado is not None:
+        return forecast_cacheado
+
     cmdstanpy, pd, Prophet, CmdStanPyBackend, IStanBackend = importar_dependencias_forecast()
     configurar_cmdstan(cmdstanpy, CmdStanPyBackend, IStanBackend)
-    return _forecast_material(material, horizonte_meses, pd, Prophet, db)
+    forecast_result = _forecast_material(material, horizonte_meses, dataset, pd, Prophet)
+    return guardar_forecast_cacheado(material.id, horizonte_meses, dataset_signature, forecast_result)

@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://sicons:sicons@localhost:5432/sicons"
     auth_secret_key: str = "sicons-dev-secret-change-me"
     auth_token_ttl_minutes: int = 480
+    forecast_cache_ttl_seconds: int = 1800
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -16,4 +17,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-

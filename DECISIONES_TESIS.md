@@ -206,3 +206,17 @@ Cada decision incluye:
 - Justificacion: mezclar bootstrap destructivo con el proceso web principal genera arranques lentos, dificulta releases controlados y consolida una practica valida solo para prototipos. Separar ambos flujos mejora la previsibilidad operativa y acerca el proyecto a un estandar mas serio de despliegue.
 - Impacto en el sistema: `docker-compose` distingue ahora el servicio `api` del servicio `bootstrap`, y `Makefile` expone un comando operativo explicito para correr migraciones y cargas iniciales cuando corresponda.
 - Limitaciones o trabajo futuro: esta separacion mejora el control operativo, pero aun falta definir mejor la estrategia de entornos, la idempotencia completa de imports y el endurecimiento del despliegue productivo.
+
+## DT-15
+
+- Fecha aproximada: mayo de 2026
+- Area: serving de forecasting
+- Decision tomada: incorporar una cache en memoria, con TTL y firma del dataset, para reutilizar resultados de forecast repetidos sobre la misma serie.
+- Problema que resuelve: reduce el costo de recalcular en request-time el mismo forecast cuando no hubo cambios en la serie mensual del material ni en el horizonte consultado.
+- Alternativas consideradas:
+  - mantener siempre el recalculo completo por request;
+  - incorporar desde el inicio una capa de persistencia o precomputacion mas compleja;
+  - posponer cualquier mitigacion hasta redisenar por completo el serving.
+- Justificacion: el costo principal del endpoint de forecast proviene del entrenamiento y backtesting repetidos de `Prophet`. Una cache en memoria permite bajar ese costo de forma inmediata sin alterar el modelo productivo, manteniendo ademas una invalidacion simple basada en cambios reales de la serie.
+- Impacto en el sistema: el modulo de pricing reutiliza resultados recientes cuando la firma del dataset y el horizonte coinciden, lo que mejora la eficiencia del serving y reduce trabajo redundante dentro del proceso de la API.
+- Limitaciones o trabajo futuro: la cache actual es local al proceso y no reemplaza una estrategia mas robusta de precomputacion, persistencia compartida o ejecucion asincrona. Sigue siendo una mitigacion intermedia mientras el forecast continúe sirviendose request-time.
