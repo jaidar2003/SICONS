@@ -18,6 +18,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 
 export function PriceChart({ serie, forecast, selectedMaterial, action, showPrices }) {
   const baseValue = serie.length ? Number(serie[0].precio_promedio_normalizado) : 0;
+  const lastObservedValue = serie.length ? Number(serie[serie.length - 1].precio_promedio_normalizado) : 0;
   const variationSeries = serie.map((point) =>
     baseValue === 0 ? 0 : ((Number(point.precio_promedio_normalizado) - baseValue) / baseValue) * 100
   );
@@ -26,6 +27,9 @@ export function PriceChart({ serie, forecast, selectedMaterial, action, showPric
   const projectedValues = forecastPoints.map((point) => Number(point.precio_proyectado));
   const projectedVariationSeries = forecastPoints.map((point) =>
     baseValue === 0 ? 0 : ((Number(point.precio_proyectado) - baseValue) / baseValue) * 100
+  );
+  const projectedVariationVsLastObserved = forecastPoints.map((point) =>
+    lastObservedValue === 0 ? 0 : ((Number(point.precio_proyectado) - lastObservedValue) / lastObservedValue) * 100
   );
   const historicalDataset = showPrices
     ? serie.map((point) => Number(point.precio_promedio_normalizado))
@@ -57,7 +61,7 @@ export function PriceChart({ serie, forecast, selectedMaterial, action, showPric
       ...(forecastPoints.length
         ? [
             {
-              label: showPrices ? "Forecast" : "Forecast %",
+              label: showPrices ? "Forecast" : "Forecast acumulado %",
               data: forecastLine,
               borderColor: "#f97316",
               backgroundColor: "rgba(249, 115, 22, 0.18)",
@@ -100,7 +104,10 @@ export function PriceChart({ serie, forecast, selectedMaterial, action, showPric
                   point.precio_equivalente_50kg !== null ? `50 kg: ${formatCurrency(point.precio_equivalente_50kg)}` : null,
                 ].filter(Boolean);
               }
-              return [`Variacion proyectada: ${formatNumber(projectedVariationSeries[forecastIndex])}%`];
+              return [
+                `Variacion acumulada: ${formatNumber(projectedVariationSeries[forecastIndex])}%`,
+                `Variacion vs ultimo observado: ${formatNumber(projectedVariationVsLastObserved[forecastIndex])}%`,
+              ];
             }
 
             const point = serie[context.dataIndex];
@@ -127,7 +134,7 @@ export function PriceChart({ serie, forecast, selectedMaterial, action, showPric
     scales: {
       x: { grid: { display: false } },
       y: {
-        title: { display: true, text: showPrices ? "ARS/kg" : "Variacion %" },
+        title: { display: true, text: showPrices ? "ARS/kg" : "Variacion acumulada %" },
         ticks: {
           callback: (value) =>
             showPrices

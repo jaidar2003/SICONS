@@ -51,6 +51,54 @@ export const theme = createTheme({
         root: {
           minHeight: 40,
           boxShadow: "none",
+          borderRadius: 999,
+          paddingInline: 18,
+          fontWeight: 800,
+          lineHeight: 1,
+        },
+        contained: {
+          boxShadow: "none",
+        },
+        containedPrimary: {
+          "&:hover": {
+            boxShadow: "none",
+            backgroundColor: "#001B75",
+          },
+        },
+        containedSecondary: {
+          "&:hover": {
+            boxShadow: "none",
+            backgroundColor: "#B04E00",
+          },
+        },
+        outlined: {
+          borderWidth: 1.5,
+          backgroundColor: "#FEFBFF",
+        },
+        outlinedPrimary: {
+          borderColor: "#002395",
+          color: "#002395",
+          "&:hover": {
+            borderWidth: 1.5,
+            borderColor: "#001B75",
+            backgroundColor: "#EEF2FF",
+          },
+        },
+        outlinedSecondary: {
+          borderColor: "#D35F00",
+          color: "#D35F00",
+          "&:hover": {
+            borderWidth: 1.5,
+            borderColor: "#B04E00",
+            backgroundColor: "#FFF1E7",
+          },
+        },
+      },
+    },
+    MuiButtonGroup: {
+      styleOverrides: {
+        grouped: {
+          minWidth: 52,
         },
       },
     },

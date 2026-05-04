@@ -3,7 +3,10 @@ import { Alert, Box, Button, ButtonGroup, Card, CardContent, Divider, Stack, Typ
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
 
-export function ForecastCard({ forecast, horizonteMeses, onChangeHorizon, showPrices }) {
+export function ForecastCard({ forecast, serie, horizonteMeses, onChangeHorizon, showPrices }) {
+  const baseValue = serie.length ? Number(serie[0].precio_promedio_normalizado) : 0;
+  const lastObservedValue = forecast ? Number(forecast.ultimo_precio_observado) : 0;
+
   return (
     <Card className="mt-3">
       <CardContent>
@@ -64,10 +67,13 @@ export function ForecastCard({ forecast, horizonteMeses, onChangeHorizon, showPr
                   ) : (
                     <>
                       <Typography component="strong" display="block" mt={1} fontSize={22} fontWeight={800}>
-                        {`${formatNumber(((Number(punto.precio_proyectado) - Number(forecast.ultimo_precio_observado)) / Number(forecast.ultimo_precio_observado)) * 100)}%`}
+                        {`${formatNumber(baseValue === 0 ? 0 : ((Number(punto.precio_proyectado) - baseValue) / baseValue) * 100)}%`}
                       </Typography>
                       <Typography color="text.secondary" fontSize={13}>
-                        variacion vs ultimo observado
+                        variacion acumulada proyectada
+                      </Typography>
+                      <Typography color="text.secondary" fontSize={13} mt={0.75}>
+                        {`Cambio vs ultimo observado: ${formatNumber(lastObservedValue === 0 ? 0 : ((Number(punto.precio_proyectado) - lastObservedValue) / lastObservedValue) * 100)}%`}
                       </Typography>
                     </>
                   )}

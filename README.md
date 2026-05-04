@@ -219,7 +219,84 @@ Ejemplos:
 
 ### Precio historico
 
-Guarda el precio real de un material en una fecha determinada.
+Registra un valor observado para un material, una presentacion comercial, una fuente y una fecha determinadas.
+
+## Metodología de forecasting
+
+### 1. Construcción del dataset
+
+El forecasting de cemento se construye a partir de la serie historica de precios observados en la base de datos. La variable principal del modelo es `precio_promedio_normalizado`, que representa el precio promedio mensual normalizado del cemento expresado en `ARS/kg`.
+
+La serie utilizada para entrenamiento y evaluacion debe preservar consistencia temporal, trazabilidad de fuente y una agregacion mensual homogenea, a fin de evitar comparaciones espurias entre observaciones con distinta granularidad o distinta presentacion comercial.
+
+### 2. Normalización por kg
+
+La unidad de analisis del modelo productivo es `ARS/kg`. Esta normalizacion permite comparar distintas presentaciones comerciales del mismo material sobre una unica escala economica.
+
+Las equivalencias comerciales, por ejemplo bolsa de `25 kg` o bolsa de `50 kg`, se calculan exclusivamente para visualizacion, interpretacion por parte del usuario y comparacion comercial. No deben confundirse con la variable principal del forecast ni sustituir la serie base del modelo.
+
+### 3. Baselines
+
+La seleccion de modelos se evalua siempre contra baselines simples y reproducibles. El objetivo es distinguir entre una mejora real del desempeno predictivo y una mejora solo aparente en la forma de la curva proyectada.
+
+En este proyecto, la plausibilidad visual del forecast no constituye un criterio suficiente para elegir un modelo. Una trayectoria visualmente razonable puede, aun asi, mostrar un peor desempeno cuando se la somete a backtesting temporal.
+
+### 4. Prophet con regresores externos
+
+El proyecto contempla variantes de Prophet con regresores externos, por ejemplo series mayoristas o indicadores macroeconomicos. Sin embargo, estos regresores introducen una exigencia metodologica adicional: sus valores futuros deben modelarse explicitamente y con supuestos verificables.
+
+No corresponde promover variantes con `IPC` como modelo productivo salvo que demuestren una mejora objetiva del backtesting respecto del baseline productivo vigente. En todos los casos, los regresores futuros deben definirse, documentarse y validarse mediante backtesting temporal antes de incorporarse al flujo principal.
+
+### 5. Backtesting y métricas
+
+La validacion se realiza mediante backtesting temporal, priorizando horizontes compatibles con el uso real del sistema. En la actualidad, el horizonte principal de comparacion para cemento es el de `3 meses`.
+
+Las metricas de referencia documentadas actualmente para el mejor modelo productivo son:
+
+- `MAE`: `11.32`
+- `MAPE`: `7.74%`
+- efectividad informal: `92.26%`
+
+Estas metricas deben interpretarse en conjunto y en el marco del horizonte evaluado. Ninguna decision metodologica debe apoyarse exclusivamente en una inspeccion grafica de la curva proyectada.
+
+### 6. Criterio de suficiencia del modelo
+
+Se evaluaron distintas variantes de Prophet con regresores externos, comparando su desempeno mediante backtesting temporal. El modelo seleccionado actualmente es `prophet_oficial_mayorista`, no porque alcance un umbral arbitrario de efectividad, sino porque hasta el momento ofrece la mejor relacion entre desempeno predictivo, consistencia metodologica y defendibilidad para el objetivo del sistema.
+
+Los resultados actualmente documentados son:
+
+- horizonte `3 meses`: `MAE=11.32`, `MAPE=7.74%`, efectividad informal `=92.26%`, `folds=9`;
+- horizonte `6 meses`: `MAE=12.53`, `MAPE=8.53%`, efectividad informal `=91.47%`, `folds=4`;
+- horizonte `12 meses`: `MAE=14.32`, `MAPE=9.56%`, efectividad informal `=90.44%`, `folds=2`.
+
+La efectividad informal se calcula como `100 - MAPE` y se utiliza solo como indicador de lectura rapida para usuarios no tecnicos. La metrica principal de comparacion metodologica es `MAPE`, porque expresa de manera directa el error porcentual relativo entre prediccion y observacion.
+
+El horizonte de `3 meses` es actualmente el mas robusto, ya que dispone de `9 folds` y, por lo tanto, ofrece una base empirica mas amplia para comparar variantes. El horizonte de `12 meses` resulta prometedor como capacidad de proyeccion extendida, pero su interpretacion debe ser mas cautelosa porque cuenta solo con `2 folds`, lo que reduce la robustez estadistica de la comparacion.
+
+En este contexto, la suficiencia del modelo no se define como perfeccion ni como version definitiva. Se considera suficiente en la medida en que cumple razonablemente el objetivo operativo del sistema, mantiene un error acotado y supera o iguala de forma consistente a las alternativas evaluadas hasta el momento.
+
+Las iteraciones futuras seguiran el criterio de amesetamiento de mejoras: se continuaran evaluando ajustes mientras produzcan reducciones marginales de `MAPE` que sean materialmente relevantes y consistentes entre folds y horizontes. Si las mejoras pasan a ser pequenas, inestables o no reproducibles, el modelo actual puede considerarse metodologicamente suficiente para el alcance del trabajo.
+
+### 7. Decisión actual del modelo
+
+En funcion de la metodologia y del criterio de suficiencia expuestos, el modelo productivo preferido actualmente es `prophet_oficial_mayorista`, porque obtuvo el mejor resultado de backtesting a `3 meses` dentro de las variantes evaluadas hasta el momento.
+
+Mientras una variante alternativa no mejore esas metricas de forma consistente, no debe presentarse como reemplazo productivo. Esto aplica especialmente a variantes con `IPC` u otros regresores externos cuya trayectoria futura dependa de supuestos adicionales.
+
+### 8. Trabajo pendiente
+
+Queda pendiente profundizar el modelado de escenarios futuros para regresores externos, fortalecer los experimentos comparativos por horizonte y consolidar una metodologia reproducible de seleccion de modelos.
+
+En linea con el criterio de suficiencia adoptado, las proximas iteraciones deben concentrarse en:
+
+- mejorar la definicion de escenarios futuros de regresores;
+- validar cada variante con backtesting temporal consistente;
+- comparar resultados por horizonte operativo;
+- distinguir con claridad entre experimentacion metodologica y modelo productivo.
+
+## Registro historico de precios
+
+Cada registro historico documenta el precio observado de un material para una fecha, una presentacion comercial y una fuente determinadas.
 
 Incluye:
 
@@ -236,11 +313,13 @@ Incluye:
 
 La normalizacion permite comparar precios aunque cambie la presentacion comercial.
 
-Ejemplo:
+Los valores de ejemplo son ficticios y se utilizan unicamente para explicar el funcionamiento del sistema.
+
+Ejemplo ilustrativo:
 
 ```text
-Bolsa 25 kg = $ 6.250
-Precio normalizado = 6.250 / 25 = $ 250 por kg
+Bolsa 25 kg = $ 5.000
+Precio normalizado = 5.000 / 25 = $ 200 por kg
 ```
 
 Asi se puede comparar contra una bolsa de 50 kg o contra cualquier otra presentacion.
@@ -274,7 +353,7 @@ GET /materiales/{material_id}/serie-precios
 Serie historica del cemento:
 
 ```bash
-curl "http://localhost:8000/materiales/1/serie-precios?desde=2025-07-01&hasta=2026-03-31"
+curl "http://localhost:8000/materiales/1/serie-precios?desde=2024-01-01&hasta=2024-12-31"
 ```
 
 Entrenamiento inicial con Prophet sobre la serie mensual del cemento:
@@ -361,3 +440,134 @@ En una frase:
 ```text
 SICONS ayuda a anticipar aumentos de materiales y decidir mejor cuando comprar.
 ```
+
+## Historias de usuario y trazabilidad funcional
+
+Esta seccion organiza el alcance funcional del sistema en epicas e historias de usuario. Su objetivo es servir como referencia de avance del proyecto y como guia para identificar funcionalidades implementadas, parciales o pendientes.
+
+Convencion de estado:
+
+- `Implementada`: la funcionalidad ya aparece reflejada en el sistema o en la documentacion operativa actual.
+- `Parcial`: existe soporte inicial, pero falta completar parte del flujo, la visualizacion o su consolidacion funcional.
+- `Pendiente`: la funcionalidad forma parte del alcance previsto, pero no esta documentada como resuelta en el estado actual del proyecto.
+
+### Epica 1. Gestión y preparación de datos
+
+- `HU1` Registrar precios historicos de materiales.
+Como usuario del sistema, quiero registrar precios historicos de materiales junto con su fecha para disponer de una base de datos que permita analizar su evolucion.
+Estado actual: `Implementada`.
+
+- `HU2` Consultar historial de precios de un material.
+Como comprador de materiales, quiero visualizar el historial de precios de un material para entender como vario su costo en el tiempo.
+Estado actual: `Implementada`.
+
+- `HU3` Normalizar precios segun una unidad comparable.
+Como usuario del sistema, quiero que los precios se expresen en una unidad comparable para poder analizar correctamente materiales cuya presentacion haya cambiado.
+Estado actual: `Implementada`.
+
+- `HU4` Seleccionar distintos materiales para su analisis.
+Como comprador de materiales, quiero seleccionar distintos materiales para poder analizar y proyectar el comportamiento de cada uno por separado.
+Estado actual: `Implementada`.
+
+- `HU5` Filtrar datos por periodo.
+Como comprador de materiales, quiero filtrar los datos por rango de fechas para analizar la evolucion de un material en un periodo determinado.
+Estado actual: `Implementada`.
+
+- `HU6` Consultar la fuente de los datos registrados.
+Como usuario del sistema, quiero conocer la fuente de cada precio registrado para confiar en la validez de la informacion utilizada.
+Estado actual: `Parcial`.
+
+### Epica 2. Análisis y visualización
+
+- `HU7` Visualizar precios historicos en graficos.
+Como comprador de materiales, quiero ver un grafico con la evolucion historica de precios para interpretar facilmente la tendencia del material.
+Estado actual: `Implementada`.
+
+- `HU8` Comparar materiales entre si.
+Como comprador de materiales, quiero comparar la evolucion de precios de distintos materiales para identificar cuales presentan mayor variacion o riesgo de aumento.
+Estado actual: `Pendiente`.
+
+- `HU9` Identificar variaciones porcentuales de precios.
+Como comprador de materiales, quiero ver el porcentaje de variacion de un material entre dos fechas para dimensionar cuanto aumento o disminuyo.
+Estado actual: `Parcial`.
+
+- `HU10` Detectar cambios bruscos o anomalias.
+Como usuario del sistema, quiero identificar meses con aumentos o cambios atipicos para detectar comportamientos relevantes en la serie historica.
+Estado actual: `Pendiente`.
+
+### Epica 3. Predicción de precios
+
+- `HU11` Estimar el precio futuro de un material.
+Como comprador de materiales, quiero ingresar un precio actual y un horizonte temporal para estimar cuanto podria costar el material en el futuro.
+Estado actual: `Parcial`.
+
+- `HU12` Visualizar la proyeccion futura junto al historico.
+Como comprador de materiales, quiero ver en un mismo grafico los precios historicos y la proyeccion futura para comprender la evolucion esperada del material.
+Estado actual: `Parcial`.
+
+- `HU13` Obtener la variacion esperada entre precio actual y precio proyectado.
+Como comprador de materiales, quiero conocer la diferencia y el porcentaje de variacion entre el precio actual y el estimado para evaluar el impacto economico futuro.
+Estado actual: `Parcial`.
+
+- `HU14` Estimar precios a distintos horizontes temporales.
+Como comprador de materiales, quiero obtener estimaciones a `3`, `6` y `12` meses para planificar la compra segun distintas etapas de la obra.
+Estado actual: `Parcial`.
+
+- `HU15` Consultar el nivel de confianza o error del modelo.
+Como usuario del sistema, quiero conocer una medida de error o fiabilidad de la prediccion para interpretar los resultados con mayor criterio.
+Estado actual: `Parcial`.
+Nota metodologica: la fiabilidad del modelo se documenta actualmente mediante `MAPE`, `MAE`, cantidad de `folds` y efectividad informal. La metrica principal de comparacion sigue siendo `MAPE`.
+
+### Epica 4. Proyección de costos de obra
+
+- `HU16` Proyectar el costo futuro segun la cantidad necesaria.
+Como comprador de materiales, quiero indicar la cantidad de material que necesito para calcular cuanto podria gastar si lo compro mas adelante.
+Estado actual: `Pendiente`.
+
+- `HU17` Comparar el costo de comprar ahora versus comprar despues.
+Como comprador de materiales, quiero comparar el costo actual con el costo futuro estimado para decidir si me conviene comprar ahora o esperar.
+Estado actual: `Pendiente`.
+
+- `HU18` Simular escenarios de compra.
+Como comprador de materiales, quiero simular distintos escenarios temporales de compra para evaluar como impacta el momento de adquisicion en mi presupuesto.
+Estado actual: `Pendiente`.
+
+- `HU19` Estimar el costo futuro de varios materiales de una obra.
+Como comprador de materiales, quiero ingresar varios materiales y sus cantidades para proyectar el costo total estimado de una parte de la obra.
+Estado actual: `Pendiente`.
+
+- `HU20` Obtener un resumen del impacto presupuestario.
+Como comprador de materiales, quiero recibir un resumen del aumento estimado de costos para tomar decisiones con una vision global del presupuesto.
+Estado actual: `Pendiente`.
+
+### Epica 5. Optimización de compras
+
+- `HU21` Recomendar el mejor momento de compra.
+Como comprador de materiales, quiero recibir una recomendacion sobre cuando comprar para minimizar el costo estimado de mi obra.
+Estado actual: `Pendiente`.
+
+- `HU22` Comparar estrategias de compra.
+Como comprador de materiales, quiero comparar distintas estrategias de compra para decidir entre comprar todo hoy, comprar por etapas o esperar.
+Estado actual: `Pendiente`.
+
+- `HU23` Optimizar la compra bajo una restriccion presupuestaria.
+Como comprador de materiales, quiero que el sistema considere un presupuesto disponible para sugerirme una estrategia de compra viable.
+Estado actual: `Pendiente`.
+
+- `HU24` Priorizar materiales criticos.
+Como comprador de materiales, quiero identificar cuales materiales tienen mayor riesgo de aumento para priorizar su compra antes que otros.
+Estado actual: `Pendiente`.
+
+### Epica 6. Asistencia conversacional
+
+- `HU25` Consultar precios y proyecciones en lenguaje natural.
+Como comprador de materiales, quiero hacer preguntas al sistema en lenguaje natural para obtener informacion sin navegar manualmente por graficos y tablas.
+Estado actual: `Pendiente`.
+
+- `HU26` Preguntar por un material especifico.
+Como comprador de materiales, quiero consultar cuanto podria costar un material en el futuro mediante una pregunta para obtener una respuesta rapida y directa.
+Estado actual: `Pendiente`.
+
+- `HU27` Solicitar explicaciones sobre la proyeccion.
+Como comprador de materiales, quiero pedirle al sistema una explicacion del resultado estimado para entender en que datos se basa la proyeccion.
+Estado actual: `Pendiente`.

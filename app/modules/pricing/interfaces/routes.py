@@ -32,8 +32,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 FORECAST_DATASET_START = date(2022, 1, 1)
 OFICIAL_CSV = PROJECT_ROOT / "tmp" / "dolares_2022" / "dolar_oficial_historico.csv"
 MAYORISTA_CSV = PROJECT_ROOT / "tmp" / "dolares_2022" / "dolar_mayorista_historico.csv"
-FORECAST_MODEL_NAME = "prophet_oficial_mayorista"
-FORECAST_REGRESSOR_NOTE = "Escenario base: dolar oficial y mayorista futuros congelados en su ultimo valor mensual conocido."
+IPC_CSV = PROJECT_ROOT / "tmp" / "ipc_2022" / "ipc_nacional.csv"
+FORECAST_MODEL_NAME = "prophet_oficial_ipc_mayorista"
+FORECAST_REGRESSOR_NOTE = "Escenario base: dolar oficial, dolar mayorista e IPC futuros proyectados con crecimiento compuesto segun la tendencia de los ultimos 12 meses."
+REGRESSOR_TREND_WINDOW_MONTHS = 12
 
 
 def _importar_dependencias_forecast():
@@ -66,7 +68,7 @@ def _a_dataframe(pd, filas):
 
 
 def _cargar_regresores_mensuales(pd):
-    if not OFICIAL_CSV.exists() or not MAYORISTA_CSV.exists():
+    if not OFICIAL_CSV.exists() or not MAYORISTA_CSV.exists() or not IPC_CSV.exists():
         raise HTTPException(status_code=500, detail="No se encontraron los CSV de regresores externos.")
 
     def cargar(path: Path, columna: str):
@@ -77,9 +79,41 @@ def _cargar_regresores_mensuales(pd):
         df["ds"] = df["fecha"].dt.to_period("M").dt.to_timestamp()
         return df.groupby("ds", as_index=False)["venta"].mean().rename(columns={"venta": columna})
 
+    def cargar_ipc(path: Path):
+        df = pd.read_csv(path)
+        df["fecha"] = pd.to_datetime(df["fecha"])
+        df["ipc"] = pd.to_numeric(df["ipc"], errors="coerce")
+        df = df[df["fecha"] >= pd.to_datetime(FORECAST_DATASET_START)].copy()
+        return df.rename(columns={"fecha": "ds"})[["ds", "ipc"]]
+
     oficial = cargar(OFICIAL_CSV, "dolar_oficial")
     mayorista = cargar(MAYORISTA_CSV, "dolar_mayorista")
-    return oficial.merge(mayorista, on="ds", how="inner")
+    ipc = cargar_ipc(IPC_CSV)
+    return oficial.merge(mayorista, on="ds", how="inner").merge(ipc, on="ds", how="inner")
+
+
+def _proyectar_regresores_futuros(pd, regresores_historicos, fechas_futuras):
+    historial = regresores_historicos.sort_values("ds").tail(REGRESSOR_TREND_WINDOW_MONTHS).copy()
+    if historial.empty:
+        raise HTTPException(status_code=422, detail="No hay historial suficiente de regresores externos para proyectar el forecast.")
+
+    futuros = {"ds": pd.to_datetime(fechas_futuras)}
+    periodos = max(len(historial) - 1, 1)
+
+    for columna in ("dolar_oficial", "dolar_mayorista", "ipc"):
+        valores = historial[columna].dropna().tolist()
+        if not valores:
+            raise HTTPException(status_code=422, detail=f"No hay datos del regresor {columna} para proyectar el forecast.")
+
+        ultimo_valor = float(valores[-1])
+        primer_valor = float(valores[0])
+        tasa_mensual = 0.0 if primer_valor <= 0 else (ultimo_valor / primer_valor) ** (1 / periodos) - 1
+        futuros[columna] = [
+            ultimo_valor * ((1 + tasa_mensual) ** paso)
+            for paso in range(1, len(fechas_futuras) + 1)
+        ]
+
+    return pd.DataFrame(futuros)
 
 
 def _serie_mensual_material(material: Material, db: Session):
@@ -117,15 +151,16 @@ def _backtesting_forecast(pd, Prophet, dataset, regresores_df, horizonte_meses: 
         test_df = _a_dataframe(pd, fold.test)
         full_df = pd.concat([train_df[["ds", "y"]], test_df[["ds", "y"]]], ignore_index=True)
         full_df = full_df.merge(regresores_df, on="ds", how="left")
-        for columna in ("dolar_oficial", "dolar_mayorista"):
+        for columna in ("dolar_oficial", "dolar_mayorista", "ipc"):
             full_df[columna] = full_df[columna].ffill().bfill()
 
         modelo = Prophet(stan_backend="CMDSTANPY", **BEST_PROPHET_CONFIG)
         modelo.add_regressor("dolar_oficial")
         modelo.add_regressor("dolar_mayorista")
+        modelo.add_regressor("ipc")
 
-        train_reg = full_df.iloc[: len(train_df)][["ds", "y", "dolar_oficial", "dolar_mayorista"]].copy()
-        futuro = full_df[["ds", "dolar_oficial", "dolar_mayorista"]].copy()
+        train_reg = full_df.iloc[: len(train_df)][["ds", "y", "dolar_oficial", "dolar_mayorista", "ipc"]].copy()
+        futuro = full_df[["ds", "dolar_oficial", "dolar_mayorista", "ipc"]].copy()
         modelo.fit(train_reg)
         forecast = modelo.predict(futuro)[["ds", "yhat"]]
 
@@ -148,25 +183,22 @@ def _backtesting_forecast(pd, Prophet, dataset, regresores_df, horizonte_meses: 
 def _pronosticar_futuro(pd, Prophet, dataset, regresores_df, horizonte_meses: int, unidad_base: str) -> list[ForecastPuntoRead]:
     dataset_df = _a_dataframe(pd, dataset)
     dataset_reg = dataset_df.merge(regresores_df, on="ds", how="left")
-    for columna in ("dolar_oficial", "dolar_mayorista"):
+    for columna in ("dolar_oficial", "dolar_mayorista", "ipc"):
         dataset_reg[columna] = dataset_reg[columna].ffill().bfill()
 
     modelo = Prophet(stan_backend="CMDSTANPY", **BEST_PROPHET_CONFIG)
     modelo.add_regressor("dolar_oficial")
     modelo.add_regressor("dolar_mayorista")
-    modelo.fit(dataset_reg[["ds", "y", "dolar_oficial", "dolar_mayorista"]].copy())
+    modelo.add_regressor("ipc")
+    modelo.fit(dataset_reg[["ds", "y", "dolar_oficial", "dolar_mayorista", "ipc"]].copy())
 
     ultima_fecha = dataset[-1].ds
     fechas_futuras = generar_fechas_mensuales(inicio_mes_siguiente(ultima_fecha), horizonte_meses)
-    ultimo_regresor = regresores_df.sort_values("ds").iloc[-1]
-    futuro_reg = pd.DataFrame(
-        {
-            "ds": pd.to_datetime(fechas_futuras),
-            "dolar_oficial": [float(ultimo_regresor["dolar_oficial"])] * horizonte_meses,
-            "dolar_mayorista": [float(ultimo_regresor["dolar_mayorista"])] * horizonte_meses,
-        }
-    )
-    futuro = pd.concat([dataset_reg[["ds", "dolar_oficial", "dolar_mayorista"]], futuro_reg], ignore_index=True)
+    regresores_hasta_ultima_fecha = regresores_df[regresores_df["ds"] <= pd.to_datetime(ultima_fecha)].sort_values("ds")
+    if regresores_hasta_ultima_fecha.empty:
+        raise HTTPException(status_code=422, detail="No hay regresores externos alineados con la ultima fecha observada.")
+    futuro_reg = _proyectar_regresores_futuros(pd, regresores_hasta_ultima_fecha, fechas_futuras)
+    futuro = pd.concat([dataset_reg[["ds", "dolar_oficial", "dolar_mayorista", "ipc"]], futuro_reg], ignore_index=True)
     forecast = modelo.predict(futuro)[["ds", "yhat"]].tail(horizonte_meses)
 
     puntos: list[ForecastPuntoRead] = []

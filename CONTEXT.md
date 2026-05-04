@@ -1,5 +1,23 @@
 # CONTEXT
 
+## Propósito del archivo
+
+Este archivo funciona como bitacora tecnica de experimentacion para forecasting. No reemplaza al `README.md`, que contiene la documentacion formal del proyecto, ni a `GEMINI.md`, que resume reglas operativas para asistentes IA.
+
+Su funcion es conservar contexto de trabajo, resultados intermedios, comparaciones entre variantes y proximos pasos metodologicos, de modo que futuras iteraciones no repitan analisis ya realizados.
+
+Referencia de uso:
+
+- `README.md`: estado metodologico vigente, decisiones formales y alcance funcional del proyecto.
+- `GEMINI.md`: contexto operativo breve para asistentes IA.
+- `MEDICIONES_FORECASTING.md`: mediciones y resultados puntuales cuando corresponda.
+
+## Alcance y criterio de lectura
+
+- Los resultados documentados aqui pueden incluir hallazgos exploratorios o comparaciones intermedias.
+- La decision productiva vigente debe interpretarse siempre segun lo documentado en `README.md`.
+- Este archivo no debe leerse como especificacion final del sistema, sino como registro tecnico de trabajo sobre forecasting.
+
 ## Objetivo actual
 
 Evaluar y mejorar pronósticos del precio del cemento usando `Prophet`, con foco en:
@@ -121,6 +139,11 @@ Conclusión vigente:
 - `MAPE=7.74%`
 - efectividad informal a `3 meses`: `~92.26%`
 
+Nota:
+
+- esta conclusion resume el mejor resultado experimental observado;
+- la formulacion metodologica y el criterio de suficiencia del modelo vigente deben tomarse del `README.md`.
+
 ### Prophet + dólar oficial por horizonte
 
 - `3 meses`: `MAE=11.47` | `MAPE=7.78%` | efectividad `~92.22%`
@@ -161,6 +184,11 @@ Conclusión:
   - `oficial` solo: `MAPE=7.78%`
   - `oficial + ipc`: `MAPE=9.48%`
 
+Lectura recomendada:
+
+- usar esta seccion como resumen tecnico de experimentacion;
+- validar cualquier decision final contra las definiciones vigentes del `README.md`.
+
 ## Próximo paso
 
 Comparar combinaciones chicas centradas en `dólar oficial`:
@@ -175,3 +203,7 @@ Regla de decisión:
 - priorizar `MAPE`
 - usar backtesting temporal
 - no asumir que más regresores implica mejor forecast
+
+## Nota de mantenimiento
+
+Si este archivo deja de aportar contexto distinto del `README.md` o de `MEDICIONES_FORECASTING.md`, conviene consolidarlo para evitar multiples fuentes de verdad. Mientras conserve resultados exploratorios, comparaciones historicas y lineas de trabajo abiertas, sigue siendo util como bitacora tecnica.

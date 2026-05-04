@@ -270,6 +270,7 @@ export function App() {
               <InsightStrip serie={serie} selectedMaterial={selectedMaterial} showPrices={showPrices} />
               <ForecastCard
                 forecast={forecast}
+                serie={serie}
                 horizonteMeses={forecastHorizon}
                 showPrices={showPrices}
                 onChangeHorizon={(value) => {
