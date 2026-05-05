@@ -22,6 +22,7 @@ def test_proveedor_parsers_normalizan_fecha_importe_y_comprobante() -> None:
     assert parse_date("13/02/2026") == date(2026, 2, 13)
     assert parse_date("04-11-24") == date(2024, 11, 4)
     assert parse_decimal("$2.213,31") == Decimal("2213.31")
+    assert normalize_invoice("ESTIMADO") == "ESTIMADO"
     assert normalize_invoice("63-16764") == "0063-00016764"
     assert normalize_invoice("0063-00003809") == "0063-00003809"
 
@@ -29,15 +30,16 @@ def test_proveedor_parsers_normalizan_fecha_importe_y_comprobante() -> None:
 def test_grouped_prices_consolida_filas_por_factura() -> None:
     prices, skipped = grouped_prices()
 
-    assert len(prices) == 16
-    assert skipped == 24
+    assert len(prices) == 51
+    assert skipped == 0
     first = prices[0]
-    assert first.numero_comprobante == "0063-00016764"
-    assert first.fecha == date(2026, 2, 13)
-    assert first.precio_sin_iva == Decimal("2213.31")
-    assert first.precio_original == Decimal("2678.11")
-    assert first.precio_normalizado == Decimal("2678.1100")
-    assert first.articulos == ("PASTINA BLENDA X 1 KG BOX", "PASTINA TALCO X 1 KG BOX")
+    assert first.numero_comprobante == "ESTIMADO-2022-01-01"
+    assert first.fecha == date(2022, 1, 1)
+    assert first.origen == "estimado"
+    assert first.precio_sin_iva == Decimal("124.50")
+    assert first.precio_original == Decimal("150.64")
+    assert first.precio_normalizado == Decimal("150.6400")
+    assert first.articulos == ("PASTINA KLAUKOL",)
 
 
 def test_upsert_precio_inserta_si_no_existe() -> None:
@@ -57,7 +59,7 @@ def test_upsert_precio_inserta_si_no_existe() -> None:
     assert db.added.material_id == 4
     assert db.added.presentacion_id == 7
     assert db.added.fuente_id == 9
-    assert db.added.numero_comprobante == "0063-00016764"
+    assert db.added.numero_comprobante == "ESTIMADO-2022-01-01"
 
 
 def test_upsert_precio_no_cambia_registro_identico() -> None:
@@ -70,8 +72,8 @@ def test_upsert_precio_no_cambia_registro_identico() -> None:
         precio_normalizado=price.precio_normalizado,
         moneda="ARS",
         observaciones=(
-            "Importado desde carga manual Proveedor Pastina 1 kg - Proveedor - "
-            "Px lista s/IVA 2213.31 - Articulos: PASTINA BLENDA X 1 KG BOX; PASTINA TALCO X 1 KG BOX"
+            "Serie estimada Pastina SIKA 1 kg - SIKA - "
+            "Px estimado s/IVA 124.50 - Articulos: PASTINA KLAUKOL"
         ),
     )
     db = FakeScalarDb(existing=existing)

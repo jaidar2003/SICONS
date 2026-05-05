@@ -9,7 +9,7 @@ from sqlalchemy import select
 from app.modules.catalog.infrastructure.models import Material
 from app.modules.pricing.application.forecasting import ProphetRow, construir_dataset_prophet
 from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual, construir_serie_precios
-from app.modules.pricing.infrastructure.models import PrecioHistorico
+from app.modules.pricing.infrastructure.models import ExternalIndexValue, PrecioHistorico
 from app.shared.database.session import SessionLocal
 
 
@@ -105,3 +105,36 @@ def cargar_ipc_mensual(pd, path_csv: str, *, dataset_start: str = DEFAULT_DATASE
     df["ipc"] = pd.to_numeric(df["ipc"], errors="coerce")
     df = df[df["fecha"] >= pd.to_datetime(dataset_start)].copy()
     return df.rename(columns={"fecha": "ds"})[["ds", "ipc"]].copy()
+
+
+def cargar_indice_externo_mensual(
+    pd,
+    *,
+    series_id: str,
+    columna_salida: str,
+    dataset_start: str = DEFAULT_DATASET_START,
+):
+    start = date.fromisoformat(dataset_start)
+    with SessionLocal() as db:
+        stmt = (
+            select(ExternalIndexValue)
+            .where(
+                ExternalIndexValue.series_id == series_id,
+                ExternalIndexValue.date >= start,
+            )
+            .order_by(ExternalIndexValue.date.asc(), ExternalIndexValue.id.asc())
+        )
+        rows = list(db.scalars(stmt))
+
+    if not rows:
+        raise RuntimeError(f"No hay valores del indice externo {series_id} cargados en la base.")
+
+    return pd.DataFrame(
+        [
+            {
+                "ds": pd.to_datetime(value.date),
+                columna_salida: float(value.value),
+            }
+            for value in rows
+        ]
+    )

@@ -8,8 +8,8 @@ IPC_XLS_SHEET = "Índices IPC Cobertura Nacional"
 
 
 def _resolver_input_por_defecto() -> str:
-    if Path("ipc.xls").exists():
-        return "ipc.xls"
+    if Path("data/raw/ipc.xls").exists():
+        return "data/raw/ipc.xls"
     return "tmp/ipc_nacional_raw.csv"
 
 

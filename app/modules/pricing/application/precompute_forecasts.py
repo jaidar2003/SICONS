@@ -1,6 +1,9 @@
 import argparse
 
-from app.modules.pricing.application.forecast_service import precomputar_forecasts_materiales
+from app.modules.catalog.infrastructure.repositories import SQLAlchemyMaterialRepository
+from app.modules.pricing.domain.exceptions import PricingDomainException
+from app.modules.pricing.application.forecast_service import forecast_material
+from app.modules.pricing.infrastructure.repositories import SQLAlchemyPricingRepository
 from app.shared.database.session import SessionLocal
 
 
@@ -20,8 +23,22 @@ def main() -> None:
     args = parse_args()
     horizontes = tuple(args.horizontes)
     with SessionLocal() as db:
-        completados = precomputar_forecasts_materiales(db, horizontes=horizontes)
-    print(f"Forecasts precomputados: {len(completados)}")
+        material_repo = SQLAlchemyMaterialRepository(db)
+        pricing_repo = SQLAlchemyPricingRepository(db)
+        materiales = material_repo.list_active()
+
+        completados = 0
+        saltados = 0
+        for material in materiales:
+            for horizonte in horizontes:
+                try:
+                    forecast_material(material, horizonte, pricing_repo)
+                    completados += 1
+                except PricingDomainException as exc:
+                    print(f"Saltando {material.nombre} (H={horizonte}): {exc}")
+                    saltados += 1
+
+    print(f"Proceso finalizado. Exitos: {completados} | Saltados: {saltados}")
 
 
 if __name__ == "__main__":

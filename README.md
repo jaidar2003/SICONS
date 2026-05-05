@@ -259,6 +259,31 @@ Las metricas de referencia documentadas actualmente para el mejor modelo product
 
 Estas metricas deben interpretarse en conjunto y en el marco del horizonte evaluado. Ninguna decision metodologica debe apoyarse exclusivamente en una inspeccion grafica de la curva proyectada.
 
+### 6. Confiabilidad relativa por material
+
+Actualmente el sistema puede pronosticar tres materiales con series mensuales continuas:
+
+- `Cemento Portland`
+- `Pastina`
+- `Membrana Megaflex`
+
+Esa continuidad mensual vuelve pronosticables a los tres casos, pero la confiabilidad no es homogenea entre materiales.
+
+| Material | Serie mensual continua | Datos reales | Datos estimados | Folds | MAPE | Efectividad informal | Confiabilidad relativa |
+|---|---|---:|---:|---:|---:|---:|---|
+| `Cemento Portland` | si | 1624 precios | 0 | 9 | 8.58% | 91.42% | alta |
+| `Pastina` | si, `51` meses | 10 registros | 41 | 9 | 5.75% | 94.25% | media |
+| `Membrana Megaflex` | si, `52` meses | 9 registros | 43 | 5 | 14.64% | 85.36% | media-baja |
+
+Lectura metodologica:
+
+- `Cemento Portland` es la referencia principal del sistema porque su serie es real, densa y continua.
+- `Pastina` y `Membrana Megaflex` usan series hibridas con valores reales y estimados para mantener continuidad mensual.
+- Sus metricas sirven como evidencia de utilidad operativa, pero no deben interpretarse con la misma solidez metodologica que las del cemento.
+- Un `MAPE` bajo sobre una serie con muchos datos estimados puede sobrestimar la confiabilidad real del modelo.
+- La efectividad informal se presenta solo como `100 - MAPE` y cumple una funcion comunicacional de apoyo. La metrica principal de comparacion sigue siendo `MAPE`.
+- La continuidad mensual mejora la estabilidad del forecast, pero no equivale automaticamente a mayor confiabilidad real si la serie depende de muchos valores estimados.
+
 ### 6. Criterio de suficiencia del modelo
 
 Se evaluaron distintas variantes de Prophet con regresores externos, comparando su desempeno mediante backtesting temporal. El modelo seleccionado actualmente es `prophet_oficial_mayorista`, no porque alcance un umbral arbitrario de efectividad, sino porque hasta el momento ofrece la mejor relacion entre desempeno predictivo, consistencia metodologica y defendibilidad para el objetivo del sistema.
@@ -403,13 +428,24 @@ app/
 ├── schemas/ Schemas Pydantic
 ├── services/ Logica de negocio
 └── main.py App FastAPI
-```
 
-```text
+data/
+└── raw/ Archivos crudos de IPC y dolares
+
+docs/
+├── DECISIONES_TESIS.md
+├── MEDICIONES_FORECASTING.md
+└── DISENO_EPICA_5.md
+
+resources/
+└── branding/ Logos y assets de marca
+
+scripts/
+└── local_server.py Wrapper de uvicorn para desarrollo local
+
 frontend/
 ├── index.html
-├── styles.css
-├── app.js
+├── src/
 ├── bwlogo.jpeg
 ├── favicon.jpeg
 ├── Dockerfile

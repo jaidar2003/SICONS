@@ -5,11 +5,12 @@ from decimal import Decimal
 from time import monotonic
 import hashlib
 
-from fastapi import HTTPException
-from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.modules.catalog.infrastructure.models import Material
+from app.modules.catalog.domain.repositories import MaterialRepository
+from app.modules.pricing.domain.repositories import PricingRepository
+from app.modules.pricing.domain.exceptions import ExternalRegressorError, InsufficientDataException
 from app.modules.pricing.application.forecast_cache import ForecastCacheEntry, ForecastCacheKey
 from app.modules.pricing.application.backtesting import construir_folds_temporales
 from app.modules.pricing.application.forecasting import BEST_PROPHET_CONFIG, construir_dataset_prophet, generar_fechas_mensuales, inicio_mes_siguiente
@@ -87,16 +88,7 @@ def limpiar_forecast_cache() -> None:
     _forecast_cache.clear()
 
 
-def serie_mensual_material(material: Material, db: Session):
-    stmt = (
-        select(PrecioHistorico)
-        .options(joinedload(PrecioHistorico.fuente))
-        .where(
-            PrecioHistorico.material_id == material.id,
-            PrecioHistorico.fecha >= FORECAST_DATASET_START,
-        )
-        .order_by(PrecioHistorico.fecha.asc(), PrecioHistorico.id.asc())
-    )
+def serie_mensual_material(material: Material, pricing_repo: PricingRepository):
     registros = [
         PrecioSerieInput(
             fecha=precio.fecha,
@@ -105,7 +97,7 @@ def serie_mensual_material(material: Material, db: Session):
             fuente=precio.fuente.nombre if precio.fuente else None,
             numero_comprobante=precio.numero_comprobante,
         )
-        for precio in db.scalars(stmt)
+        for precio in pricing_repo.get_historical_prices(material.id, FORECAST_DATASET_START)
     ]
     return construir_serie_mensual(registros)
 
@@ -151,7 +143,15 @@ def backtesting_forecast(pd, Prophet, dataset, regresores_df, horizonte_meses: i
     )
 
 
-def pronosticar_futuro(pd, Prophet, dataset, regresores_df, horizonte_meses: int, unidad_base: str) -> list[ForecastPuntoRead]:
+def pronosticar_futuro(
+    pd,
+    Prophet,
+    dataset,
+    regresores_df,
+    horizonte_meses: int,
+    unidad_base: str,
+    material_nombre: str,
+) -> list[ForecastPuntoRead]:
     dataset_df = _a_dataframe(pd, dataset)
     dataset_reg = dataset_df.merge(regresores_df, on="ds", how="left")
     for columna in ("dolar_oficial", "dolar_mayorista", "ipc"):
@@ -173,10 +173,11 @@ def pronosticar_futuro(pd, Prophet, dataset, regresores_df, horizonte_meses: int
     forecast = modelo.predict(futuro)[["ds", "yhat"]].tail(horizonte_meses)
 
     puntos: list[ForecastPuntoRead] = []
+    usa_equivalencias = unidad_base == "kg" and material_nombre == "Cemento Portland"
     for _, fila in forecast.iterrows():
         precio = float(fila["yhat"])
-        equivalencia_25 = Decimal(f"{precio * 25:.2f}") if unidad_base == "kg" else None
-        equivalencia_50 = Decimal(f"{precio * 50:.2f}") if unidad_base == "kg" else None
+        equivalencia_25 = Decimal(f"{precio * 25:.2f}") if usa_equivalencias else None
+        equivalencia_50 = Decimal(f"{precio * 50:.2f}") if usa_equivalencias else None
         puntos.append(
             ForecastPuntoRead(
                 fecha=fila["ds"].date(),
@@ -197,19 +198,27 @@ def _forecast_material(
 ) -> ForecastMaterialResult:
     regresores_df = cargar_regresores_mensuales(pd)
     metricas = backtesting_forecast(pd, Prophet, dataset, regresores_df, horizonte_meses)
-    forecast = pronosticar_futuro(pd, Prophet, dataset, regresores_df, horizonte_meses, material.unidad_base)
+    forecast = pronosticar_futuro(
+        pd,
+        Prophet,
+        dataset,
+        regresores_df,
+        horizonte_meses,
+        material.unidad_base,
+        material.nombre,
+    )
     return ForecastMaterialResult(dataset=dataset, metricas=metricas, forecast=forecast)
 
 
 def forecast_material(
     material: Material,
     horizonte_meses: int,
-    db: Session,
+    pricing_repo: PricingRepository,
 ) -> ForecastMaterialResult:
-    puntos = serie_mensual_material(material, db)
+    puntos = serie_mensual_material(material, pricing_repo)
     dataset = construir_dataset_prophet(puntos, objetivo="precio_promedio_normalizado")
     if len(dataset) < 24 + horizonte_meses:
-        raise HTTPException(status_code=422, detail=f"No hay suficientes puntos mensuales para generar el forecast de {material.nombre}")
+        raise InsufficientDataException(f"No hay suficientes puntos mensuales para generar el forecast de {material.nombre}")
 
     dataset_signature = construir_firma_dataset(dataset)
     forecast_cacheado = obtener_forecast_cacheado(material.id, horizonte_meses, dataset_signature)
@@ -236,19 +245,14 @@ def forecast_material(
 
 
 def precomputar_forecasts_materiales(
-    db: Session,
+    material_repo: MaterialRepository,
+    pricing_repo: PricingRepository,
     horizontes: tuple[int, ...] = (3, 6, 12),
 ) -> list[tuple[int, int]]:
-    materiales = list(
-        db.scalars(
-            select(Material)
-            .where(Material.activo.is_(True))
-            .order_by(Material.id.asc())
-        )
-    )
+    materiales = material_repo.list_active()
     completados: list[tuple[int, int]] = []
     for material in materiales:
         for horizonte in horizontes:
-            forecast_material(material, horizonte, db)
+            forecast_material(material, horizonte, pricing_repo)
             completados.append((material.id, horizonte))
     return completados

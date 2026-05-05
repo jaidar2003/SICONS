@@ -277,3 +277,17 @@ Cada decision incluye:
 - Justificacion: la continuidad mensual mejora la estabilidad del forecast y habilita el backtesting temporal, pero no garantiza por si sola la misma confiabilidad real. Las series hibridas con muchos valores estimados pueden arrojar metricas utiles para operacion, aunque metodologicamente menos solidas que una serie real, densa y continua como la de cemento.
 - Impacto en el sistema: la documentacion y la defensa metodologica del proyecto distinguen ahora entre `Cemento Portland` como referencia principal, `Pastina` como serie de confiabilidad media y `Membrana Megaflex` como serie de confiabilidad media-baja.
 - Limitaciones o trabajo futuro: a futuro conviene separar explicitamente evaluaciones sobre puntos reales frente a evaluaciones sobre series hibridas, para reducir el riesgo de sobreinterpretar `MAPE` sobre datos estimados.
+
+## DT-20
+
+- Fecha aproximada: mayo de 2026
+- Area: integracion de seleccion de modelo con serving de forecast
+- Decision tomada: integrar el selector interno de modelos al flujo de forecast de forma gradual, sin activarlo por defecto en la primera etapa y resguardando el comportamiento actual mediante un `feature flag` o mecanismo equivalente.
+- Problema que resuelve: permite incorporar seleccion de modelo por material y horizonte sin mezclar logica experimental dentro de `forecast_service.py` ni alterar de golpe el serving productivo ya operativo.
+- Alternativas consideradas:
+  - activar el selector inmediatamente para todos los forecasts;
+  - mantener la logica de seleccion embebida dentro de `forecast_service.py`;
+  - postergar indefinidamente la integracion y sostener un modelo productivo unico.
+- Justificacion: el selector ya concentra una politica metodologica versionada y testeable, pero su integracion al flujo productivo requiere validacion adicional sobre regressors disponibles, respuesta HTTP, compatibilidad de backward y pruebas de no regresion. Por eso, la integracion debe hacerse de manera controlada, con activacion explicita y capacidad de exponer el modelo usado junto con su justificacion, sin romper la arquitectura actual de `Prophet`.
+- Impacto en el sistema: `forecast_service` podra evolucionar hacia una interfaz donde la resolucion del modelo quede desacoplada del entrenamiento, y la respuesta del forecast exponga trazabilidad metodologica sobre la configuracion aplicada.
+- Limitaciones o trabajo futuro: hasta que el selector no se active, el comportamiento productivo sigue igual. La etapa siguiente requerira definir el contrato exacto de integracion, validar fallbacks por falta de regresores y asegurar que la salida del endpoint mantenga compatibilidad razonable con clientes actuales.

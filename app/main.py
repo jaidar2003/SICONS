@@ -5,6 +5,7 @@ from app.modules.auth.interfaces import routes as auth
 from app.modules.catalog.interfaces import fuentes, materiales, presentaciones
 from app.modules.health.interfaces import routes as health
 from app.modules.pricing.interfaces import routes as precios_historicos
+from app.shared.api.exception_handlers import register_exception_handlers
 
 
 def create_app() -> FastAPI:
@@ -16,6 +17,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    register_exception_handlers(app)
     app.include_router(auth.router)
     app.include_router(health.router)
     app.include_router(materiales.router)

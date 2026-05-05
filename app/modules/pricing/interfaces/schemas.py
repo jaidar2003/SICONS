@@ -12,6 +12,8 @@ class PrecioHistoricoCreate(BaseModel):
     precio_original: Decimal = Field(ge=0, decimal_places=2)
     moneda: str = Field(default="ARS", min_length=1, max_length=10)
     numero_comprobante: str | None = Field(default=None, max_length=50)
+    origen_dato: str = Field(default="REAL", min_length=1, max_length=20)
+    metodo_estimacion: str | None = Field(default=None, max_length=50)
     observaciones: str | None = None
 
 
@@ -35,8 +37,8 @@ class PuntoSeriePrecioRead(BaseModel):
     fecha: date
     precio_promedio_normalizado: Decimal
     unidad_base: str
-    precio_equivalente_25kg: Decimal
-    precio_equivalente_50kg: Decimal
+    precio_equivalente_25kg: Decimal | None = None
+    precio_equivalente_50kg: Decimal | None = None
     cantidad_registros: int
     cantidad_facturas: int
     fuentes: list[str]
@@ -105,3 +107,48 @@ class MaterialCriticidadResponseRead(BaseModel):
     alpha: Decimal
     beta: Decimal
     materiales: list[MaterialCriticidadRead]
+
+
+class ExternalIndexValueRead(BaseModel):
+    id: int
+    source_name: str
+    series_id: str
+    date: date
+    value: Decimal
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ExternalIndexSyncRequest(BaseModel):
+    source_name: str = Field(min_length=1, max_length=50)
+    series_id: str = Field(min_length=1, max_length=100)
+    start_date: date | None = None
+    end_date: date | None = None
+
+
+class ExternalIndexSyncResponse(BaseModel):
+    source_name: str
+    series_id: str
+    inserted: int
+    updated: int
+    unchanged: int
+
+
+class PriceImputationRequest(BaseModel):
+    start_date: date
+    end_date: date
+    index_series_id: str = Field(min_length=1, max_length=100)
+    source_name: str = Field(min_length=1, max_length=50)
+    metodo_estimacion: str = Field(min_length=1, max_length=50)
+
+
+class PriceImputationResponse(BaseModel):
+    material_id: int
+    source_name: str
+    series_id: str
+    metodo_estimacion: str
+    inserted: int
+    updated: int
+    skipped_real_months: int
+    generated_months: list[date]

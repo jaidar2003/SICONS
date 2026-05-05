@@ -1,122 +1,22 @@
 import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { Alert, Box, Button, Card, CardContent, CircularProgress, FormControl, IconButton, InputLabel, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
-import { useEffect, useMemo, useState } from "react";
 
-import { fetchForecast } from "./pricing.api.js";
+import { useCostPlanner } from "./useCostPlanner.js";
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
 
-function createEmptyRow(materialId = "") {
-  return {
-    id: crypto.randomUUID(),
-    materialId,
-    quantity: "100",
-  };
-}
-
 export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizon, token, showPrices }) {
-  const [rows, setRows] = useState(() => [createEmptyRow(selectedMaterialId || "")]);
-  const [forecastsByMaterial, setForecastsByMaterial] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    setRows((current) => {
-      if (current.some((row) => row.materialId)) return current;
-      return [createEmptyRow(selectedMaterialId || "")];
-    });
-  }, [selectedMaterialId]);
-
-  const activeMaterialIds = useMemo(
-    () => [...new Set(rows.map((row) => row.materialId).filter(Boolean))],
-    [rows]
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadForecasts() {
-      if (!activeMaterialIds.length) {
-        setForecastsByMaterial({});
-        return;
-      }
-
-      setLoading(true);
-      setError("");
-      try {
-        const results = await Promise.all(
-          activeMaterialIds.map(async (materialId) => [
-            materialId,
-            await fetchForecast({ materialId, horizonteMeses: forecastHorizon, token }),
-          ])
-        );
-        if (cancelled) return;
-        setForecastsByMaterial(Object.fromEntries(results));
-      } catch (loadError) {
-        if (cancelled) return;
-        setError(loadError.message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    loadForecasts();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeMaterialIds, forecastHorizon, token]);
-
-  const plannerRows = useMemo(() => {
-    return rows
-      .map((row) => {
-        const material = materiales.find((item) => String(item.id) === String(row.materialId));
-        const forecast = row.materialId ? forecastsByMaterial[row.materialId] : null;
-        const quantity = Number(row.quantity);
-        const validQuantity = Number.isFinite(quantity) && quantity > 0;
-        const currentUnitPrice = forecast ? Number(forecast.ultimo_precio_observado) : 0;
-        const projectedPoint = forecast?.puntos?.[forecast.puntos.length - 1] || null;
-        const projectedUnitPrice = projectedPoint ? Number(projectedPoint.precio_proyectado) : 0;
-        const currentCost = validQuantity ? currentUnitPrice * quantity : 0;
-        const projectedCost = validQuantity ? projectedUnitPrice * quantity : 0;
-        const delta = projectedCost - currentCost;
-        const deltaPercent = currentCost === 0 ? 0 : (delta / currentCost) * 100;
-
-        return {
-          ...row,
-          material,
-          forecast,
-          quantity,
-          validQuantity,
-          projectedPoint,
-          currentCost,
-          projectedCost,
-          delta,
-          deltaPercent,
-        };
-      })
-      .filter((row) => row.material);
-  }, [forecastsByMaterial, materiales, rows]);
-
-  const summary = useMemo(() => {
-    const comparableRows = plannerRows.filter((row) => row.forecast && row.validQuantity && row.projectedPoint);
-    if (!comparableRows.length) return null;
-
-    const totalCurrent = comparableRows.reduce((total, row) => total + row.currentCost, 0);
-    const totalProjected = comparableRows.reduce((total, row) => total + row.projectedCost, 0);
-    const totalDelta = totalProjected - totalCurrent;
-    const totalDeltaPercent = totalCurrent === 0 ? 0 : (totalDelta / totalCurrent) * 100;
-    const highestImpact = comparableRows.reduce((worst, row) => (row.delta > worst.delta ? row : worst), comparableRows[0]);
-
-    return {
-      comparableRows,
-      totalCurrent,
-      totalProjected,
-      totalDelta,
-      totalDeltaPercent,
-      highestImpact,
-    };
-  }, [plannerRows]);
+  const {
+    rows,
+    plannerRows,
+    summary,
+    loading,
+    error,
+    addRow,
+    removeRow,
+    updateRow,
+  } = useCostPlanner({ materiales, selectedMaterialId, forecastHorizon, token });
 
   if (!showPrices) {
     return (
@@ -145,7 +45,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
               variant="outlined"
               color="secondary"
               startIcon={<AddIcon />}
-              onClick={() => setRows((current) => [...current, createEmptyRow("")])}
+              onClick={() => addRow("")}
             >
               Agregar material
             </Button>
@@ -170,11 +70,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
                     labelId={`planner-material-${row.id}`}
                     label="Material"
                     value={row.materialId}
-                    onChange={(event) =>
-                      setRows((current) =>
-                        current.map((item) => (item.id === row.id ? { ...item, materialId: String(event.target.value) } : item))
-                      )
-                    }
+                    onChange={(event) => updateRow(row.id, "materialId", String(event.target.value))}
                   >
                     {materiales.map((material) => (
                       <MenuItem key={material.id} value={String(material.id)}>
@@ -189,11 +85,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
                   label="Cantidad"
                   type="number"
                   value={row.quantity}
-                  onChange={(event) =>
-                    setRows((current) =>
-                      current.map((item) => (item.id === row.id ? { ...item, quantity: event.target.value } : item))
-                    )
-                  }
+                  onChange={(event) => updateRow(row.id, "quantity", event.target.value)}
                   inputProps={{ min: 0, step: "any" }}
                 />
 
@@ -211,7 +103,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
                 <IconButton
                   color="secondary"
                   disabled={rows.length === 1}
-                  onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))}
+                  onClick={() => removeRow(row.id)}
                   aria-label={`Eliminar fila ${index + 1}`}
                 >
                   <DeleteOutlineIcon />

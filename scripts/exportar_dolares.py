@@ -43,7 +43,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Exporta historicos de dolares desde JSON a CSV.")
     parser.add_argument(
         "--input",
-        default="dolares_historico.json",
+        default="data/raw/dolares_historico.json",
         help="Ruta al JSON historico descargado desde la API.",
     )
     parser.add_argument(

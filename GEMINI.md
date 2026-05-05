@@ -55,6 +55,7 @@ docker compose up -d --build
 ## Archivos a revisar antes de cambios sensibles
 
 - `README.md`
+- `docs/DECISIONES_TESIS.md`
 - `app/modules/pricing/interfaces/routes.py`
 - `app/modules/pricing/application/`
 - `frontend/src/features/pricing/`

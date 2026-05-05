@@ -1,11 +1,10 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
-from fastapi import HTTPException
-from sqlalchemy.orm import Session
-
-from app.modules.catalog.infrastructure.models import Material
+from app.modules.catalog.domain.repositories import MaterialRepository
+from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.application.forecast_service import forecast_material
+from app.modules.pricing.domain.exceptions import MaterialNotFoundException
 from app.modules.pricing.domain.rules import (
     calcular_impacto_absoluto,
     calcular_puntaje_criticidad,
@@ -121,15 +120,16 @@ def priorizar_materiales_criticos(
 
 def priorizar_materiales_desde_forecast(
     payload: MaterialCriticidadCreate,
-    db: Session,
+    material_repo: MaterialRepository,
+    pricing_repo: PricingRepository,
 ) -> MaterialCriticidadResponseRead:
     materiales_prioridad: list[MaterialPriorityInput] = []
     for item in payload.materiales:
-        material = db.get(Material, item.material_id)
+        material = material_repo.get_by_id(item.material_id)
         if material is None:
-            raise HTTPException(status_code=404, detail=f"Material no encontrado: {item.material_id}")
+            raise MaterialNotFoundException(item.material_id)
 
-        forecast_result = forecast_material(material, payload.horizonte_meses, db)
+        forecast_result = forecast_material(material, payload.horizonte_meses, pricing_repo)
         punto_objetivo = forecast_result.forecast[-1]
         materiales_prioridad.append(
             MaterialPriorityInput(

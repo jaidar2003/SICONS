@@ -6,6 +6,7 @@ import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
 export function ForecastCard({ forecast, serie, horizonteMeses, onChangeHorizon, showPrices }) {
   const baseValue = serie.length ? Number(serie[0].precio_promedio_normalizado) : 0;
   const lastObservedValue = forecast ? Number(forecast.ultimo_precio_observado) : 0;
+  const showBagEquivalents = Boolean(forecast?.puntos?.some((punto) => punto.precio_equivalente_25kg !== null));
 
   return (
     <Card className="mt-3">
@@ -60,7 +61,7 @@ export function ForecastCard({ forecast, serie, horizonteMeses, onChangeHorizon,
                       <Typography color="text.secondary" fontSize={13}>
                         por {forecast.unidad_base}
                       </Typography>
-                      {punto.precio_equivalente_25kg !== null ? (
+                      {showBagEquivalents && punto.precio_equivalente_25kg !== null ? (
                         <>
                           <Divider className="my-2" />
                           <Typography fontSize={13}>25 kg: {formatCurrency(punto.precio_equivalente_25kg)}</Typography>

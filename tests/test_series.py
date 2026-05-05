@@ -59,3 +59,15 @@ def test_construir_serie_mensual_cuenta_facturas_distintas() -> None:
 
     assert serie[0].cantidad_registros == 3
     assert serie[0].cantidad_facturas == 2
+
+
+def test_construir_serie_mensual_no_calcula_bolsas_para_material_no_cemento() -> None:
+    serie = construir_serie_mensual(
+        [
+            PrecioSerieInput(date(2026, 1, 3), Decimal("100.0000"), "kg", "Factura compra Proveedor", "A-0001"),
+            PrecioSerieInput(date(2026, 1, 20), Decimal("120.0000"), "kg", "Factura compra Proveedor", "A-0002"),
+        ]
+    )
+
+    assert serie[0].precio_equivalente_25kg is None
+    assert serie[0].precio_equivalente_50kg is None

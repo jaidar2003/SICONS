@@ -14,6 +14,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -37,6 +38,10 @@ class PrecioHistorico(Base):
         CheckConstraint("precio_original >= 0", name="precios_historicos_precio_original_nonnegative"),
         CheckConstraint("precio_normalizado >= 0", name="precios_historicos_precio_normalizado_nonnegative"),
         CheckConstraint("btrim(moneda::text) <> ''::text", name="precios_historicos_moneda_not_blank"),
+        CheckConstraint(
+            "origen_dato IN ('REAL', 'ESTIMADO')",
+            name="precios_historicos_origen_dato_allowed",
+        ),
         Index("idx_precios_historicos_material_fecha", "material_id", text("fecha DESC")),
         Index("idx_precios_historicos_material_presentacion_fecha_fuente", "material_id", "presentacion_id", "fecha", "fuente_id"),
         Index("idx_precios_historicos_presentacion_id", "presentacion_id"),
@@ -62,6 +67,8 @@ class PrecioHistorico(Base):
     precio_normalizado: Mapped[Decimal] = mapped_column(Numeric(14, 4))
     moneda: Mapped[str] = mapped_column(String(10))
     numero_comprobante: Mapped[str | None] = mapped_column(String(50))
+    origen_dato: Mapped[str] = mapped_column(String(20), server_default="REAL")
+    metodo_estimacion: Mapped[str | None] = mapped_column(String(50))
     observaciones: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -69,3 +76,19 @@ class PrecioHistorico(Base):
     presentacion: Mapped["Presentacion | None"] = relationship(back_populates="precios", foreign_keys=[presentacion_id])
     fuente: Mapped["Fuente | None"] = relationship(back_populates="precios", foreign_keys=[fuente_id])
 
+
+class ExternalIndexValue(Base):
+    __tablename__ = "external_index_values"
+    __table_args__ = (
+        UniqueConstraint("series_id", "date", name="external_index_values_series_date_unique"),
+        CheckConstraint("value >= 0", name="external_index_values_value_nonnegative"),
+        Index("idx_external_index_values_source_name", "source_name"),
+        Index("idx_external_index_values_series_date", "series_id", "date"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    source_name: Mapped[str] = mapped_column(String(50))
+    series_id: Mapped[str] = mapped_column(String(100))
+    date: Mapped[date] = mapped_column(Date)
+    value: Mapped[Decimal] = mapped_column(Numeric(18, 6))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

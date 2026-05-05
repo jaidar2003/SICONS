@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Identity, String, func
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, Identity, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.shared.database.base import Base
@@ -13,7 +13,7 @@ class Usuario(Base):
         CheckConstraint("btrim(username::text) <> ''::text", name="usuarios_username_not_blank"),
     )
 
-    id: Mapped[int] = mapped_column(Identity(always=True), primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     nombre: Mapped[str] = mapped_column(String(120), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(220), nullable=False)

@@ -8,21 +8,33 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.modules.auth.infrastructure.models import Usuario
 from app.modules.auth.interfaces.dependencies import require_admin
+from app.modules.catalog.domain.repositories import MaterialRepository
+from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.pricing.application.forecast_service import (
     FORECAST_MODEL_NAME,
     FORECAST_REGRESSOR_NOTE,
     forecast_material,
 )
+from app.modules.pricing.application.external_indices import list_external_indices, sync_external_index
+from app.modules.pricing.application.imputation import impute_monthly_prices
+from app.modules.pricing.domain.repositories import PricingRepository
+from app.modules.pricing.interfaces.dependencies import get_pricing_repository
+from app.modules.pricing.domain.exceptions import MaterialNotFoundException
 from app.modules.pricing.application.priorities import priorizar_materiales_desde_forecast
 from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion
 from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual, construir_serie_precios
 from app.modules.pricing.domain.rules import calcular_precio_normalizado
-from app.modules.pricing.infrastructure.models import PrecioHistorico
+from app.modules.pricing.infrastructure.models import ExternalIndexValue, PrecioHistorico
 from app.modules.pricing.interfaces.schemas import (
+    ExternalIndexSyncRequest,
+    ExternalIndexSyncResponse,
+    ExternalIndexValueRead,
     ForecastResponseRead,
     MaterialCriticidadCreate,
     MaterialCriticidadRead,
     MaterialCriticidadResponseRead,
+    PriceImputationRequest,
+    PriceImputationResponse,
     PrecioHistoricoCreate,
     PrecioHistoricoRangoRead,
     PrecioHistoricoRead,
@@ -66,19 +78,54 @@ def listar_precios_historicos(
     return list(db.scalars(stmt))
 
 
+@router.get("/indices-externos", response_model=list[ExternalIndexValueRead])
+def listar_indices_externos(
+    series_id: str | None = None,
+    source_name: str | None = None,
+    desde: date | None = None,
+    hasta: date | None = None,
+    db: Session = Depends(get_db),
+) -> list[ExternalIndexValue]:
+    return list_external_indices(
+        db,
+        series_id=series_id,
+        source_name=source_name,
+        start_date=desde,
+        end_date=hasta,
+    )
+
+
+@router.post("/indices-externos/sync", response_model=ExternalIndexSyncResponse)
+def sincronizar_indice_externo(
+    payload: ExternalIndexSyncRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_admin),
+) -> ExternalIndexSyncResponse:
+    result = sync_external_index(
+        db,
+        series_id=payload.series_id,
+        source_name=payload.source_name,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+    )
+    return ExternalIndexSyncResponse(
+        source_name=result.source_name,
+        series_id=result.series_id,
+        inserted=result.inserted,
+        updated=result.updated,
+        unchanged=result.unchanged,
+    )
+
+
 @router.get("/materiales/{material_id}/precios", response_model=list[PrecioHistoricoRead])
 def listar_precios_por_material(
     material_id: int,
-    db: Session = Depends(get_db),
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
 ) -> list[PrecioHistorico]:
-    if db.get(Material, material_id) is None:
-        raise HTTPException(status_code=404, detail="Material no encontrado")
-    stmt = (
-        select(PrecioHistorico)
-        .where(PrecioHistorico.material_id == material_id)
-        .order_by(PrecioHistorico.fecha.desc(), PrecioHistorico.id.desc())
-    )
-    return list(db.scalars(stmt))
+    if material_repo.get_by_id(material_id) is None:
+        raise MaterialNotFoundException(material_id)
+    return pricing_repo.get_historical_prices(material_id, date(2000, 1, 1))
 
 
 @router.get("/materiales/{material_id}/serie-precios", response_model=list[PuntoSeriePrecioRead])
@@ -87,22 +134,16 @@ def obtener_serie_precios_material(
     desde: date | None = None,
     hasta: date | None = None,
     agrupacion: str = "dia",
-    db: Session = Depends(get_db),
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
 ):
-    material = db.get(Material, material_id)
+    material = material_repo.get_by_id(material_id)
     if material is None:
-        raise HTTPException(status_code=404, detail="Material no encontrado")
+        raise MaterialNotFoundException(material_id)
 
-    stmt = (
-        select(PrecioHistorico)
-        .options(joinedload(PrecioHistorico.fuente))
-        .where(PrecioHistorico.material_id == material_id)
-        .order_by(PrecioHistorico.fecha.asc(), PrecioHistorico.id.asc())
-    )
-    if desde is not None:
-        stmt = stmt.where(PrecioHistorico.fecha >= desde)
-    if hasta is not None:
-        stmt = stmt.where(PrecioHistorico.fecha <= hasta)
+    precios = pricing_repo.get_historical_prices(material_id, desde or date(2000, 1, 1))
+    if hasta:
+        precios = [p for p in precios if p.fecha <= hasta]
 
     registros = [
         PrecioSerieInput(
@@ -112,7 +153,7 @@ def obtener_serie_precios_material(
             fuente=precio.fuente.nombre if precio.fuente else None,
             numero_comprobante=precio.numero_comprobante,
         )
-        for precio in db.scalars(stmt)
+        for precio in precios
     ]
     if agrupacion == "mensual":
         return construir_serie_mensual(registros)
@@ -125,16 +166,17 @@ def obtener_serie_precios_material(
 def obtener_forecast_material(
     material_id: int,
     horizonte_meses: int = 3,
-    db: Session = Depends(get_db),
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
 ) -> ForecastResponseRead:
     if horizonte_meses < 1 or horizonte_meses > 12:
         raise HTTPException(status_code=422, detail="El horizonte_meses debe estar entre 1 y 12")
 
-    material = db.get(Material, material_id)
+    material = material_repo.get_by_id(material_id)
     if material is None:
-        raise HTTPException(status_code=404, detail="Material no encontrado")
+        raise MaterialNotFoundException(material_id)
 
-    forecast_result = forecast_material(material, horizonte_meses, db)
+    forecast_result = forecast_material(material, horizonte_meses, pricing_repo)
 
     return ForecastResponseRead(
         material_id=material.id,
@@ -153,11 +195,40 @@ def obtener_forecast_material(
 @router.post("/materiales/criticidad", response_model=MaterialCriticidadResponseRead)
 def priorizar_materiales_por_criticidad(
     payload: MaterialCriticidadCreate,
-    db: Session = Depends(get_db),
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
 ) -> MaterialCriticidadResponseRead:
     if payload.alpha == 0 and payload.beta == 0:
         raise HTTPException(status_code=422, detail="alpha y beta no pueden ser ambos cero")
-    return priorizar_materiales_desde_forecast(payload, db)
+    return priorizar_materiales_desde_forecast(payload, material_repo, pricing_repo)
+
+
+@router.post("/materiales/{material_id}/imputar-precios", response_model=PriceImputationResponse)
+def imputar_precios_material(
+    material_id: int,
+    payload: PriceImputationRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_admin),
+) -> PriceImputationResponse:
+    result = impute_monthly_prices(
+        db,
+        material_id=material_id,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        index_series_id=payload.index_series_id,
+        source_name=payload.source_name,
+        metodo_estimacion=payload.metodo_estimacion,
+    )
+    return PriceImputationResponse(
+        material_id=result.material_id,
+        source_name=result.source_name,
+        series_id=result.series_id,
+        metodo_estimacion=result.metodo_estimacion,
+        inserted=result.inserted,
+        updated=result.updated,
+        skipped_real_months=result.skipped_real_months,
+        generated_months=result.generated_months,
+    )
 
 
 @router.post("/precios-historicos", response_model=PrecioHistoricoRead, status_code=status.HTTP_201_CREATED)

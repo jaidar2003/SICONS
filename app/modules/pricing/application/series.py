@@ -18,8 +18,8 @@ class PuntoSeriePrecio:
     fecha: date
     precio_promedio_normalizado: Decimal
     unidad_base: str
-    precio_equivalente_25kg: Decimal
-    precio_equivalente_50kg: Decimal
+    precio_equivalente_25kg: Decimal | None
+    precio_equivalente_50kg: Decimal | None
     cantidad_registros: int
     cantidad_facturas: int
     fuentes: list[str]
@@ -37,6 +37,10 @@ def _contar_facturas(registros: list[PrecioSerieInput]) -> int:
     return len(comprobantes) if comprobantes else len(registros)
 
 
+def _usa_equivalencias_bolsa(unidad_base: str, fuentes: list[str]) -> bool:
+    return unidad_base == "kg" and "Factura compra" in fuentes
+
+
 def construir_serie_precios(registros: list[PrecioSerieInput]) -> list[PuntoSeriePrecio]:
     grupos: dict[date, list[PrecioSerieInput]] = defaultdict(list)
     for registro in registros:
@@ -51,6 +55,7 @@ def construir_serie_precios(registros: list[PrecioSerieInput]) -> list[PuntoSeri
         promedio = _quantize(total / Decimal(len(registros_fecha)))
         unidad_base = registros_fecha[0].unidad_base
         fuentes = sorted({registro.fuente for registro in registros_fecha if registro.fuente})
+        usa_equivalencias = _usa_equivalencias_bolsa(unidad_base, fuentes)
 
         variacion = None
         if precio_anterior is not None and precio_anterior != 0:
@@ -61,8 +66,8 @@ def construir_serie_precios(registros: list[PrecioSerieInput]) -> list[PuntoSeri
                 fecha=fecha_punto,
                 precio_promedio_normalizado=promedio,
                 unidad_base=unidad_base,
-                precio_equivalente_25kg=_quantize(promedio * Decimal("25")),
-                precio_equivalente_50kg=_quantize(promedio * Decimal("50")),
+                precio_equivalente_25kg=_quantize(promedio * Decimal("25")) if usa_equivalencias else None,
+                precio_equivalente_50kg=_quantize(promedio * Decimal("50")) if usa_equivalencias else None,
                 cantidad_registros=len(registros_fecha),
                 cantidad_facturas=_contar_facturas(registros_fecha),
                 fuentes=fuentes,
@@ -92,6 +97,7 @@ def construir_serie_mensual(
         promedio = _quantize(total / Decimal(len(registros_mes)))
         unidad_base = registros_mes[0].unidad_base
         fuentes = sorted({registro.fuente for registro in registros_mes if registro.fuente})
+        usa_equivalencias = _usa_equivalencias_bolsa(unidad_base, fuentes)
 
         variacion = None
         es_anomalia = False
@@ -107,8 +113,8 @@ def construir_serie_mensual(
                 fecha=mes,
                 precio_promedio_normalizado=promedio,
                 unidad_base=unidad_base,
-                precio_equivalente_25kg=_quantize(promedio * Decimal("25")),
-                precio_equivalente_50kg=_quantize(promedio * Decimal("50")),
+                precio_equivalente_25kg=_quantize(promedio * Decimal("25")) if usa_equivalencias else None,
+                precio_equivalente_50kg=_quantize(promedio * Decimal("50")) if usa_equivalencias else None,
                 cantidad_registros=len(registros_mes),
                 cantidad_facturas=_contar_facturas(registros_mes),
                 fuentes=fuentes,

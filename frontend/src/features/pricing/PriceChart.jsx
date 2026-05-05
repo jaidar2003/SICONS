@@ -17,6 +17,7 @@ import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
 export function PriceChart({ serie, forecast, selectedMaterial, action, showPrices }) {
+  const showBagEquivalents = serie.some((point) => point.precio_equivalente_25kg !== null);
   const baseValue = serie.length ? Number(serie[0].precio_promedio_normalizado) : 0;
   const lastObservedValue = serie.length ? Number(serie[serie.length - 1].precio_promedio_normalizado) : 0;
   const variationSeries = serie.map((point) =>
@@ -100,8 +101,8 @@ export function PriceChart({ serie, forecast, selectedMaterial, action, showPric
               if (showPrices) {
                 return [
                   `Proyeccion/kg: ${formatCurrency(point.precio_proyectado)}`,
-                  point.precio_equivalente_25kg !== null ? `25 kg: ${formatCurrency(point.precio_equivalente_25kg)}` : null,
-                  point.precio_equivalente_50kg !== null ? `50 kg: ${formatCurrency(point.precio_equivalente_50kg)}` : null,
+                  showBagEquivalents && point.precio_equivalente_25kg !== null ? `25 kg: ${formatCurrency(point.precio_equivalente_25kg)}` : null,
+                  showBagEquivalents && point.precio_equivalente_50kg !== null ? `50 kg: ${formatCurrency(point.precio_equivalente_50kg)}` : null,
                 ].filter(Boolean);
               }
               return [
@@ -114,8 +115,8 @@ export function PriceChart({ serie, forecast, selectedMaterial, action, showPric
             if (showPrices) {
               return [
                 `Precio/kg: ${formatCurrency(point.precio_promedio_normalizado)}`,
-                `25 kg: ${formatCurrency(point.precio_equivalente_25kg)}`,
-                `50 kg: ${formatCurrency(point.precio_equivalente_50kg)}`,
+                showBagEquivalents ? `25 kg: ${formatCurrency(point.precio_equivalente_25kg)}` : null,
+                showBagEquivalents ? `50 kg: ${formatCurrency(point.precio_equivalente_50kg)}` : null,
                 `Muestra: ${point.cantidad_registros} ${point.cantidad_registros === 1 ? "precio" : "precios"}`,
                 `Variacion mensual: ${point.variacion_porcentual_anterior === null ? "-" : `${formatNumber(point.variacion_porcentual_anterior)}%`}`,
                 `Fuentes: ${point.fuentes.join(", ") || "-"}`,

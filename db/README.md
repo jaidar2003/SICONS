@@ -33,7 +33,7 @@ Crear una migracion autogenerada a partir de modelos SQLAlchemy:
 El seed principal esta implementado en Python para poder ejecutarlo desde Docker sin depender de `psql` dentro del contenedor de API:
 
 ```bash
-.venv/bin/python -m app.db.seed
+.venv/bin/python -m app.operations.bootstrap.seed
 ```
 
 ## Modelo inicial

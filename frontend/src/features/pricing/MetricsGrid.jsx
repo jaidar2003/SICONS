@@ -4,12 +4,14 @@ import { MetricCard } from "../../shared/components/MetricCard.jsx";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
 
 export function MetricsGrid({ serie, showPrices }) {
+  const showBagEquivalents = serie.some((point) => point.precio_equivalente_25kg !== null);
+
   if (!serie.length) {
     return (
       <Box className="mt-3 grid gap-3 md:grid-cols-4">
         <MetricCard label="Ultimo precio normalizado" value="-" helper="Sin datos" />
-        <MetricCard label="Equivalente 25 kg" value="-" helper="ARS por bolsa" />
-        <MetricCard label="Equivalente 50 kg" value="-" helper="ARS por bolsa" />
+        <MetricCard label="Equivalente 25 kg" value="-" helper="Solo cemento" />
+        <MetricCard label="Equivalente 50 kg" value="-" helper="Solo cemento" />
         <MetricCard label="Variacion total" value="-" helper="-" />
       </Box>
     );
@@ -40,8 +42,16 @@ export function MetricsGrid({ serie, showPrices }) {
   return (
     <Box className="mt-3 grid gap-3 md:grid-cols-4">
       <MetricCard label="Ultimo precio normalizado" value={`${formatCurrency(last.precio_promedio_normalizado)} / ${last.unidad_base}`} helper={last.fecha} />
-      <MetricCard label="Equivalente 25 kg" value={formatCurrency(last.precio_equivalente_25kg)} helper="ARS por bolsa" />
-      <MetricCard label="Equivalente 50 kg" value={formatCurrency(last.precio_equivalente_50kg)} helper="ARS por bolsa" />
+      <MetricCard
+        label="Equivalente 25 kg"
+        value={showBagEquivalents ? formatCurrency(last.precio_equivalente_25kg) : "-"}
+        helper={showBagEquivalents ? "ARS por bolsa" : "Solo cemento"}
+      />
+      <MetricCard
+        label="Equivalente 50 kg"
+        value={showBagEquivalents ? formatCurrency(last.precio_equivalente_50kg) : "-"}
+        helper={showBagEquivalents ? "ARS por bolsa" : "Solo cemento"}
+      />
       <MetricCard label="Variacion total" value={`${formatNumber(variation)}%`} helper={`${first.fecha} a ${last.fecha}`} />
     </Box>
   );
