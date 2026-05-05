@@ -320,3 +320,47 @@ Cada decision incluye:
 - Justificacion: la validacion runtime real mostro que el cableado tecnico del selector funciona, pero tambien evidencio que un mismo material logico puede quedar representado con IDs distintos o con series utiles en otro registro del catalogo. Por eso, la recomendacion del modelo debe asociarse al material logico y no a una clave accidental del ambiente. Para el MVP, conviene resolver una `material_key` estable desde el catalogo actual mediante normalizacion controlada del nombre o slug derivado, sin migracion de base todavia. Como evolucion futura, esa clave deberia persistirse explicitamente.
 - Impacto en el sistema: el selector podra migrar de un mapping basado en `material_id + horizonte_meses` a uno basado en `material_key + horizonte_meses`, mejorando portabilidad, trazabilidad y reproducibilidad entre ambientes sin cambiar la logica de `Prophet` ni el contrato externo del endpoint.
 - Limitaciones o trabajo futuro: la resolucion derivada desde nombres sigue siendo una solucion intermedia y requiere criterios claros de normalizacion. A futuro convendra incorporar un campo persistido como `codigo_material` o `clave_modelo`, y eventualmente una tabla de calibraciones gobernada por `material_key`.
+
+## DT-22
+
+- Fecha aproximada: mayo de 2026
+- Area: reproducibilidad del entorno y dataset de tesis
+- Decision tomada: priorizar el cierre de un dataset minimo reproducible antes de activar el selector, avanzar frontend o incorporar nuevas features de forecasting.
+- Problema que resuelve: evita que la tesis y la demo dependan de intervenciones manuales, archivos personales no versionados o diferencias accidentales entre bases al reconstruir el entorno desde cero.
+- Alternativas consideradas:
+  - continuar con frontend y nuevas features antes de cerrar reproducibilidad;
+  - depender de `import_cemento_facturas` como base suficiente para `Cemento Portland`;
+  - mantener `IPIM` sujeto a sincronizacion online posterior;
+  - reconstruir el entorno con archivos locales fuera del repositorio.
+- Justificacion: la validacion runtime real confirmo que el cableado tecnico del sistema funciona, pero tambien expuso una brecha entre documentacion, bootstrap y dataset realmente disponible en una base limpia. Para que la tesis sea defendible, una instalacion nueva debe poder reconstruir el universo minimo asumido por las mediciones: `Cemento Portland` con serie real, densa y continua; `Pastina` y `Membrana Megaflex` con series mensuales hibridas distinguiendo `REAL` y `ESTIMADO`; y los regresores `ipc`, `dolar_oficial`, `dolar_mayorista`, `dolar_blue` e `ipim_nivel_general`. La fuente correcta para la serie robusta de cemento es `import_sicons_excel`, mientras que `import_cemento_facturas` queda reclasificado como import incremental u operativo. `IPIM` debe incorporarse desde un snapshot local versionado, no desde una sincronizacion externa obligatoria.
+- Impacto en el sistema: el bootstrap oficial objetivo pasa a ser `alembic upgrade head`, `seed`, `import_sicons_excel`, `import_pastina`, `import_membrana_megaflex`, `import_external_indices_snapshot` y `validate_minimum_dataset`. Ademas, `Pastina` y `Membrana Megaflex` deberan persistir `origen_dato` y `metodo_estimacion`, mientras que `Cemento Portland` debera persistir `origen_dato = REAL` cuando provenga de la fuente historica canonica.
+- Limitaciones o trabajo futuro: hasta que este cierre no se implemente, la reproducibilidad del entorno sigue siendo parcial. Como transicion puede admitirse una ruta parametrizable como `SICONS_XLSX_PATH`, pero no debe presentarse como reproducibilidad cerrada mientras el artefacto de cemento no quede gobernado y versionado dentro del repositorio.
+
+## DT-23
+
+- Fecha aproximada: mayo de 2026
+- Area: fuente canonica reproducible de `Cemento Portland`
+- Decision tomada: definir `db/bootstrap/cemento_portland_historico.csv` como futura fuente canonica reproducible, versionada, reducida y auditable para reconstruir la serie historica de `Cemento Portland`.
+- Problema que resuelve: evita que la serie robusta de cemento dependa de `db/sicons.xlsx` o de archivos personales externos, y separa con claridad la base historica metodologica del import incremental de facturas recientes.
+- Alternativas consideradas:
+  - mantener `XLSX` como artefacto operativo principal;
+  - usar `JSON` versionado como fuente canonica;
+  - sostener `SICONS_XLSX_PATH` como solucion final;
+  - seguir usando `import_cemento_facturas` como base suficiente.
+- Justificacion: para una serie tabular historica, `CSV` ofrece mejor auditabilidad, menor friccion de versionado, diffs mas claros y menor riesgo de arrastrar columnas irrelevantes o sensibles que un `XLSX` completo. `JSON` no aporta una ventaja real para este caso y agrega verbosidad innecesaria. `SICONS_XLSX_PATH` puede admitirse como transicion operativa, pero no cierra reproducibilidad de tesis mientras el artefacto no quede dentro del repositorio. Por eso, la fuente canonica debe reducirse a un extracto controlado con columnas minimas: `fecha`, `empresa`, `numero_comprobante`, `articulo`, `precio_original`, `precio_normalizado`, `moneda`, `origen_dato`, `metodo_estimacion` y `observaciones_origen`. En esta fuente, `origen_dato` debe ser `REAL` y `metodo_estimacion` debe quedar vacio o `null`.
+- Impacto en el sistema: el bootstrap minimo debera migrar desde `import_sicons_excel` hacia un futuro `app.operations.bootstrap.import_cemento_canonico`, encargado de leer `db/bootstrap/cemento_portland_historico.csv`, crear o actualizar `Cemento Portland`, sus presentaciones `Bolsa 25 kg` y `Bolsa 50 kg`, registrar una fuente separada como `Historico canonico Cemento Portland`, persistir `origen_dato = REAL` y conservar idempotencia. `import_sicons_excel` quedara como herramienta legacy o transitoria desde Excel, mientras `import_cemento_facturas` seguira como import incremental u operativo.
+- Limitaciones o trabajo futuro: todavia no se crea ni el CSV ni el importador oficial. Si `numero_comprobante` resultara sensible, debera reemplazarse por un identificador estable anonimizado que preserve trazabilidad e idempotencia. Tambien debera verificarse la convivencia posterior con `import_cemento_facturas` sin mezclar la fuente canonica con la carga incremental.
+
+## DT-24
+
+- Fecha aproximada: mayo de 2026
+- Area: fuente operativa y extracto canónico de `Cemento Portland`
+- Decision tomada: construir la serie canónica de `Cemento Portland` a partir de comprobantes reales de compra registrados en la fuente operativa `Factura compra`, y congelar ese subconjunto en `db/bootstrap/cemento_portland_historico.csv` como extracto canónico versionable.
+- Problema que resuelve: distingue la fuente operativa de origen del artefacto canónico reproducible, evita ambigüedad sobre la procedencia de la serie de tesis y habilita un bootstrap mínimo auditable sin depender de archivos personales ni de imports incrementales recientes.
+- Alternativas consideradas:
+  - versionar directamente el `XLSX` original como fuente canónica;
+  - seguir usando `import_cemento_facturas` como base suficiente;
+  - incorporar una migracion de modelo solo para renombrar la fuente operativa.
+- Justificacion: la auditoria del CSV de trabajo verifico que el tramo exportado desde `Factura compra` contiene `1626` registros reales, cubre el rango continuo `2022-01-03` a `2026-03-25`, tiene `51` meses observados, `0` meses faltantes en el tramo canónico, `0` duplicados en `numero_comprobante`, `origen_dato = REAL` en todas las filas, `metodo_estimacion` vacio, `moneda = ARS` y precios positivos en todo el archivo. La fuente operativa `Factura compra` es defendible como origen porque aporta comprobantes reales y trazabilidad, mientras que el CSV versionado congela un extracto controlado, reproducible y apto para tesis.
+- Impacto en el sistema: `db/bootstrap/cemento_portland_historico.csv` pasa a ser el artefacto versionable que debe alimentar el futuro bootstrap minimo reproducible de Cemento Portland. El CSV no reemplaza a la fuente original de datos, sino que la congela de manera auditable. `import_cemento_facturas` permanece como carga incremental u operativa y no debe confundirse con la base metodologica canónica.
+- Limitaciones o trabajo futuro: el extracto canónico se limita al tramo continuo efectivamente validado. Valores posteriores aislados o colas incompletas no forman parte del canon hasta que puedan integrarse sin romper continuidad mensual. Si `numero_comprobante` llegara a considerarse sensible al momento de versionar el archivo, debera anonimizarse de forma deterministica sin perder unicidad ni trazabilidad.
