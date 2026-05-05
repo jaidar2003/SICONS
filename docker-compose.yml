@@ -38,7 +38,7 @@ services:
     command: >
       sh -c "alembic upgrade head &&
       python -m app.operations.bootstrap.seed &&
-      python -m app.operations.bootstrap.import_cemento_facturas &&
+      python -m app.operations.bootstrap.import_cemento_canonico &&
       python -m app.operations.bootstrap.import_pastina &&
       python -m app.operations.bootstrap.import_membrana_megaflex"
 
