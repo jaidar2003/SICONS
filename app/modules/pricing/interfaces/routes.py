@@ -11,8 +11,6 @@ from app.modules.auth.interfaces.dependencies import require_admin
 from app.modules.catalog.domain.repositories import MaterialRepository
 from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.pricing.application.forecast_service import (
-    FORECAST_MODEL_NAME,
-    FORECAST_REGRESSOR_NOTE,
     forecast_material,
 )
 from app.modules.pricing.application.external_indices import list_external_indices, sync_external_index
@@ -44,6 +42,7 @@ from app.shared.database.session import get_db
 
 
 router = APIRouter(tags=["precios historicos"])
+USAR_SELECTOR_MODELO_FORECAST = False
 
 @router.get("/precios-historicos/rango", response_model=PrecioHistoricoRangoRead)
 def obtener_rango_precios_historicos(db: Session = Depends(get_db)) -> PrecioHistoricoRangoRead:
@@ -162,7 +161,7 @@ def obtener_serie_precios_material(
     return construir_serie_precios(registros)
 
 
-@router.get("/materiales/{material_id}/forecast", response_model=ForecastResponseRead)
+@router.get("/materiales/{material_id}/forecast", response_model=ForecastResponseRead, response_model_exclude_none=True)
 def obtener_forecast_material(
     material_id: int,
     horizonte_meses: int = 3,
@@ -176,19 +175,25 @@ def obtener_forecast_material(
     if material is None:
         raise MaterialNotFoundException(material_id)
 
-    forecast_result = forecast_material(material, horizonte_meses, pricing_repo)
+    forecast_result = forecast_material(
+        material,
+        horizonte_meses,
+        pricing_repo,
+        usar_selector_modelo=USAR_SELECTOR_MODELO_FORECAST,
+    )
 
     return ForecastResponseRead(
         material_id=material.id,
         material_nombre=material.nombre,
         unidad_base=material.unidad_base,
         horizonte_meses=horizonte_meses,
-        modelo=FORECAST_MODEL_NAME,
-        supuesto_regresores=FORECAST_REGRESSOR_NOTE,
+        modelo=forecast_result.modelo,
+        supuesto_regresores=forecast_result.supuesto_regresores,
         ultima_fecha_observada=forecast_result.dataset[-1].ds,
         ultimo_precio_observado=Decimal(f"{forecast_result.dataset[-1].y:.2f}"),
         metricas=forecast_result.metricas,
         puntos=forecast_result.forecast,
+        seleccion_modelo=forecast_result.seleccion_modelo,
     )
 
 

@@ -5,6 +5,7 @@ from decimal import Decimal
 from time import monotonic
 import hashlib
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.modules.catalog.infrastructure.models import Material
@@ -14,18 +15,22 @@ from app.modules.pricing.domain.exceptions import ExternalRegressorError, Insuff
 from app.modules.pricing.application.forecast_cache import ForecastCacheEntry, ForecastCacheKey
 from app.modules.pricing.application.backtesting import construir_folds_temporales
 from app.modules.pricing.application.forecasting import BEST_PROPHET_CONFIG, construir_dataset_prophet, generar_fechas_mensuales, inicio_mes_siguiente
+from app.modules.pricing.application.model_selector import ForecastModelSelection, resolve_model_selection
 from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual
 from app.modules.pricing.infrastructure.forecast_runtime import configurar_cmdstan, importar_dependencias_forecast
 from app.modules.pricing.infrastructure.models import PrecioHistorico
 from app.modules.pricing.infrastructure.regressors import cargar_regresores_mensuales, proyectar_regresores_futuros
 from app.modules.pricing.infrastructure.forecast_snapshots import cargar_forecast_snapshot, guardar_forecast_snapshot
-from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead
+from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead, ForecastSelectionRead
 from app.shared.config.settings import settings
 
 
 FORECAST_DATASET_START = date(2022, 1, 1)
 FORECAST_MODEL_NAME = "prophet_oficial_ipc_mayorista"
 FORECAST_REGRESSOR_NOTE = "Escenario base: dolar oficial, dolar mayorista e IPC futuros proyectados con crecimiento compuesto segun la tendencia de los ultimos 12 meses."
+FORECAST_SELECTOR_DISABLED_SIGNATURE = "selector-off"
+FORECAST_SELECTOR_ENABLED_SIGNATURE = "selector-on"
+FORECAST_SELECTOR_FALLBACK_ORIGIN = "fallback_regresores"
 
 
 @dataclass(frozen=True)
@@ -33,6 +38,19 @@ class ForecastMaterialResult:
     dataset: list
     metricas: ForecastMetricasRead
     forecast: list[ForecastPuntoRead]
+    modelo: str = FORECAST_MODEL_NAME
+    supuesto_regresores: str = FORECAST_REGRESSOR_NOTE
+    seleccion_modelo: ForecastSelectionRead | None = None
+
+
+@dataclass(frozen=True)
+class ForecastExecutionPlan:
+    modelo: str
+    regresores: tuple[str, ...]
+    regresores_df: object | None
+    supuesto_regresores: str
+    seleccion_modelo: ForecastSelectionRead | None
+    cache_signature: str
 
 
 _forecast_cache: dict[ForecastCacheKey, ForecastCacheEntry] = {}
@@ -47,6 +65,102 @@ def construir_firma_dataset(dataset: list) -> str:
     for fila in dataset:
         digest.update(f"{fila.ds.isoformat()}|{fila.y:.8f}".encode())
     return digest.hexdigest()
+
+
+def _descripcion_regresores(regresores: tuple[str, ...]) -> str:
+    if not regresores:
+        return "Escenario base sin regresores externos."
+    return f"Regresores resueltos: {', '.join(regresores)}."
+
+
+def _selection_to_metadata(selection: ForecastModelSelection, *, advertencia: str | None = None) -> ForecastSelectionRead:
+    return ForecastSelectionRead(
+        modelo_resuelto=selection.modelo,
+        regresores_resueltos=list(selection.regresores),
+        mape_referencia=selection.mape,
+        mae_referencia=selection.mae,
+        folds=selection.folds,
+        confiabilidad=selection.confiabilidad,
+        origen_decision=selection.origen_decision,
+        justificacion=selection.justificacion,
+        no_calibrado=selection.no_calibrado,
+        advertencia=advertencia,
+    )
+
+
+def _fallback_selection_for_missing_regressors(
+    selection: ForecastModelSelection,
+    detalle_error: str,
+) -> ForecastSelectionRead:
+    return ForecastSelectionRead(
+        modelo_resuelto="prophet_base",
+        regresores_resueltos=[],
+        mape_referencia=None,
+        mae_referencia=None,
+        folds=None,
+        confiabilidad="no_calibrada",
+        origen_decision=FORECAST_SELECTOR_FALLBACK_ORIGIN,
+        justificacion=(
+            f"Se degrada a prophet_base porque faltan regresores requeridos para "
+            f"{selection.modelo}: {detalle_error}"
+        ),
+        no_calibrado=True,
+        advertencia=detalle_error,
+    )
+
+
+def _resolver_plan_legacy(pd) -> ForecastExecutionPlan:
+    regresores = ("dolar_oficial", "dolar_mayorista", "ipc")
+    return ForecastExecutionPlan(
+        modelo=FORECAST_MODEL_NAME,
+        regresores=regresores,
+        regresores_df=cargar_regresores_mensuales(pd, regresores),
+        supuesto_regresores=FORECAST_REGRESSOR_NOTE,
+        seleccion_modelo=None,
+        cache_signature=f"{FORECAST_SELECTOR_DISABLED_SIGNATURE}:{FORECAST_MODEL_NAME}",
+    )
+
+
+def _resolver_plan_selector(material_id: int, horizonte_meses: int, pd) -> ForecastExecutionPlan:
+    selection = resolve_model_selection(material_id, horizonte_meses)
+    metadata = _selection_to_metadata(selection)
+    if not selection.regresores:
+        return ForecastExecutionPlan(
+            modelo=selection.modelo,
+            regresores=selection.regresores,
+            regresores_df=None,
+            supuesto_regresores=_descripcion_regresores(selection.regresores),
+            seleccion_modelo=metadata,
+            cache_signature=f"{FORECAST_SELECTOR_ENABLED_SIGNATURE}:{selection.modelo}",
+        )
+
+    try:
+        regresores_df = cargar_regresores_mensuales(pd, selection.regresores)
+    except HTTPException as exc:
+        fallback_metadata = _fallback_selection_for_missing_regressors(selection, str(exc.detail))
+        return ForecastExecutionPlan(
+            modelo="prophet_base",
+            regresores=(),
+            regresores_df=None,
+            supuesto_regresores="Fallback controlado a prophet_base por regresores no disponibles.",
+            seleccion_modelo=fallback_metadata,
+            cache_signature=f"{FORECAST_SELECTOR_ENABLED_SIGNATURE}:prophet_base:fallback_regresores",
+        )
+
+    return ForecastExecutionPlan(
+        modelo=selection.modelo,
+        regresores=selection.regresores,
+        regresores_df=regresores_df,
+        supuesto_regresores=_descripcion_regresores(selection.regresores),
+        seleccion_modelo=metadata,
+        cache_signature=f"{FORECAST_SELECTOR_ENABLED_SIGNATURE}:{selection.modelo}",
+    )
+
+
+def _resolver_plan_ejecucion(material_id: int, horizonte_meses: int, usar_selector_modelo: bool, pd) -> ForecastExecutionPlan:
+    if not usar_selector_modelo:
+        return _resolver_plan_legacy(pd)
+    return _resolver_plan_selector(material_id, horizonte_meses, pd)
 
 
 def obtener_forecast_cacheado(material_id: int, horizonte_meses: int, dataset_signature: str) -> ForecastMaterialResult | None:
@@ -102,7 +216,7 @@ def serie_mensual_material(material: Material, pricing_repo: PricingRepository):
     return construir_serie_mensual(registros)
 
 
-def backtesting_forecast(pd, Prophet, dataset, regresores_df, horizonte_meses: int) -> ForecastMetricasRead:
+def backtesting_forecast(pd, Prophet, dataset, regresores_df, horizonte_meses: int, regresores: tuple[str, ...]) -> ForecastMetricasRead:
     folds = construir_folds_temporales(dataset, min_train_size=24, test_size=horizonte_meses, step_size=horizonte_meses)
     if not folds:
         raise HTTPException(status_code=422, detail="No hay suficientes datos para evaluar ese horizonte de forecast.")
@@ -112,20 +226,22 @@ def backtesting_forecast(pd, Prophet, dataset, regresores_df, horizonte_meses: i
     for fold in folds:
         train_df = _a_dataframe(pd, fold.train)
         test_df = _a_dataframe(pd, fold.test)
-        full_df = pd.concat([train_df[["ds", "y"]], test_df[["ds", "y"]]], ignore_index=True)
-        full_df = full_df.merge(regresores_df, on="ds", how="left")
-        for columna in ("dolar_oficial", "dolar_mayorista", "ipc"):
-            full_df[columna] = full_df[columna].ffill().bfill()
-
         modelo = Prophet(stan_backend="CMDSTANPY", **BEST_PROPHET_CONFIG)
-        modelo.add_regressor("dolar_oficial")
-        modelo.add_regressor("dolar_mayorista")
-        modelo.add_regressor("ipc")
+        if regresores:
+            full_df = pd.concat([train_df[["ds", "y"]], test_df[["ds", "y"]]], ignore_index=True)
+            full_df = full_df.merge(regresores_df, on="ds", how="left")
+            for columna in regresores:
+                full_df[columna] = full_df[columna].ffill().bfill()
+                modelo.add_regressor(columna)
 
-        train_reg = full_df.iloc[: len(train_df)][["ds", "y", "dolar_oficial", "dolar_mayorista", "ipc"]].copy()
-        futuro = full_df[["ds", "dolar_oficial", "dolar_mayorista", "ipc"]].copy()
-        modelo.fit(train_reg)
-        forecast = modelo.predict(futuro)[["ds", "yhat"]]
+            train_reg = full_df.iloc[: len(train_df)][["ds", "y", *regresores]].copy()
+            futuro = full_df[["ds", *regresores]].copy()
+            modelo.fit(train_reg)
+            forecast = modelo.predict(futuro)[["ds", "yhat"]]
+        else:
+            modelo.fit(train_df)
+            futuro = modelo.make_future_dataframe(periods=len(test_df), freq="MS")
+            forecast = modelo.predict(futuro)[["ds", "yhat"]]
 
         evaluacion = test_df.merge(forecast, on="ds", how="left")
         evaluacion["abs_error"] = (evaluacion["y"] - evaluacion["yhat"]).abs()
@@ -148,29 +264,32 @@ def pronosticar_futuro(
     Prophet,
     dataset,
     regresores_df,
+    regresores: tuple[str, ...],
     horizonte_meses: int,
     unidad_base: str,
     material_nombre: str,
 ) -> list[ForecastPuntoRead]:
     dataset_df = _a_dataframe(pd, dataset)
-    dataset_reg = dataset_df.merge(regresores_df, on="ds", how="left")
-    for columna in ("dolar_oficial", "dolar_mayorista", "ipc"):
-        dataset_reg[columna] = dataset_reg[columna].ffill().bfill()
-
     modelo = Prophet(stan_backend="CMDSTANPY", **BEST_PROPHET_CONFIG)
-    modelo.add_regressor("dolar_oficial")
-    modelo.add_regressor("dolar_mayorista")
-    modelo.add_regressor("ipc")
-    modelo.fit(dataset_reg[["ds", "y", "dolar_oficial", "dolar_mayorista", "ipc"]].copy())
-
     ultima_fecha = dataset[-1].ds
-    fechas_futuras = generar_fechas_mensuales(inicio_mes_siguiente(ultima_fecha), horizonte_meses)
-    regresores_hasta_ultima_fecha = regresores_df[regresores_df["ds"] <= pd.to_datetime(ultima_fecha)].sort_values("ds")
-    if regresores_hasta_ultima_fecha.empty:
-        raise HTTPException(status_code=422, detail="No hay regresores externos alineados con la ultima fecha observada.")
-    futuro_reg = proyectar_regresores_futuros(pd, regresores_hasta_ultima_fecha, fechas_futuras)
-    futuro = pd.concat([dataset_reg[["ds", "dolar_oficial", "dolar_mayorista", "ipc"]], futuro_reg], ignore_index=True)
-    forecast = modelo.predict(futuro)[["ds", "yhat"]].tail(horizonte_meses)
+    if regresores:
+        dataset_reg = dataset_df.merge(regresores_df, on="ds", how="left")
+        for columna in regresores:
+            dataset_reg[columna] = dataset_reg[columna].ffill().bfill()
+            modelo.add_regressor(columna)
+        modelo.fit(dataset_reg[["ds", "y", *regresores]].copy())
+
+        fechas_futuras = generar_fechas_mensuales(inicio_mes_siguiente(ultima_fecha), horizonte_meses)
+        regresores_hasta_ultima_fecha = regresores_df[regresores_df["ds"] <= pd.to_datetime(ultima_fecha)].sort_values("ds")
+        if regresores_hasta_ultima_fecha.empty:
+            raise HTTPException(status_code=422, detail="No hay regresores externos alineados con la ultima fecha observada.")
+        futuro_reg = proyectar_regresores_futuros(pd, regresores_hasta_ultima_fecha, fechas_futuras, regresores)
+        futuro = pd.concat([dataset_reg[["ds", *regresores]], futuro_reg], ignore_index=True)
+        forecast = modelo.predict(futuro)[["ds", "yhat"]].tail(horizonte_meses)
+    else:
+        modelo.fit(dataset_df)
+        futuro = modelo.make_future_dataframe(periods=horizonte_meses, freq="MS")
+        forecast = modelo.predict(futuro)[["ds", "yhat"]].tail(horizonte_meses)
 
     puntos: list[ForecastPuntoRead] = []
     usa_equivalencias = unidad_base == "kg" and material_nombre == "Cemento Portland"
@@ -195,32 +314,71 @@ def _forecast_material(
     dataset: list,
     pd,
     Prophet,
+    plan: ForecastExecutionPlan,
 ) -> ForecastMaterialResult:
-    regresores_df = cargar_regresores_mensuales(pd)
-    metricas = backtesting_forecast(pd, Prophet, dataset, regresores_df, horizonte_meses)
+    metricas = backtesting_forecast(pd, Prophet, dataset, plan.regresores_df, horizonte_meses, plan.regresores)
     forecast = pronosticar_futuro(
         pd,
         Prophet,
         dataset,
-        regresores_df,
+        plan.regresores_df,
+        plan.regresores,
         horizonte_meses,
         material.unidad_base,
         material.nombre,
     )
-    return ForecastMaterialResult(dataset=dataset, metricas=metricas, forecast=forecast)
+    return ForecastMaterialResult(
+        dataset=dataset,
+        metricas=metricas,
+        forecast=forecast,
+        modelo=plan.modelo,
+        supuesto_regresores=plan.supuesto_regresores,
+        seleccion_modelo=plan.seleccion_modelo,
+    )
 
 
 def forecast_material(
     material: Material,
     horizonte_meses: int,
     pricing_repo: PricingRepository,
+    usar_selector_modelo: bool = False,
 ) -> ForecastMaterialResult:
     puntos = serie_mensual_material(material, pricing_repo)
     dataset = construir_dataset_prophet(puntos, objetivo="precio_promedio_normalizado")
     if len(dataset) < 24 + horizonte_meses:
         raise InsufficientDataException(f"No hay suficientes puntos mensuales para generar el forecast de {material.nombre}")
 
-    dataset_signature = construir_firma_dataset(dataset)
+    signature_base = construir_firma_dataset(dataset)
+    if not usar_selector_modelo:
+        dataset_signature = f"{signature_base}:{FORECAST_SELECTOR_DISABLED_SIGNATURE}:{FORECAST_MODEL_NAME}"
+        forecast_cacheado = obtener_forecast_cacheado(material.id, horizonte_meses, dataset_signature)
+        if forecast_cacheado is not None:
+            return forecast_cacheado
+
+        cache_key = ForecastCacheKey(
+            material_id=material.id,
+            horizonte_meses=horizonte_meses,
+            dataset_signature=dataset_signature,
+        )
+        forecast_persistido = cargar_forecast_snapshot(cache_key)
+        if forecast_persistido is not None:
+            _forecast_cache[cache_key] = ForecastCacheEntry(
+                result=deepcopy(forecast_persistido),
+                expires_at=monotonic() + settings.forecast_cache_ttl_seconds,
+            )
+            return deepcopy(forecast_persistido)
+
+        cmdstanpy, pd, Prophet, CmdStanPyBackend, IStanBackend = importar_dependencias_forecast()
+        configurar_cmdstan(cmdstanpy, CmdStanPyBackend, IStanBackend)
+        plan = _resolver_plan_legacy(pd)
+        forecast_result = _forecast_material(material, horizonte_meses, dataset, pd, Prophet, plan)
+        return guardar_forecast_cacheado(material.id, horizonte_meses, dataset_signature, forecast_result)
+
+    cmdstanpy, pd, Prophet, CmdStanPyBackend, IStanBackend = importar_dependencias_forecast()
+    configurar_cmdstan(cmdstanpy, CmdStanPyBackend, IStanBackend)
+    plan = _resolver_plan_ejecucion(material.id, horizonte_meses, usar_selector_modelo, pd)
+
+    dataset_signature = f"{signature_base}:{plan.cache_signature}"
     forecast_cacheado = obtener_forecast_cacheado(material.id, horizonte_meses, dataset_signature)
     if forecast_cacheado is not None:
         return forecast_cacheado
@@ -238,9 +396,7 @@ def forecast_material(
         )
         return deepcopy(forecast_persistido)
 
-    cmdstanpy, pd, Prophet, CmdStanPyBackend, IStanBackend = importar_dependencias_forecast()
-    configurar_cmdstan(cmdstanpy, CmdStanPyBackend, IStanBackend)
-    forecast_result = _forecast_material(material, horizonte_meses, dataset, pd, Prophet)
+    forecast_result = _forecast_material(material, horizonte_meses, dataset, pd, Prophet, plan)
     return guardar_forecast_cacheado(material.id, horizonte_meses, dataset_signature, forecast_result)
 
 
