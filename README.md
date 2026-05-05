@@ -163,7 +163,7 @@ Estado actual del bootstrap versionado:
 - ya incluye `import_pastina`;
 - ya incluye `import_membrana_megaflex`;
 - ya incluye `import_external_indices_snapshot`;
-- todavia no incluye la validacion final del dataset minimo.
+- ya incluye `validate_minimum_dataset`.
 
 ### Regresores congelados
 
