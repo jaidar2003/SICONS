@@ -4,7 +4,7 @@ from pathlib import Path
 
 from app.modules.pricing.application.forecast_cache import ForecastCacheKey
 from app.modules.pricing.application.forecasting import ProphetRow
-from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead
+from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead, ForecastSelectionRead
 from app.shared.config.settings import settings
 
 
@@ -42,16 +42,23 @@ def _serializar_result(result: ForecastMaterialResultProtocol) -> dict:
         "dataset": [{"ds": fila.ds.isoformat(), "y": fila.y} for fila in result.dataset],
         "metricas": result.metricas.model_dump(mode="json"),
         "forecast": [punto.model_dump(mode="json") for punto in result.forecast],
+        "modelo": getattr(result, "modelo", None),
+        "supuesto_regresores": getattr(result, "supuesto_regresores", None),
+        "seleccion_modelo": result.seleccion_modelo.model_dump(mode="json") if getattr(result, "seleccion_modelo", None) else None,
     }
 
 
 def _deserializar_result(data: dict):
     from app.modules.pricing.application.forecast_service import ForecastMaterialResult
+    from app.modules.pricing.application.forecast_service import FORECAST_MODEL_NAME, FORECAST_REGRESSOR_NOTE
 
     return ForecastMaterialResult(
         dataset=[ProphetRow(ds=date.fromisoformat(fila["ds"]), y=float(fila["y"])) for fila in data["dataset"]],
         metricas=ForecastMetricasRead.model_validate(data["metricas"]),
         forecast=[ForecastPuntoRead.model_validate(punto) for punto in data["forecast"]],
+        modelo=data.get("modelo") or FORECAST_MODEL_NAME,
+        supuesto_regresores=data.get("supuesto_regresores") or FORECAST_REGRESSOR_NOTE,
+        seleccion_modelo=ForecastSelectionRead.model_validate(data["seleccion_modelo"]) if data.get("seleccion_modelo") else None,
     )
 
 

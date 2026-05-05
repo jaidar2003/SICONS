@@ -2,42 +2,94 @@ from datetime import date
 from pathlib import Path
 
 from fastapi import HTTPException
+from sqlalchemy import select
+
+from app.modules.pricing.infrastructure.models import ExternalIndexValue
+from app.shared.database.session import SessionLocal
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 FORECAST_DATASET_START = date(2022, 1, 1)
 OFICIAL_CSV = PROJECT_ROOT / "tmp" / "dolares_2022" / "dolar_oficial_historico.csv"
 MAYORISTA_CSV = PROJECT_ROOT / "tmp" / "dolares_2022" / "dolar_mayorista_historico.csv"
+BLUE_CSV = PROJECT_ROOT / "tmp" / "dolares_2022" / "dolar_blue_historico.csv"
 IPC_CSV = PROJECT_ROOT / "tmp" / "ipc_2022" / "ipc_nacional.csv"
+IPIM_NIVEL_GENERAL_SERIES_ID = "448.1_NIVEL_GENERAL_0_0_13_46"
 REGRESSOR_TREND_WINDOW_MONTHS = 12
 
 
-def cargar_regresores_mensuales(pd):
-    if not OFICIAL_CSV.exists() or not MAYORISTA_CSV.exists() or not IPC_CSV.exists():
-        raise HTTPException(status_code=500, detail="No se encontraron los CSV de regresores externos.")
+def _cargar_dolar_mensual(pd, path: Path, columna: str):
+    if not path.exists():
+        raise HTTPException(status_code=500, detail=f"No se encontro el CSV del regresor {columna}.")
 
-    def cargar(path: Path, columna: str):
-        df = pd.read_csv(path)
-        df["fecha"] = pd.to_datetime(df["fecha"])
-        df["venta"] = pd.to_numeric(df["venta"], errors="coerce")
-        df = df[df["fecha"] >= pd.to_datetime(FORECAST_DATASET_START)].copy()
-        df["ds"] = df["fecha"].dt.to_period("M").dt.to_timestamp()
-        return df.groupby("ds", as_index=False)["venta"].mean().rename(columns={"venta": columna})
-
-    def cargar_ipc(path: Path):
-        df = pd.read_csv(path)
-        df["fecha"] = pd.to_datetime(df["fecha"])
-        df["ipc"] = pd.to_numeric(df["ipc"], errors="coerce")
-        df = df[df["fecha"] >= pd.to_datetime(FORECAST_DATASET_START)].copy()
-        return df.rename(columns={"fecha": "ds"})[["ds", "ipc"]]
-
-    oficial = cargar(OFICIAL_CSV, "dolar_oficial")
-    mayorista = cargar(MAYORISTA_CSV, "dolar_mayorista")
-    ipc = cargar_ipc(IPC_CSV)
-    return oficial.merge(mayorista, on="ds", how="inner").merge(ipc, on="ds", how="inner")
+    df = pd.read_csv(path)
+    df["fecha"] = pd.to_datetime(df["fecha"])
+    df["venta"] = pd.to_numeric(df["venta"], errors="coerce")
+    df = df[df["fecha"] >= pd.to_datetime(FORECAST_DATASET_START)].copy()
+    df["ds"] = df["fecha"].dt.to_period("M").dt.to_timestamp()
+    return df.groupby("ds", as_index=False)["venta"].mean().rename(columns={"venta": columna})
 
 
-def proyectar_regresores_futuros(pd, regresores_historicos, fechas_futuras):
+def _cargar_ipc_mensual(pd, path: Path):
+    if not path.exists():
+        raise HTTPException(status_code=500, detail="No se encontro el CSV del regresor ipc.")
+
+    df = pd.read_csv(path)
+    df["fecha"] = pd.to_datetime(df["fecha"])
+    df["ipc"] = pd.to_numeric(df["ipc"], errors="coerce")
+    df = df[df["fecha"] >= pd.to_datetime(FORECAST_DATASET_START)].copy()
+    return df.rename(columns={"fecha": "ds"})[["ds", "ipc"]]
+
+
+def _cargar_indice_externo_mensual(pd, series_id: str, columna: str):
+    with SessionLocal() as db:
+        stmt = (
+            select(ExternalIndexValue)
+            .where(
+                ExternalIndexValue.series_id == series_id,
+                ExternalIndexValue.date >= FORECAST_DATASET_START,
+            )
+            .order_by(ExternalIndexValue.date.asc(), ExternalIndexValue.id.asc())
+        )
+        rows = list(db.scalars(stmt))
+
+    if not rows:
+        raise HTTPException(status_code=500, detail=f"No hay valores cargados para el regresor {columna}.")
+
+    return pd.DataFrame(
+        [
+            {
+                "ds": pd.to_datetime(value.date),
+                columna: float(value.value),
+            }
+            for value in rows
+        ]
+    )
+
+
+def cargar_regresores_mensuales(pd, columnas: tuple[str, ...] = ("dolar_oficial", "dolar_mayorista", "ipc")):
+    if not columnas:
+        return None
+
+    loaders = {
+        "dolar_oficial": lambda: _cargar_dolar_mensual(pd, OFICIAL_CSV, "dolar_oficial"),
+        "dolar_mayorista": lambda: _cargar_dolar_mensual(pd, MAYORISTA_CSV, "dolar_mayorista"),
+        "dolar_blue": lambda: _cargar_dolar_mensual(pd, BLUE_CSV, "dolar_blue"),
+        "ipc": lambda: _cargar_ipc_mensual(pd, IPC_CSV),
+        "ipim_nivel_general": lambda: _cargar_indice_externo_mensual(pd, IPIM_NIVEL_GENERAL_SERIES_ID, "ipim_nivel_general"),
+    }
+
+    faltantes = [columna for columna in columnas if columna not in loaders]
+    if faltantes:
+        raise HTTPException(status_code=500, detail=f"Regresores no soportados: {', '.join(faltantes)}.")
+
+    combinado = loaders[columnas[0]]()
+    for columna in columnas[1:]:
+        combinado = combinado.merge(loaders[columna](), on="ds", how="inner")
+    return combinado
+
+
+def proyectar_regresores_futuros(pd, regresores_historicos, fechas_futuras, columnas: tuple[str, ...]):
     historial = regresores_historicos.sort_values("ds").tail(REGRESSOR_TREND_WINDOW_MONTHS).copy()
     if historial.empty:
         raise HTTPException(status_code=422, detail="No hay historial suficiente de regresores externos para proyectar el forecast.")
@@ -45,7 +97,7 @@ def proyectar_regresores_futuros(pd, regresores_historicos, fechas_futuras):
     futuros = {"ds": pd.to_datetime(fechas_futuras)}
     periodos = max(len(historial) - 1, 1)
 
-    for columna in ("dolar_oficial", "dolar_mayorista", "ipc"):
+    for columna in columnas:
         valores = historial[columna].dropna().tolist()
         if not valores:
             raise HTTPException(status_code=422, detail=f"No hay datos del regresor {columna} para proyectar el forecast.")

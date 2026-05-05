@@ -61,6 +61,19 @@ class ForecastPuntoRead(BaseModel):
     precio_equivalente_50kg: Decimal | None = None
 
 
+class ForecastSelectionRead(BaseModel):
+    modelo_resuelto: str
+    regresores_resueltos: list[str]
+    mape_referencia: Decimal | None = None
+    mae_referencia: Decimal | None = None
+    folds: int | None = None
+    confiabilidad: str
+    origen_decision: str
+    justificacion: str
+    no_calibrado: bool
+    advertencia: str | None = None
+
+
 class ForecastResponseRead(BaseModel):
     material_id: int
     material_nombre: str
@@ -72,6 +85,7 @@ class ForecastResponseRead(BaseModel):
     ultimo_precio_observado: Decimal
     metricas: ForecastMetricasRead
     puntos: list[ForecastPuntoRead]
+    seleccion_modelo: ForecastSelectionRead | None = None
 
 
 class MaterialCriticidadItemCreate(BaseModel):
