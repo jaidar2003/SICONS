@@ -197,6 +197,20 @@ Cada decision incluye:
 ## DT-14
 
 - Fecha aproximada: mayo de 2026
+- Area: seleccion parametrizada de modelos
+- Decision tomada: resolver el modelo de forecasting mediante un selector parametrizado por `material_id` y `horizonte_meses`, aislado del `forecast_service` y respaldado inicialmente por una configuracion declarativa en codigo.
+- Problema que resuelve: evita sostener un modelo global unico para todos los materiales y tambien evita dispersar logica hardcodeada de seleccion dentro del flujo principal del serving.
+- Alternativas consideradas:
+  - mantener un unico modelo universal para todos los materiales;
+  - resolver la seleccion con condicionales dentro de `forecast_service.py`;
+  - llevar la parametrizacion directamente a base de datos en una primera etapa.
+- Justificacion: la evidencia de backtesting ya muestra que `Cemento Portland`, `Pastina` y `Membrana Megaflex` no comparten la misma mejor variante. Por eso, la recomendacion metodologica debe resolverse como una politica explicita de seleccion por material y horizonte, usando `MAPE` como criterio principal y dejando `MAE`, `folds`, confiabilidad y coherencia economica como soporte. Un selector dedicado preserva trazabilidad, reduce acoplamiento y deja preparado el camino para una futura parametrizacion persistida sin cambiar el contrato del serving.
+- Impacto en el sistema: la arquitectura de forecasting incorpora una capa de resolucion de modelo separada del entrenamiento y serving de `Prophet`, con capacidad para exponer que configuracion fue elegida, por que fue elegida y con que evidencia fue calibrada.
+- Limitaciones o trabajo futuro: la primera version no implica automatizacion estadistica en runtime ni almacenamiento en base. La politica se apoya en recomendaciones versionadas en codigo y debera migrar luego a una fuente parametrizable si aumenta la cantidad de materiales, horizontes o experimentos activos.
+
+## DT-15
+
+- Fecha aproximada: mayo de 2026
 - Area: despliegue y operacion
 - Decision tomada: separar el runtime web del bootstrap operativo de base de datos y carga inicial de datos.
 - Problema que resuelve: evita que el contenedor de la API ejecute migraciones, seed e imports cada vez que arranca el servicio web.
@@ -208,7 +222,7 @@ Cada decision incluye:
 - Impacto en el sistema: `docker-compose` distingue ahora el servicio `api` del servicio `bootstrap`, y `Makefile` expone un comando operativo explicito para correr migraciones y cargas iniciales cuando corresponda.
 - Limitaciones o trabajo futuro: esta separacion mejora el control operativo, pero aun falta definir mejor la estrategia de entornos, la idempotencia completa de imports y el endurecimiento del despliegue productivo.
 
-## DT-15
+## DT-16
 
 - Fecha aproximada: mayo de 2026
 - Area: serving de forecasting
@@ -222,7 +236,7 @@ Cada decision incluye:
 - Impacto en el sistema: el modulo de pricing reutiliza resultados recientes cuando la firma del dataset y el horizonte coinciden, lo que mejora la eficiencia del serving y reduce trabajo redundante dentro del proceso de la API.
 - Limitaciones o trabajo futuro: la cache actual es local al proceso y no reemplaza una estrategia mas robusta de precomputacion, persistencia compartida o ejecucion asincrona. Sigue siendo una mitigacion intermedia mientras el forecast continúe sirviendose request-time.
 
-## DT-16
+## DT-17
 
 - Fecha aproximada: mayo de 2026
 - Area: precomputacion de forecasting
@@ -236,7 +250,7 @@ Cada decision incluye:
 - Impacto en el sistema: `forecast_service` puede reutilizar snapshots persistidos, y el proyecto cuenta con un entrypoint operativo para precomputar forecasts de materiales activos en horizontes definidos.
 - Limitaciones o trabajo futuro: la persistencia actual en archivo sigue siendo una solucion transicional. Si el sistema evoluciona a multiinstancia, colas o mayor concurrencia, convendra migrar estos snapshots a una persistencia compartida o a un pipeline batch mas robusto.
 
-## DT-17
+## DT-18
 
 - Fecha aproximada: mayo de 2026
 - Area: organizacion operativa y compatibilidad legacy
@@ -250,7 +264,7 @@ Cada decision incluye:
 - Impacto en el sistema: los comandos operativos principales pasan a vivir en `app.operations.bootstrap`, mientras `docker-compose` y los tests dejan de depender directamente de `app.db` como contrato primario.
 - Limitaciones o trabajo futuro: todavia queda compatibilidad legacy en algunos wrappers de `app.db`. El cierre definitivo requerira remover esos puentes cuando no existan referencias activas que los necesiten.
 
-## DT-18
+## DT-19
 
 - Fecha aproximada: mayo de 2026
 - Area: interpretacion metodologica del forecast
