@@ -376,7 +376,8 @@ def forecast_material(
 
     cmdstanpy, pd, Prophet, CmdStanPyBackend, IStanBackend = importar_dependencias_forecast()
     configurar_cmdstan(cmdstanpy, CmdStanPyBackend, IStanBackend)
-    plan = _resolver_plan_ejecucion(material.id, horizonte_meses, usar_selector_modelo, pd)
+    material_key = derive_material_key(material.nombre)
+    plan = _resolver_plan_ejecucion(material_key, horizonte_meses, usar_selector_modelo, pd)
 
     dataset_signature = f"{signature_base}:{plan.cache_signature}"
     forecast_cacheado = obtener_forecast_cacheado(material.id, horizonte_meses, dataset_signature)
@@ -412,3 +413,4 @@ def precomputar_forecasts_materiales(
             forecast_material(material, horizonte, pricing_repo)
             completados.append((material.id, horizonte))
     return completados
+ completados

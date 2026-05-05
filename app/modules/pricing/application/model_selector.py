@@ -4,9 +4,9 @@ from dataclasses import dataclass, replace
 from decimal import Decimal
 
 
-MATERIAL_ID_CEMENTO_PORTLAND = 1
-MATERIAL_ID_PASTINA = 4
-MATERIAL_ID_MEMBRANA_MEGAFLEX = 10
+MATERIAL_KEY_CEMENTO_PORTLAND = "cemento-portland"
+MATERIAL_KEY_PASTINA = "pastina"
+MATERIAL_KEY_MEMBRANA_MEGAFLEX = "membrana-megaflex"
 
 ORIGEN_DECISION_MATERIAL_HORIZONTE = "material_horizonte"
 ORIGEN_DECISION_MATERIAL_DEFAULT = "material_default"
@@ -20,7 +20,7 @@ CONFIABILIDAD_NO_CALIBRADA = "no_calibrada"
 
 @dataclass(frozen=True)
 class ForecastModelSelection:
-    material_id: int
+    material_key: str
     horizonte_meses: int
     modelo: str
     regresores: tuple[str, ...]
@@ -33,9 +33,9 @@ class ForecastModelSelection:
     no_calibrado: bool
 
 
-_SELECCIONES_EXACTAS: dict[tuple[int, int], ForecastModelSelection] = {
-    (MATERIAL_ID_CEMENTO_PORTLAND, 3): ForecastModelSelection(
-        material_id=MATERIAL_ID_CEMENTO_PORTLAND,
+_SELECCIONES_EXACTAS: dict[tuple[str, int], ForecastModelSelection] = {
+    (MATERIAL_KEY_CEMENTO_PORTLAND, 3): ForecastModelSelection(
+        material_key=MATERIAL_KEY_CEMENTO_PORTLAND,
         horizonte_meses=3,
         modelo="prophet_ipim_nivel_general",
         regresores=("ipim_nivel_general",),
@@ -50,8 +50,8 @@ _SELECCIONES_EXACTAS: dict[tuple[int, int], ForecastModelSelection] = {
         ),
         no_calibrado=False,
     ),
-    (MATERIAL_ID_PASTINA, 3): ForecastModelSelection(
-        material_id=MATERIAL_ID_PASTINA,
+    (MATERIAL_KEY_PASTINA, 3): ForecastModelSelection(
+        material_key=MATERIAL_KEY_PASTINA,
         horizonte_meses=3,
         modelo="prophet_blue_ipc",
         regresores=("dolar_blue", "ipc"),
@@ -66,8 +66,8 @@ _SELECCIONES_EXACTAS: dict[tuple[int, int], ForecastModelSelection] = {
         ),
         no_calibrado=False,
     ),
-    (MATERIAL_ID_MEMBRANA_MEGAFLEX, 3): ForecastModelSelection(
-        material_id=MATERIAL_ID_MEMBRANA_MEGAFLEX,
+    (MATERIAL_KEY_MEMBRANA_MEGAFLEX, 3): ForecastModelSelection(
+        material_key=MATERIAL_KEY_MEMBRANA_MEGAFLEX,
         horizonte_meses=3,
         modelo="prophet_ipc",
         regresores=("ipc",),
@@ -84,12 +84,12 @@ _SELECCIONES_EXACTAS: dict[tuple[int, int], ForecastModelSelection] = {
     ),
 }
 
-_SELECCIONES_POR_MATERIAL: dict[int, ForecastModelSelection] = {
-    material_id: selection for (material_id, _horizonte), selection in _SELECCIONES_EXACTAS.items()
+_SELECCIONES_POR_MATERIAL: dict[str, ForecastModelSelection] = {
+    material_key: selection for (material_key, _horizonte), selection in _SELECCIONES_EXACTAS.items()
 }
 
 _FALLBACK_GLOBAL = ForecastModelSelection(
-    material_id=0,
+    material_key="unknown",
     horizonte_meses=0,
     modelo="prophet_base",
     regresores=(),
@@ -106,16 +106,16 @@ _FALLBACK_GLOBAL = ForecastModelSelection(
 )
 
 
-def resolve_model_selection(material_id: int, horizonte_meses: int) -> ForecastModelSelection:
-    exacta = _SELECCIONES_EXACTAS.get((material_id, horizonte_meses))
+def resolve_model_selection(material_key: str, horizonte_meses: int) -> ForecastModelSelection:
+    exacta = _SELECCIONES_EXACTAS.get((material_key, horizonte_meses))
     if exacta is not None:
         return exacta
 
-    por_material = _SELECCIONES_POR_MATERIAL.get(material_id)
+    por_material = _SELECCIONES_POR_MATERIAL.get(material_key)
     if por_material is not None:
         return replace(
             por_material,
-            material_id=material_id,
+            material_key=material_key,
             horizonte_meses=horizonte_meses,
             origen_decision=ORIGEN_DECISION_MATERIAL_DEFAULT,
             justificacion=(
@@ -127,6 +127,6 @@ def resolve_model_selection(material_id: int, horizonte_meses: int) -> ForecastM
 
     return replace(
         _FALLBACK_GLOBAL,
-        material_id=material_id,
+        material_key=material_key,
         horizonte_meses=horizonte_meses,
     )
