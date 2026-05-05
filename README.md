@@ -61,6 +61,91 @@ Apagar:
 docker compose down
 ```
 
+## Prioridad actual: reproducibilidad del entorno
+
+La prioridad actual del proyecto no es incorporar nuevas features ni activar el selector de modelos en produccion, sino cerrar un dataset minimo reproducible de tesis para SICONS.
+
+Ese dataset minimo debe dejar una base limpia lista para responder endpoints basicos de pricing y forecasting sin intervencion manual externa ni archivos personales fuera del repositorio.
+
+Debe incluir, como minimo:
+
+- `Cemento Portland` con serie historica real, densa y continua;
+- `Pastina` con serie mensual hibrida, diferenciando `REAL` y `ESTIMADO`;
+- `Membrana Megaflex` con serie mensual hibrida, diferenciando `REAL` y `ESTIMADO`;
+- regresores disponibles para el runtime actual y la futura activacion controlada del selector:
+  - `ipc`
+  - `dolar_oficial`
+  - `dolar_mayorista`
+  - `dolar_blue`
+  - `ipim_nivel_general`
+
+### Fuente canonica de Cemento
+
+La fuente metodologicamente correcta para reconstruir la serie robusta de `Cemento Portland` es `import_sicons_excel`.
+
+En consecuencia:
+
+- `import_cemento_facturas` debe considerarse un import incremental u operativo;
+- no constituye por si solo el dataset minimo reproducible de tesis;
+- `db/sicons.xlsx` no debe seguir tratandose como una dependencia personal no gobernada.
+
+La opcion preferida es incorporar un extracto congelado y versionado en una ruta estable dentro del repositorio. Como transicion, la ruta podria parametrizarse mediante `SICONS_XLSX_PATH`, pero eso no debe presentarse como reproducibilidad cerrada si el archivo no queda versionado.
+
+### Bootstrap oficial objetivo
+
+El flujo objetivo de bootstrap para dejar la base lista es:
+
+```bash
+make bootstrap-all
+```
+
+Secuencia esperada:
+
+1. `alembic upgrade head`
+2. `python -m app.operations.bootstrap.seed`
+3. `python -m app.operations.bootstrap.import_sicons_excel`
+4. `python -m app.operations.bootstrap.import_pastina`
+5. `python -m app.operations.bootstrap.import_membrana_megaflex`
+6. `python -m app.operations.bootstrap.import_external_indices_snapshot`
+7. `python -m app.operations.bootstrap.validate_minimum_dataset`
+
+Estado actual del bootstrap versionado:
+
+- ya incluye `seed`;
+- ya incluye `import_cemento_facturas`;
+- ya incluye `import_pastina`;
+- ya incluye `import_membrana_megaflex`;
+- todavia no incluye la fuente canonica de cemento ni el snapshot local de `ipim_nivel_general`.
+
+### Regresores congelados
+
+- `ipc` y `dolar_*` ya se apoyan en CSV locales versionados con el proyecto;
+- `ipim_nivel_general` debe cargarse desde un snapshot local versionado;
+- la sincronizacion online debe quedar como actualizacion opcional y no como requisito del bootstrap minimo reproducible.
+
+### Semantica del dato
+
+Las series hibridas de `Pastina` y `Membrana Megaflex` deben persistir de forma estructurada:
+
+- `origen_dato = REAL | ESTIMADO`
+- `metodo_estimacion`, cuando corresponda
+
+La misma regla aplica a `Cemento Portland`, que debe persistir `origen_dato = REAL` cuando provenga de la fuente historica canonica. Esta distincion no debe quedar solo en `observaciones` o en el nombre de la `fuente`.
+
+### Validacion post-bootstrap
+
+El cierre del bootstrap minimo debe incluir un script `validate_minimum_dataset` con checks sobre:
+
+- existencia de los tres materiales;
+- existencia de sus presentaciones esperadas;
+- continuidad mensual sin huecos en las series;
+- volumen suficiente de datos reales para `Cemento Portland`;
+- presencia detectable de `REAL` y `ESTIMADO` en `Pastina` y `Membrana Megaflex`;
+- disponibilidad de regresores requeridos;
+- respuesta `200` en endpoints basicos de pricing y forecast.
+
+Hasta que este cierre no se implemente, la activacion futura del selector debe considerarse condicionada y el frontend no deberia tomarse como frente prioritario.
+
 ## Usuarios de prueba
 
 Admin:
