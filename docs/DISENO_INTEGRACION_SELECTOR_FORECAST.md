@@ -233,7 +233,86 @@ Adicionalmente, se mantuvieron validaciones sobre:
 
 La bateria relevante paso correctamente al momento de registrar esta integracion.
 
-## 8. Riesgos y mitigaciones
+## 8. Validacion controlada registrada
+
+Ademas de la cobertura automatizada, se ejecuto una validacion controlada del cableado tecnico `route -> forecast_service -> resolve_model_selection -> metadata/fallback`, activando `USAR_SELECTOR_MODELO_FORECAST = True` solo en memoria durante la ejecucion.
+
+Puntos metodologicos a dejar explicitados:
+
+- esta validacion prueba el cableado tecnico y el contrato de respuesta del endpoint;
+- no constituye una nueva medicion de backtesting ni una nueva evaluacion de precision predictiva;
+- el valor persistido en `routes.py` permanecio en `False` antes y despues de la corrida;
+- el `precio_proyectado` usado en esta validacion fue sintetico y no debe interpretarse como una proyeccion economica nueva;
+- la normalizacion por `kg` y las equivalencias comerciales siguieron resguardadas por tests;
+- no se introdujeron cambios en frontend.
+
+Resultados observados en la validacion controlada:
+
+- `Cemento Portland` resolvio `prophet_ipim_nivel_general` con regresor `ipim_nivel_general`, `MAPE 4.98`, `MAE 6.76`, `folds 9`, confiabilidad `alta` y `no_calibrado = false`.
+- `Pastina` resolvio `prophet_blue_ipc` con regresores `dolar_blue` e `ipc`, `MAPE 5.00`, `MAE 120.90`, `folds 9`, confiabilidad `media` y `no_calibrado = false`.
+- `Membrana Megaflex` resolvio `prophet_ipc` con regresor `ipc`, `MAPE 8.31`, `MAE 734.37`, `folds 9`, confiabilidad `media-baja` y `no_calibrado = false`.
+- un material no calibrado resolvio `prophet_base`, con escenario base sin regresores externos, `no_calibrado = true` y `origen_decision = global_fallback`.
+- el endpoint no se rompio y pudo exponer `seleccion_modelo` con `modelo_resuelto`, `regresores_resueltos`, `mape_referencia`, `mae_referencia`, `folds`, `confiabilidad`, `origen_decision`, `justificacion` y `no_calibrado`.
+
+Como verificacion complementaria, tambien se ejecuto la bateria:
+
+```bash
+.venv/bin/python -m pytest tests/test_model_selector.py tests/test_forecast_service.py tests/test_forecast_snapshots.py tests/test_forecasting.py -q
+```
+
+Resultado registrado: `24 passed`.
+
+## 9. Criterio de activacion progresiva
+
+La activacion del selector no debe tratarse como una consecuencia automatica de su implementacion. Debe responder a una decision explicita, versionada y reversible.
+
+### 9.1 Estado actual
+
+- el selector ya esta implementado e integrado con `forecast_service.py`;
+- el flag `USAR_SELECTOR_MODELO_FORECAST` permanece en `False` por defecto;
+- la validacion realizada hasta el momento fue de integracion tecnica y contrato de respuesta, no de precision predictiva.
+
+### 9.2 Condiciones minimas para activar en ambiente de prueba
+
+Antes de habilitar `USAR_SELECTOR_MODELO_FORECAST = True` en un ambiente de prueba, deberian cumplirse como minimo estas condiciones:
+
+- bateria completa de tests en verde;
+- validacion manual o automatizada de `Cemento Portland`, `Pastina` y `Membrana Megaflex`;
+- confirmacion de que cada material resuelve el modelo esperado para el horizonte evaluado;
+- confirmacion de que `seleccion_modelo` se expone correctamente en la respuesta;
+- confirmacion de que los materiales no calibrados caen a `prophet_base` con `no_calibrado = true`;
+- confirmacion de que no cambia la normalizacion por `kg`;
+- confirmacion de que no se rompen los snapshots persistidos ni los contratos existentes del endpoint.
+
+### 9.3 Criterios para considerar activacion productiva
+
+La activacion en produccion no deberia evaluarse solo porque el cableado tecnico ya funciona. Antes de considerarla, deberian cumplirse simultaneamente estas condiciones:
+
+- backtesting actualizado por material y horizonte;
+- comparacion explicita contra el comportamiento productivo vigente;
+- mejora o, como minimo, mantenimiento de `MAPE` respecto del modelo actual;
+- coherencia economica defendible de los regresores utilizados;
+- disponibilidad estable de los regresores externos requeridos;
+- ausencia de regresiones en endpoints y frontend que consumen el forecast;
+- decision documentada de manera explicita en `DECISIONES_TESIS.md`.
+
+### 9.4 Criterios de rollback
+
+Si el selector llegara a activarse en un ambiente de prueba o en produccion, deberia revertirse a `False` si se verifica alguna de estas condiciones:
+
+- faltan regresores externos necesarios para ejecutar modelos calibrados;
+- aumenta el error respecto del modelo vigente en comparaciones controladas;
+- aparecen respuestas inconsistentes entre `modelo`, `supuesto_regresores` y `seleccion_modelo`;
+- se rompe la compatibilidad del endpoint con consumidores existentes;
+- se detecta confusion relevante en la UI respecto de la confiabilidad o del modelo usado.
+
+### 9.5 Alcance metodologico
+
+- activar el selector no implica por si mismo que el sistema pase a ser automaticamente mas preciso;
+- cualquier mejora debe demostrarse con backtesting actualizado y pruebas funcionales;
+- la activacion debe ser gradual, explicita y reversible.
+
+## 10. Riesgos y mitigaciones
 
 ### Riesgo de hardcodear decisiones experimentales
 
@@ -275,7 +354,7 @@ Mitigacion:
 - fallback controlado;
 - advertencia explicita cuando haya degradacion.
 
-## 9. Trabajo futuro
+## 11. Trabajo futuro
 
 - migrar el mapping declarativo a una tabla parametrizable;
 - versionar decisiones de modelo;
