@@ -202,6 +202,8 @@ def upsert_precio(
                 precio_normalizado=precio.precio_normalizado,
                 moneda="ARS",
                 numero_comprobante=precio.numero_comprobante,
+                origen_dato=precio.origen.upper(),
+                metodo_estimacion="IPC" if precio.origen == "estimado" else None,
                 observaciones=observaciones(precio),
             )
         )
@@ -214,6 +216,8 @@ def upsert_precio(
         or existing.precio_original != precio.precio_original
         or existing.precio_normalizado != precio.precio_normalizado
         or existing.moneda != "ARS"
+        or existing.origen_dato != precio.origen.upper()
+        or existing.metodo_estimacion != ("IPC" if precio.origen == "estimado" else None)
         or existing.observaciones != observaciones(precio)
     )
     if not changed:
@@ -225,6 +229,8 @@ def upsert_precio(
     existing.precio_original = precio.precio_original
     existing.precio_normalizado = precio.precio_normalizado
     existing.moneda = "ARS"
+    existing.origen_dato = precio.origen.upper()
+    existing.metodo_estimacion = "IPC" if precio.origen == "estimado" else None
     existing.observaciones = observaciones(precio)
     return "updated"
 
