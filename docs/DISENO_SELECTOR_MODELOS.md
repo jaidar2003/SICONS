@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Definir una politica defendible para que SICONS resuelva que modelo de forecasting usar segun `material_id` y `horizonte_meses`, sin depender de un modelo global unico y sin incrustar esa decision dentro de `forecast_service.py`.
+Definir una politica defendible para que SICONS resuelva que modelo de forecasting usar segun una identidad estable de material y `horizonte_meses`, sin depender de un modelo global unico y sin incrustar esa decision dentro de `forecast_service.py`.
 
 El diseno parte de una restriccion metodologica explicita: la seleccion no debe inventar resultados ni recalibrar modelos en runtime. Solo debe resolver, de manera trazable, una recomendacion ya respaldada por benchmark y documentacion.
 
@@ -21,12 +21,40 @@ Sin esta capa, el sistema queda atado a una de estas dos alternativas debiles:
 
 ## 2. Entrada del selector
 
-La interfaz minima del selector debe aceptar:
+La interfaz minima externa del flujo debe aceptar:
 
 - `material_id`
 - `horizonte_meses`
 
-Conviene que ambos parametros sean obligatorios en el contrato interno, incluso si la primera version solo tiene calibraciones documentadas para horizonte de `3` meses. Eso evita ambiguedades y deja definido desde ahora el eje futuro de crecimiento.
+Sin embargo, la validacion runtime real mostro que `material_id` no es una identidad metodologica estable del material, sino una identidad tecnica local de una base concreta. Puede variar entre desarrollo, testing, produccion, seeds recreados o cargas manuales.
+
+Por eso, el contrato interno recomendado deja de ser:
+
+- `material_id + horizonte_meses`
+
+y pasa a ser:
+
+- `material_key + horizonte_meses`
+
+El endpoint puede y debe seguir recibiendo `material_id`, pero antes de seleccionar el modelo el backend deberia resolver internamente:
+
+- `material_id -> material_key estable -> modelo recomendado`
+
+Esta separacion reduce tres riesgos:
+
+- riesgo operativo, porque evita perder calibraciones validas cuando cambia un ID local;
+- riesgo de portabilidad, porque desacopla la recomendacion del ambiente concreto;
+- riesgo metodologico, porque asocia la calibracion al material logico y no a una clave accidental de base.
+
+Conviene que `horizonte_meses` siga siendo obligatorio en el contrato interno, incluso si la primera version solo tiene calibraciones documentadas para horizonte de `3` meses. Eso evita ambiguedades y deja definido desde ahora el eje futuro de crecimiento.
+
+### Claves estables iniciales
+
+Para la etapa actual, las claves estables recomendadas son:
+
+- `cemento_portland`
+- `pastina_klaukol`
+- `membrana_megaflex`
 
 ## 3. Salida esperada
 
@@ -74,11 +102,11 @@ La recomendacion concreta es mantener una configuracion versionada, legible y ac
 
 Con la evidencia actualmente documentada, solo corresponde fijar de manera explicita estas recomendaciones:
 
-| Material | Horizonte | Modelo recomendado | Regresores | MAPE | MAE | Folds | Confiabilidad |
+| Material key | Material visible | Horizonte | Modelo recomendado | Regresores | MAPE | MAE | Folds | Confiabilidad |
 |---|---:|---|---|---:|---:|---:|---|
-| `Cemento Portland` | `3` | `prophet_ipim_nivel_general` | `["ipim_nivel_general"]` | `4.98%` | `6.76` | `9` | alta |
-| `Pastina` | `3` | `prophet_blue_ipc` | `["dolar_blue", "ipc"]` | `5.00%` | `120.90` | `9` | media |
-| `Membrana Megaflex` | `3` | `prophet_ipc` | `["ipc"]` | `8.31%` | `734.37` | `9` | media-baja |
+| `cemento_portland` | `Cemento Portland` | `3` | `prophet_ipim_nivel_general` | `["ipim_nivel_general"]` | `4.98%` | `6.76` | `9` | alta |
+| `pastina_klaukol` | `Pastina Klaukol` | `3` | `prophet_blue_ipc` | `["dolar_blue", "ipc"]` | `5.00%` | `120.90` | `9` | media |
+| `membrana_megaflex` | `Membrana Megaflex` | `3` | `prophet_ipc` | `["ipc"]` | `8.31%` | `734.37` | `9` | media-baja |
 
 No corresponde completar artificialmente otros horizontes con resultados no medidos. Para horizontes no calibrados, el selector debe caer en reglas de fallback y dejar esa condicion explicitada.
 
@@ -86,8 +114,8 @@ No corresponde completar artificialmente otros horizontes con resultados no medi
 
 La politica inicial debe resolver en este orden:
 
-1. configuracion exacta por `material_id` y `horizonte_meses`;
-2. configuracion generica por `material_id`;
+1. configuracion exacta por `material_key` y `horizonte_meses`;
+2. configuracion generica por `material_key`;
 3. `prophet_base` sin regresores;
 4. marcado explicito como `no calibrado`, si la decision no proviene de benchmark especifico para esa combinacion.
 
@@ -132,13 +160,50 @@ Ese marcado es importante por dos razones:
 - evita sobreinterpretar la precision del sistema;
 - deja lista la semantica que luego podra usarse en UI, logs, auditoria o decisiones de producto.
 
-## 6. Ubicacion sugerida en la arquitectura
+## 6. Resolucion de identidad estable
+
+La validacion runtime real ya mostro que dos ambientes pueden tener series utiles del mismo material con IDs distintos. Por eso, la seleccion no deberia consumir directamente `material_id` como clave metodologica.
+
+La recomendacion para el MVP es resolver `material_key` a partir del catalogo actual mediante una normalizacion controlada del nombre o un slug derivado, sin migracion de base todavia.
+
+Alternativas consideradas:
+
+- `material_id`
+  - simple, pero fragil entre ambientes;
+- nombre normalizado
+  - no requiere migracion, pero depende de consistencia nominal;
+- slug o codigo interno derivado del nombre
+  - mas controlado que el nombre raw y adecuado como solucion intermedia;
+- campo persistido futuro como `codigo_material` o `clave_modelo`
+  - solucion estructural mas robusta, pero requiere migracion y gobernanza;
+- tabla futura de calibraciones por `material_key`
+  - evolucion natural cuando se quiera desacoplar por completo catalogo, calibracion y runtime.
+
+### Recomendacion para el MVP
+
+La opcion mas razonable en esta etapa es:
+
+- mantener `material_id` como parametro externo del endpoint;
+- resolver internamente `material_key` desde el catalogo actual;
+- operar el selector sobre `material_key + horizonte_meses`;
+- no introducir todavia una migracion de base;
+- dejar como evolucion futura un campo persistido explicito, por ejemplo `codigo_material` o `clave_modelo`.
+
+Si no se puede resolver una `material_key` con confianza suficiente, el sistema deberia caer a:
+
+- `prophet_base`
+- `no_calibrado = true`
+- `origen_decision = "global_fallback"` o `origen_decision = "material_key_unresolved"`
+
+Eso preserva operatividad sin fingir una calibracion segura.
+
+## 7. Ubicacion sugerida en la arquitectura
 
 La politica no debe vivir en `forecast_service.py`. La ubicacion sugerida es:
 
 - capa: `application`
 - responsabilidad: resolucion de politica de modelo
-- dependencia de entrada: identificador de material y horizonte
+- dependencia de entrada: identidad estable de material y horizonte
 - dependencia de salida: especificacion declarativa del modelo a correr
 
 Una organizacion coherente con la arquitectura actual seria separar:
@@ -149,7 +214,7 @@ Una organizacion coherente con la arquitectura actual seria separar:
 
 El servicio de forecast no deberia conocer tablas de benchmark ni condicionales de seleccion. Deberia recibir una especificacion resuelta y ejecutar el pipeline ya existente de `Prophet` con esos parametros.
 
-## 7. Migracion futura a tabla parametrizable
+## 8. Migracion futura a tabla parametrizable
 
 La migracion a persistencia no debe cambiar el contrato del selector. Ese es el punto clave para no romper el sistema.
 
@@ -163,7 +228,7 @@ La estrategia recomendada es:
 
 En una etapa posterior, el selector puede dejar de leer un mapping en codigo y pasar a leer una tabla con columnas como:
 
-- `material_id`
+- `material_key`
 - `horizonte_meses`
 - `modelo`
 - `regresores`
@@ -185,11 +250,11 @@ La clave es que `forecast_service` no deberia enterarse de ese cambio. Solo segu
 - facilita incorporar nuevos materiales, nuevos horizontes o recalibraciones futuras;
 - habilita gobernanza posterior sobre vigencia, activacion y versionado de recomendaciones.
 
-## 8. Tests minimos
+## 9. Tests minimos
 
 Sin implementar serving nuevo, ya puede definirse que pruebas deberia cubrir el selector:
 
-- resuelve la configuracion exacta cuando existe `material_id + horizonte_meses`;
+- resuelve la configuracion exacta cuando existe `material_key + horizonte_meses`;
 - cae a configuracion por material cuando falta la exacta;
 - cae a `prophet_base` cuando no existe configuracion del material;
 - marca `calibrado = true` solo para reglas exactas respaldadas por benchmark;
@@ -198,11 +263,19 @@ Sin implementar serving nuevo, ya puede definirse que pruebas deberia cubrir el 
 - expone `regresores` coherentes con el modelo recomendado;
 - no inventa horizontes ni metricas ausentes.
 
+Tambien conviene cubrir especificamente la capa de identidad estable:
+
+- el mismo material logico con distinto `material_id` resuelve la misma `material_key`;
+- `Membrana Megaflex` resuelve `membrana_megaflex`;
+- `Pastina Klaukol` resuelve `pastina_klaukol`;
+- un material desconocido cae a `prophet_base/no_calibrado`;
+- el selector deja de depender de IDs locales para devolver modelos calibrados.
+
 Tambien conviene un test de contrato:
 
 - toda salida del selector debe incluir los campos requeridos, incluso cuando la decision sea fallback.
 
-## 9. Exposicion en la respuesta del endpoint de forecast
+## 10. Exposicion en la respuesta del endpoint de forecast
 
 La decision del selector no debe quedar oculta. El endpoint de forecast deberia exponerla para trazabilidad.
 
@@ -236,7 +309,7 @@ Esto mejora tres cosas:
 La politica propuesta deja fijado este criterio:
 
 - SICONS no adopta un modelo universal unico;
-- SICONS selecciona modelo por material y horizonte;
+- SICONS selecciona modelo por identidad estable de material y horizonte;
 - `MAPE` sigue siendo la metrica principal;
 - `MAE`, `folds` y confiabilidad de la serie funcionan como soporte;
 - los regresores externos solo se sostienen si mejoran backtesting y conservan coherencia economica;

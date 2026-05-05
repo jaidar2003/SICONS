@@ -2,11 +2,14 @@ import { Alert, Box, Button, ButtonGroup, Card, CardContent, Divider, Stack, Typ
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
+import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 
 export function ForecastCard({ forecast, serie, horizonteMeses, onChangeHorizon, showPrices }) {
   const baseValue = serie.length ? Number(serie[0].precio_promedio_normalizado) : 0;
   const lastObservedValue = forecast ? Number(forecast.ultimo_precio_observado) : 0;
   const showBagEquivalents = Boolean(forecast?.puntos?.some((punto) => punto.precio_equivalente_25kg !== null));
+  const presentation = getMaterialPresentation(forecast?.material_nombre, forecast?.unidad_base);
+  const displayLastObserved = forecast ? getDisplayPrice(forecast.ultimo_precio_observado, forecast.material_nombre, forecast.unidad_base) : 0;
 
   return (
     <Card className="mt-3">
@@ -35,9 +38,9 @@ export function ForecastCard({ forecast, serie, horizonteMeses, onChangeHorizon,
               <MetricMini label={showPrices ? "MAE" : "Folds"} value={showPrices ? formatNumber(forecast.metricas.mae) : String(forecast.metricas.folds)} helper={showPrices ? `${forecast.metricas.folds} folds` : "Backtesting temporal"} />
               <MetricMini label="Efectividad" value={`${formatNumber(forecast.metricas.efectividad_informal)}%`} helper="100 - MAPE" />
               <MetricMini
-                label={showPrices ? "Ultimo observado" : "Modelo"}
-                value={showPrices ? `${formatCurrency(forecast.ultimo_precio_observado)} / ${forecast.unidad_base}` : forecast.modelo}
-                helper={showPrices ? forecast.ultima_fecha_observada : forecast.ultima_fecha_observada}
+                label={showPrices ? presentation.primaryPriceLabel : "Modelo"}
+                value={showPrices ? `${formatCurrency(displayLastObserved)}` : forecast.modelo}
+                helper={showPrices ? `${presentation.displayUnitLabel} · ${forecast.ultima_fecha_observada}` : forecast.ultima_fecha_observada}
               />
             </Box>
 
@@ -56,10 +59,10 @@ export function ForecastCard({ forecast, serie, horizonteMeses, onChangeHorizon,
                   {showPrices ? (
                     <>
                       <Typography component="strong" display="block" mt={1} fontSize={22} fontWeight={800}>
-                        {formatCurrency(punto.precio_proyectado)}
+                        {formatCurrency(getDisplayPrice(punto.precio_proyectado, forecast.material_nombre, forecast.unidad_base))}
                       </Typography>
                       <Typography color="text.secondary" fontSize={13}>
-                        por {forecast.unidad_base}
+                        {presentation.displayUnitLabel}
                       </Typography>
                       {showBagEquivalents && punto.precio_equivalente_25kg !== null ? (
                         <>

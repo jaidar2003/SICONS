@@ -2,8 +2,9 @@ import { Box } from "@mui/material";
 
 import { MetricCard } from "../../shared/components/MetricCard.jsx";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
+import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 
-export function MetricsGrid({ serie, showPrices }) {
+export function MetricsGrid({ serie, showPrices, selectedMaterial }) {
   const showBagEquivalents = serie.some((point) => point.precio_equivalente_25kg !== null);
 
   if (!serie.length) {
@@ -27,6 +28,8 @@ export function MetricsGrid({ serie, showPrices }) {
   const averageMonthlyVariation = monthlyVariations.length
     ? monthlyVariations.reduce((total, value) => total + value, 0) / monthlyVariations.length
     : null;
+  const presentation = getMaterialPresentation(selectedMaterial?.nombre, last.unidad_base);
+  const displayLastPrice = getDisplayPrice(last.precio_promedio_normalizado, selectedMaterial?.nombre, last.unidad_base);
 
   if (!showPrices) {
     return (
@@ -41,17 +44,33 @@ export function MetricsGrid({ serie, showPrices }) {
 
   return (
     <Box className="mt-3 grid gap-3 md:grid-cols-4">
-      <MetricCard label="Ultimo precio normalizado" value={`${formatCurrency(last.precio_promedio_normalizado)} / ${last.unidad_base}`} helper={last.fecha} />
-      <MetricCard
-        label="Equivalente 25 kg"
-        value={showBagEquivalents ? formatCurrency(last.precio_equivalente_25kg) : "-"}
-        helper={showBagEquivalents ? "ARS por bolsa" : "Solo cemento"}
-      />
-      <MetricCard
-        label="Equivalente 50 kg"
-        value={showBagEquivalents ? formatCurrency(last.precio_equivalente_50kg) : "-"}
-        helper={showBagEquivalents ? "ARS por bolsa" : "Solo cemento"}
-      />
+      <MetricCard label={presentation.primaryPriceLabel} value={`${formatCurrency(displayLastPrice)}`} helper={`${presentation.displayUnitLabel} · ${last.fecha}`} />
+      {showBagEquivalents ? (
+        <MetricCard
+          label="Equivalente 25 kg"
+          value={formatCurrency(last.precio_equivalente_25kg)}
+          helper="ARS por bolsa"
+        />
+      ) : (
+        <MetricCard
+          label="Presentacion fija"
+          value={presentation.fixedPresentationLabel || "-"}
+          helper={presentation.primaryPriceHelper}
+        />
+      )}
+      {showBagEquivalents ? (
+        <MetricCard
+          label="Equivalente 50 kg"
+          value={formatCurrency(last.precio_equivalente_50kg)}
+          helper="ARS por bolsa"
+        />
+      ) : (
+        <MetricCard
+          label="Base interna"
+          value={`${formatCurrency(last.precio_promedio_normalizado)} / ${last.unidad_base}`}
+          helper="Referencia tecnica del forecast"
+        />
+      )}
       <MetricCard label="Variacion total" value={`${formatNumber(variation)}%`} helper={`${first.fecha} a ${last.fecha}`} />
     </Box>
   );

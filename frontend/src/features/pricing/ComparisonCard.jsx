@@ -2,6 +2,7 @@ import { Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHe
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatPercentChange, monthLabel, variationTone } from "../../shared/utils/formatters.js";
+import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 
 export function ComparisonCard({ rows, selectedMaterialId, showPrices }) {
   const selectedRow = rows.find((row) => String(row.material.id) === String(selectedMaterialId));
@@ -10,7 +11,7 @@ export function ComparisonCard({ rows, selectedMaterialId, showPrices }) {
     ? "No hay datos para comparar en el periodo seleccionado."
     : selectedRow
       ? showPrices
-        ? `${selectedRow.material.nombre}: ${formatCurrency(selectedRow.firstValue)} a ${formatCurrency(selectedRow.lastValue)} por ${selectedRow.last.unidad_base}, cambio ${formatPercentChange(selectedRow.variation)} entre ${monthLabel(selectedRow.first.fecha)} y ${monthLabel(selectedRow.last.fecha)}. Mayor suba: ${highestRow.material.nombre} (${formatPercentChange(highestRow.variation)}).`
+        ? `${selectedRow.material.nombre}: ${formatCurrency(getDisplayPrice(selectedRow.firstValue, selectedRow.material.nombre, selectedRow.last.unidad_base))} a ${formatCurrency(getDisplayPrice(selectedRow.lastValue, selectedRow.material.nombre, selectedRow.last.unidad_base))} ${getMaterialPresentation(selectedRow.material.nombre, selectedRow.last.unidad_base).summaryUnitText}, cambio ${formatPercentChange(selectedRow.variation)} entre ${monthLabel(selectedRow.first.fecha)} y ${monthLabel(selectedRow.last.fecha)}. Mayor suba: ${highestRow.material.nombre} (${formatPercentChange(highestRow.variation)}).`
         : `${selectedRow.material.nombre}: cambio ${formatPercentChange(selectedRow.variation)} entre ${monthLabel(selectedRow.first.fecha)} y ${monthLabel(selectedRow.last.fecha)}. Mayor suba: ${highestRow.material.nombre} (${formatPercentChange(highestRow.variation)}).`
       : `Mayor suba: ${highestRow.material.nombre} (${formatPercentChange(highestRow.variation)}).`;
 
@@ -36,19 +37,20 @@ export function ComparisonCard({ rows, selectedMaterialId, showPrices }) {
             <TableBody>
               {rows.map((row) => {
                 const isSelected = String(row.material.id) === String(selectedMaterialId);
+                const presentation = getMaterialPresentation(row.material.nombre, row.last.unidad_base);
                 return (
                   <TableRow key={row.material.id} selected={isSelected}>
                     <TableCell>
                       <Typography fontWeight={800}>{row.material.nombre}</Typography>
                       <Typography color="text.secondary" fontSize={12}>
-                        {monthLabel(row.first.fecha)} a {monthLabel(row.last.fecha)} - {row.material.unidad_base}
+                        {monthLabel(row.first.fecha)} a {monthLabel(row.last.fecha)} - {presentation.displayUnitLabel}
                       </Typography>
                     </TableCell>
-                    {showPrices ? <TableCell align="right">{formatCurrency(row.firstValue)}</TableCell> : null}
-                    {showPrices ? <TableCell align="right">{formatCurrency(row.lastValue)}</TableCell> : null}
+                    {showPrices ? <TableCell align="right">{formatCurrency(getDisplayPrice(row.firstValue, row.material.nombre, row.last.unidad_base))}</TableCell> : null}
+                    {showPrices ? <TableCell align="right">{formatCurrency(getDisplayPrice(row.lastValue, row.material.nombre, row.last.unidad_base))}</TableCell> : null}
                     {showPrices ? (
                       <TableCell align="right" sx={{ color: variationTone(row.variation), fontWeight: 800 }}>
-                        {formatCurrency(row.lastValue - row.firstValue)}
+                        {formatCurrency(getDisplayPrice(row.lastValue - row.firstValue, row.material.nombre, row.last.unidad_base))}
                       </TableCell>
                     ) : null}
                     <TableCell align="center" sx={{ color: variationTone(row.variation), fontWeight: 800 }}>

@@ -2,9 +2,11 @@ import { Box, Card, CardContent, Chip, Typography } from "@mui/material";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatPercentChange, variationTone } from "../../shared/utils/formatters.js";
+import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 
-export function AnomaliesCard({ serie, showPrices }) {
+export function AnomaliesCard({ serie, showPrices, selectedMaterial }) {
   const anomalies = serie.filter((point) => point.es_anomalia);
+  const presentation = getMaterialPresentation(selectedMaterial?.nombre, serie[0]?.unidad_base);
 
   return (
     <Card>
@@ -22,7 +24,7 @@ export function AnomaliesCard({ serie, showPrices }) {
                 <Chip label={formatPercentChange(point.variacion_porcentual_anterior)} size="small" sx={{ color: variationTone(point.variacion_porcentual_anterior), fontWeight: 800 }} />
                 {showPrices ? (
                   <Typography color="text.secondary" fontSize={12} mt={0.75}>
-                    {formatCurrency(point.precio_promedio_normalizado)} / {point.unidad_base}
+                    {formatCurrency(getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))} · {presentation.displayUnitLabel}
                   </Typography>
                 ) : (
                   <Typography color="text.secondary" fontSize={12} mt={0.75}>

@@ -30,6 +30,8 @@ Cuando el flag se activa en un ambiente controlado:
 - el runtime de forecast intenta ejecutar solo los regresores efectivamente soportados por el flujo actual;
 - si no hay calibracion o faltan regresores operativos, se aplica fallback controlado a `prophet_base`.
 
+Sin embargo, la validacion runtime real dejo una salvedad de diseno relevante: aunque el cableado tecnico funciona, calibrar el selector directamente contra `material_id` es fragil entre ambientes porque ese identificador es local a cada base y no representa por si mismo una identidad metodologica estable del material.
+
 ## 1. Proposito de la integracion
 
 La integracion busca que SICONS deje de depender implicitamente de una configuracion unica de forecast y pueda resolver, de forma explicita y trazable, que modelo recomendado usar para cada combinacion de `material_id` y `horizonte_meses`.
@@ -42,7 +44,44 @@ En otras palabras:
 - el selector define que variante recomendada de ese motor usar;
 - `forecast_service` ejecuta la variante resuelta sin absorber logica metodologica dispersa.
 
-## 2. Punto de integracion
+Para que esa politica sea realmente portable entre ambientes, la recomendacion debe quedar asociada al material logico y no a un ID accidental del ambiente.
+
+## 2. Identidad estable previa a la seleccion
+
+La validacion runtime real mostro dos sintomas claros de fragilidad por identidad local:
+
+- `Pastina` no valido con `material_id = 4` por insuficiencia de serie mensual, aunque el flujo si funciono con la serie real disponible en `material_id = 5` mediante repo controlado;
+- `Membrana Megaflex` figura en la base local como `material_id = 6`, mientras que el selector estaba calibrado para `material_id = 10`.
+
+Esto confirma que `material_id` no debe tratarse como clave metodologica de calibracion.
+
+La solucion propuesta es mantener `material_id` como parametro externo del endpoint, pero resolver internamente:
+
+- `material_id -> material_key estable -> modelo recomendado`
+
+La seleccion deberia operar sobre:
+
+- `material_key + horizonte_meses`
+
+y no directamente sobre:
+
+- `material_id + horizonte_meses`
+
+Claves iniciales recomendadas:
+
+- `cemento_portland`
+- `pastina_klaukol`
+- `membrana_megaflex`
+
+Para el MVP, la recomendacion es resolver `material_key` desde el catalogo actual mediante normalizacion controlada del nombre o slug derivado, sin migracion de base todavia. Como evolucion futura, conviene incorporar un campo persistido explicito como `codigo_material` o `clave_modelo`.
+
+Si no se puede resolver `material_key` con suficiente confianza, el sistema deberia degradar de forma controlada a:
+
+- `prophet_base`
+- `no_calibrado = true`
+- `origen_decision = "global_fallback"` o `origen_decision = "material_key_unresolved"`
+
+## 3. Punto de integracion
 
 La llamada a `resolve_model_selection(material_id, horizonte_meses)` ya ocurre dentro de `forecast_service.py` cuando el flag interno de selector esta activo. La resolucion se realiza despues de construir el dataset base y antes de ejecutar backtesting y forecast con la configuracion efectiva.
 
@@ -50,11 +89,12 @@ El flujo implementado queda, conceptualmente, en este orden:
 
 1. cargar material;
 2. construir serie mensual y dataset base;
-3. resolver seleccion de modelo con `material_id` y `horizonte_meses`;
-4. traducir esa seleccion a configuracion efectiva de `Prophet`;
-5. validar disponibilidad de regresores requeridos;
-6. ejecutar backtesting y forecast con la configuracion resuelta;
-7. devolver forecast mas metadatos de seleccion cuando corresponde.
+3. resolver `material_key` estable a partir del material solicitado;
+4. resolver seleccion de modelo con `material_key` y `horizonte_meses`;
+5. traducir esa seleccion a configuracion efectiva de `Prophet`;
+6. validar disponibilidad de regresores requeridos;
+7. ejecutar backtesting y forecast con la configuracion resuelta;
+8. devolver forecast mas metadatos de seleccion cuando corresponde.
 
 En la implementacion actual, `forecast_service.py` recibe desde el selector, como minimo:
 
@@ -70,7 +110,7 @@ En la implementacion actual, `forecast_service.py` recibe desde el selector, com
 
 No corresponde que `forecast_service` deduzca esas decisiones por su cuenta.
 
-## 3. Datos que devuelve el forecast cuando el selector esta activo
+## 4. Datos que devuelve el forecast cuando el selector esta activo
 
 La respuesta del forecast puede incluir, ademas de los puntos proyectados y metricas operativas del request, un bloque explicito `seleccion_modelo`.
 
@@ -112,7 +152,7 @@ Ejemplo conceptual:
 }
 ```
 
-## 4. Mapeo entre modelo seleccionado y configuracion real de Prophet
+## 5. Mapeo entre modelo seleccionado y configuracion real de Prophet
 
 Los nombres simbolicos del selector no deben ejecutarse directamente. Deben traducirse a una configuracion real y controlada del pipeline actual.
 
@@ -137,11 +177,11 @@ Si falta un regresor requerido, el sistema deberia:
 2. o devolver una advertencia controlada si no existe fallback valido;
 3. pero no romper silenciosamente ni cambiar de configuracion de manera opaca.
 
-## 5. Fallbacks
+## 6. Fallbacks
 
 La integracion implementada respeta el orden de fallback ya definido por el selector y ademas contempla faltantes operativos de regresores.
 
-### Caso 1: no existe seleccion exacta para material + horizonte
+### Caso 1: no existe seleccion exacta para material_key + horizonte
 
 Debe usarse la seleccion por material devuelta por el selector.
 
@@ -151,7 +191,7 @@ Consecuencias:
 - la salida queda marcada con `no_calibrado = true`;
 - la justificacion debe dejar claro que no existe calibracion exacta para ese horizonte.
 
-### Caso 2: existe seleccion por material, pero no para ese horizonte
+### Caso 2: existe seleccion por material_key, pero no para ese horizonte
 
 Operativamente es el mismo caso anterior, pero conviene explicitarlo porque es uno de los riesgos metodologicos principales: no mezclar evidencia exacta de `3` meses con una afirmacion fuerte sobre `6` o `12` meses.
 
@@ -167,7 +207,18 @@ Consecuencias:
 - no se fuerza una seleccion artificial;
 - se evita presentar el resultado como recomendacion metodologica consolidada.
 
-### Caso 4: faltan datos de regresores
+### Caso 4: no se puede resolver material_key estable
+
+Si el sistema no puede traducir con confianza `material_id` a una identidad estable de material, no deberia inventar una calibracion.
+
+Politica recomendada:
+
+1. detectar explicitamente que no se pudo resolver `material_key`;
+2. degradar de forma controlada a `prophet_base`;
+3. marcar `no_calibrado = true`;
+4. registrar `origen_decision = "material_key_unresolved"` o usar `global_fallback` si se mantiene una semantica unica de fallback.
+
+### Caso 5: faltan datos de regresores
 
 Este caso debe separarse de la falta de calibracion. Puede existir una seleccion valida, pero no disponibilidad operativa de datos para ejecutarla.
 
@@ -179,13 +230,13 @@ Politica implementada:
 
 La decision no debe quedar implicita ni silenciosa.
 
-### Caso 5: el selector devuelve `prophet_base` `no_calibrado`
+### Caso 6: el selector devuelve `prophet_base` `no_calibrado`
 
 `forecast_service` debe aceptar esa salida como un caso legitimo de fallback operativo. No corresponde tratarlo como error.
 
 La respuesta actual puede exponerlo claramente para que quien consuma el endpoint sepa que el sistema no conto con una calibracion metodologica especifica para ese material u horizonte.
 
-## 6. Compatibilidad hacia atras
+## 7. Compatibilidad hacia atras
 
 La integracion fue implementada sin activarse de golpe.
 
@@ -214,7 +265,7 @@ Esto mantiene una migracion por etapas:
 3. validacion en tests y ambiente controlado;
 4. activacion gradual.
 
-## 7. Tests verificados en la implementacion
+## 8. Tests verificados en la implementacion
 
 La integracion quedo respaldada por pruebas que validan, como minimo, estos escenarios:
 
@@ -233,7 +284,7 @@ Adicionalmente, se mantuvieron validaciones sobre:
 
 La bateria relevante paso correctamente al momento de registrar esta integracion.
 
-## 8. Validacion controlada registrada
+## 9. Validacion controlada registrada
 
 Ademas de la cobertura automatizada, se ejecuto una validacion controlada del cableado tecnico `route -> forecast_service -> resolve_model_selection -> metadata/fallback`, activando `USAR_SELECTOR_MODELO_FORECAST = True` solo en memoria durante la ejecucion.
 
@@ -254,6 +305,8 @@ Resultados observados en la validacion controlada:
 - un material no calibrado resolvio `prophet_base`, con escenario base sin regresores externos, `no_calibrado = true` y `origen_decision = global_fallback`.
 - el endpoint no se rompio y pudo exponer `seleccion_modelo` con `modelo_resuelto`, `regresores_resueltos`, `mape_referencia`, `mae_referencia`, `folds`, `confiabilidad`, `origen_decision`, `justificacion` y `no_calibrado`.
 
+La misma validacion tambien evidencio una limitacion de diseno: el selector funciona tecnicamente, pero la calibracion basada unicamente en `material_id` puede ser fragil entre ambientes. Por eso, antes de una activacion mas amplia, corresponde introducir la resolucion de una identidad estable de material.
+
 Como verificacion complementaria, tambien se ejecuto la bateria:
 
 ```bash
@@ -262,7 +315,7 @@ Como verificacion complementaria, tambien se ejecuto la bateria:
 
 Resultado registrado: `24 passed`.
 
-## 9. Criterio de activacion progresiva
+## 10. Criterio de activacion progresiva
 
 La activacion del selector no debe tratarse como una consecuencia automatica de su implementacion. Debe responder a una decision explicita, versionada y reversible.
 
@@ -312,7 +365,7 @@ Si el selector llegara a activarse en un ambiente de prueba o en produccion, deb
 - cualquier mejora debe demostrarse con backtesting actualizado y pruebas funcionales;
 - la activacion debe ser gradual, explicita y reversible.
 
-## 10. Riesgos y mitigaciones
+## 11. Riesgos y mitigaciones
 
 ### Riesgo de hardcodear decisiones experimentales
 
@@ -323,6 +376,16 @@ Mitigacion:
 - mantener selector aislado;
 - mantener mapping declarativo;
 - documentar el contrato de integracion antes de activarlo.
+
+### Riesgo de calibrar por IDs locales inestables
+
+Si la politica de seleccion queda anclada a `material_id`, la calibracion puede dejar de ser portable entre desarrollo, testing y produccion.
+
+Mitigacion:
+
+- resolver `material_key` estable antes de seleccionar el modelo;
+- desacoplar calibracion metodologica de IDs locales de base;
+- documentar la identidad estable como parte del contrato del selector.
 
 ### Riesgo de cambiar comportamiento productivo sin validacion
 
@@ -354,9 +417,11 @@ Mitigacion:
 - fallback controlado;
 - advertencia explicita cuando haya degradacion.
 
-## 11. Trabajo futuro
+## 12. Trabajo futuro
 
+- introducir resolucion explicita `material_id -> material_key`;
 - migrar el mapping declarativo a una tabla parametrizable;
+- incorporar eventualmente un campo persistido como `codigo_material` o `clave_modelo`;
 - versionar decisiones de modelo;
 - registrar fecha de evaluacion de cada recomendacion;
 - automatizar benchmark periodico por material y horizonte;

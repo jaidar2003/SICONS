@@ -1,6 +1,22 @@
 import AddIcon from "@mui/icons-material/Add";
+import AutoGraphIcon from "@mui/icons-material/AutoGraph";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import { Alert, Box, Button, CircularProgress, Container } from "@mui/material";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
+import SavingsOutlinedIcon from "@mui/icons-material/SavingsOutlined";
+import TimelineOutlinedIcon from "@mui/icons-material/TimelineOutlined";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
+  Container,
+  Tab,
+  Tabs,
+  Typography,
+} from "@mui/material";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -25,6 +41,40 @@ import { toApiDate } from "../shared/utils/formatters.js";
 
 const TOKEN_KEY = "sicons_token";
 const SHOW_PRICES_KEY = "sicons_show_prices";
+const VIEW_TABS = [
+  {
+    value: "summary",
+    label: "Resumen",
+    description: "Panorama general, señales rápidas y comparación entre materiales.",
+    accent: "#002395",
+    eyebrow: "Vista ejecutiva",
+    icon: AutoGraphIcon,
+  },
+  {
+    value: "forecast",
+    label: "Forecast",
+    description: "Proyección mensual, lectura técnica del modelo y comportamiento esperado.",
+    accent: "#D35F00",
+    eyebrow: "Capa predictiva",
+    icon: TimelineOutlinedIcon,
+  },
+  {
+    value: "costs",
+    label: "Costos",
+    description: "Escenarios de compra y apoyo para decisiones económicas de obra.",
+    accent: "#0F766E",
+    eyebrow: "Impacto económico",
+    icon: SavingsOutlinedIcon,
+  },
+  {
+    value: "history",
+    label: "Historial",
+    description: "Serie completa, anomalías detectadas y tareas administrativas sobre precios.",
+    accent: "#7C3AED",
+    eyebrow: "Auditoría de datos",
+    icon: Inventory2OutlinedIcon,
+  },
+];
 
 function buildComparisonRows(results) {
   return results
@@ -61,12 +111,14 @@ export function App() {
   const [forecastHorizon, setForecastHorizon] = useState(3);
   const [comparisonRows, setComparisonRows] = useState([]);
   const [showPriceForm, setShowPriceForm] = useState(false);
+  const [activeView, setActiveView] = useState("summary");
 
   const selectedMaterial = useMemo(
     () => materiales.find((material) => String(material.id) === String(selectedMaterialId)),
     [materiales, selectedMaterialId]
   );
   const isAdmin = user?.rol === "admin";
+  const activeTabConfig = useMemo(() => VIEW_TABS.find((tab) => tab.value === activeView) ?? VIEW_TABS[0], [activeView]);
 
   const loadSerieData = useCallback(
     async ({ materialId = selectedMaterialId, from = desde, to = hasta, horizon = forecastHorizon } = {}) => {
@@ -268,62 +320,172 @@ export function App() {
                 onRefresh={handleRefresh}
               />
 
-              <MetricsGrid serie={serie} showPrices={showPrices} />
-              <InsightStrip serie={serie} selectedMaterial={selectedMaterial} showPrices={showPrices} />
-              <ForecastCard
-                forecast={forecast}
-                serie={serie}
-                horizonteMeses={forecastHorizon}
-                showPrices={showPrices}
-                onChangeHorizon={(value) => {
-                  setForecastHorizon(value);
-                  loadSerieData({ materialId: selectedMaterialId, horizon: value }).catch((loadError) => setError(loadError.message));
-                }}
-              />
-              <CostProjectionCard forecast={forecast} selectedMaterial={selectedMaterial} showPrices={showPrices} />
-              <CostPlannerCard
-                materiales={materiales}
-                selectedMaterialId={selectedMaterialId}
-                forecastHorizon={forecastHorizon}
-                token={token}
-                showPrices={showPrices}
-              />
+              <Card className="mt-3 overflow-hidden border border-slate-200 shadow-md2">
+                <CardContent className="p-0">
+                  <Box
+                    className="px-4 pb-4 pt-5 text-white"
+                    sx={{
+                      background: `linear-gradient(135deg, ${activeTabConfig.accent} 0%, rgba(2, 6, 23, 0.92) 100%)`,
+                    }}
+                  >
+                    <Box className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                      <Box className="max-w-2xl">
+                        <Typography fontSize={12} fontWeight={900} letterSpacing={1.2} textTransform="uppercase" sx={{ opacity: 0.8 }}>
+                          {activeTabConfig.eyebrow}
+                        </Typography>
+                        <Typography mt={1} fontSize={{ xs: 26, md: 34 }} fontWeight={900} lineHeight={1}>
+                          {activeTabConfig.label}
+                        </Typography>
+                        <Typography mt={1.25} maxWidth={760} sx={{ color: "rgba(255,255,255,0.82)" }}>
+                          {activeTabConfig.description}
+                        </Typography>
+                      </Box>
+                      <Box className="flex flex-wrap gap-2">
+                        <Chip
+                          label={selectedMaterial ? selectedMaterial.nombre : "Sin material"}
+                          sx={{ bgcolor: "rgba(255,255,255,0.14)", color: "white", fontWeight: 800 }}
+                        />
+                        <Chip
+                          label={`Horizonte ${forecastHorizon} meses`}
+                          sx={{ bgcolor: "rgba(255,255,255,0.14)", color: "white", fontWeight: 800 }}
+                        />
+                      </Box>
+                    </Box>
+                  </Box>
+                  <Box className="border-b border-slate-200 bg-white px-2 pt-2">
+                    <Tabs
+                      value={activeView}
+                      onChange={(_event, value) => setActiveView(value)}
+                      variant="scrollable"
+                      scrollButtons="auto"
+                      allowScrollButtonsMobile
+                      sx={{
+                        minHeight: 0,
+                        "& .MuiTabs-indicator": {
+                          height: 4,
+                          borderRadius: 999,
+                          backgroundColor: activeTabConfig.accent,
+                        },
+                      }}
+                    >
+                      {VIEW_TABS.map((tab) => (
+                        <Tab
+                          key={tab.value}
+                          value={tab.value}
+                          icon={<tab.icon fontSize="small" />}
+                          iconPosition="start"
+                          label={tab.label}
+                          sx={{
+                            minHeight: 0,
+                            px: 2,
+                            py: 1.5,
+                            textTransform: "none",
+                            fontSize: 14,
+                            fontWeight: 800,
+                            color: "#475569",
+                            "&.Mui-selected": {
+                              color: activeTabConfig.accent,
+                            },
+                          }}
+                        />
+                      ))}
+                    </Tabs>
+                  </Box>
+                  <Box className="bg-slate-50 px-4 py-3">
+                    <Typography color="text.secondary" fontSize={13} fontWeight={700}>
+                      {activeTabConfig.description}
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
 
-              {isAdmin && showPriceForm ? (
-                <PriceForm
-                  materiales={materiales}
-                  presentaciones={presentaciones}
-                  fuentes={fuentes}
-                  maxDate={maxDate}
-                  onSave={handleSavePrice}
-                />
+              {activeView === "summary" ? (
+                <>
+                  <MetricsGrid serie={serie} showPrices={showPrices} selectedMaterial={selectedMaterial} />
+                  <InsightStrip serie={serie} selectedMaterial={selectedMaterial} showPrices={showPrices} />
+                  <Box className="mt-3 grid gap-3 xl:grid-cols-[1.3fr_.7fr]">
+                    <PriceChart
+                      serie={serie}
+                      forecast={forecast}
+                      selectedMaterial={selectedMaterial}
+                      showPrices={showPrices}
+                    />
+                    <ComparisonCard rows={comparisonRows} selectedMaterialId={selectedMaterialId} showPrices={showPrices} />
+                  </Box>
+                </>
               ) : null}
 
-              <PriceChart
-                serie={serie}
-                forecast={forecast}
-                selectedMaterial={selectedMaterial}
-                showPrices={showPrices}
-                action={
-                  isAdmin ? (
-                    <Button
-                      variant="outlined"
-                      color="secondary"
-                      startIcon={showPriceForm ? <ExpandLessIcon /> : <AddIcon />}
-                      onClick={() => setShowPriceForm((current) => !current)}
-                    >
-                      {showPriceForm ? "Ocultar carga" : "Registrar precio"}
-                    </Button>
-                  ) : null
-                }
-              />
+              {activeView === "forecast" ? (
+                <>
+                  <ForecastCard
+                    forecast={forecast}
+                    serie={serie}
+                    horizonteMeses={forecastHorizon}
+                    showPrices={showPrices}
+                    onChangeHorizon={(value) => {
+                      setForecastHorizon(value);
+                      loadSerieData({ materialId: selectedMaterialId, horizon: value }).catch((loadError) => setError(loadError.message));
+                    }}
+                  />
+                  <PriceChart
+                    serie={serie}
+                    forecast={forecast}
+                    selectedMaterial={selectedMaterial}
+                    showPrices={showPrices}
+                  />
+                </>
+              ) : null}
 
-              <Box className="mt-3 grid gap-3 lg:grid-cols-[.6fr_1.4fr]">
-                <AnomaliesCard serie={serie} showPrices={showPrices} />
-                <ComparisonCard rows={comparisonRows} selectedMaterialId={selectedMaterialId} showPrices={showPrices} />
-              </Box>
+              {activeView === "costs" ? (
+                <>
+                  <CostProjectionCard forecast={forecast} selectedMaterial={selectedMaterial} showPrices={showPrices} />
+                  <CostPlannerCard
+                    materiales={materiales}
+                    selectedMaterialId={selectedMaterialId}
+                    forecastHorizon={forecastHorizon}
+                    token={token}
+                    showPrices={showPrices}
+                  />
+                </>
+              ) : null}
 
-              <HistoryTable serie={serie} showPrices={showPrices} />
+              {activeView === "history" ? (
+                <>
+                  <PriceChart
+                    serie={serie}
+                    forecast={forecast}
+                    selectedMaterial={selectedMaterial}
+                    showPrices={showPrices}
+                    action={
+                      isAdmin ? (
+                        <Button
+                          variant="outlined"
+                          color="secondary"
+                          startIcon={showPriceForm ? <ExpandLessIcon /> : <AddIcon />}
+                          onClick={() => setShowPriceForm((current) => !current)}
+                        >
+                          {showPriceForm ? "Ocultar carga" : "Registrar precio"}
+                        </Button>
+                      ) : null
+                    }
+                  />
+
+                  {isAdmin && showPriceForm ? (
+                    <PriceForm
+                      materiales={materiales}
+                      presentaciones={presentaciones}
+                      fuentes={fuentes}
+                      maxDate={maxDate}
+                      onSave={handleSavePrice}
+                    />
+                  ) : null}
+
+                  <Box className="mt-3 grid gap-3 lg:grid-cols-[.65fr_1.35fr]">
+                    <AnomaliesCard serie={serie} showPrices={showPrices} selectedMaterial={selectedMaterial} />
+                    <HistoryTable serie={serie} showPrices={showPrices} selectedMaterial={selectedMaterial} />
+                  </Box>
+                </>
+              ) : null}
             </>
           )}
         </Container>

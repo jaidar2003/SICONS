@@ -13,6 +13,7 @@ import { Line } from "react-chartjs-2";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
+import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
@@ -20,6 +21,7 @@ export function PriceChart({ serie, forecast, selectedMaterial, action, showPric
   const showBagEquivalents = serie.some((point) => point.precio_equivalente_25kg !== null);
   const baseValue = serie.length ? Number(serie[0].precio_promedio_normalizado) : 0;
   const lastObservedValue = serie.length ? Number(serie[serie.length - 1].precio_promedio_normalizado) : 0;
+  const presentation = getMaterialPresentation(selectedMaterial?.nombre, selectedMaterial?.unidad_base);
   const variationSeries = serie.map((point) =>
     baseValue === 0 ? 0 : ((Number(point.precio_promedio_normalizado) - baseValue) / baseValue) * 100
   );
@@ -33,9 +35,11 @@ export function PriceChart({ serie, forecast, selectedMaterial, action, showPric
     lastObservedValue === 0 ? 0 : ((Number(point.precio_proyectado) - lastObservedValue) / lastObservedValue) * 100
   );
   const historicalDataset = showPrices
-    ? serie.map((point) => Number(point.precio_promedio_normalizado))
+    ? serie.map((point) => getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))
     : variationSeries;
-  const forecastDataset = showPrices ? projectedValues : projectedVariationSeries;
+  const forecastDataset = showPrices
+    ? forecastPoints.map((point) => getDisplayPrice(point.precio_proyectado, selectedMaterial?.nombre, forecast?.unidad_base))
+    : projectedVariationSeries;
   const forecastLine = [
     ...Array(Math.max(serie.length - 1, 0)).fill(null),
     ...(serie.length ? [historicalDataset[historicalDataset.length - 1]] : []),
@@ -46,7 +50,7 @@ export function PriceChart({ serie, forecast, selectedMaterial, action, showPric
     labels,
     datasets: [
       {
-        label: showPrices ? "ARS por kg" : "Variacion acumulada %",
+        label: showPrices ? presentation.chartAxisLabel : "Variacion acumulada %",
         data: [...historicalDataset, ...Array(forecastPoints.length).fill(null)],
         borderColor: "#002395",
         backgroundColor: "rgba(0, 35, 149, 0.12)",
@@ -100,7 +104,7 @@ export function PriceChart({ serie, forecast, selectedMaterial, action, showPric
               const point = forecastPoints[forecastIndex];
               if (showPrices) {
                 return [
-                  `Proyeccion/kg: ${formatCurrency(point.precio_proyectado)}`,
+                  `${presentation.tooltipPriceLabel}: ${formatCurrency(getDisplayPrice(point.precio_proyectado, selectedMaterial?.nombre, forecast?.unidad_base))}`,
                   showBagEquivalents && point.precio_equivalente_25kg !== null ? `25 kg: ${formatCurrency(point.precio_equivalente_25kg)}` : null,
                   showBagEquivalents && point.precio_equivalente_50kg !== null ? `50 kg: ${formatCurrency(point.precio_equivalente_50kg)}` : null,
                 ].filter(Boolean);
@@ -114,7 +118,7 @@ export function PriceChart({ serie, forecast, selectedMaterial, action, showPric
             const point = serie[context.dataIndex];
             if (showPrices) {
               return [
-                `Precio/kg: ${formatCurrency(point.precio_promedio_normalizado)}`,
+                `${presentation.tooltipPriceLabel}: ${formatCurrency(getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))}`,
                 showBagEquivalents ? `25 kg: ${formatCurrency(point.precio_equivalente_25kg)}` : null,
                 showBagEquivalents ? `50 kg: ${formatCurrency(point.precio_equivalente_50kg)}` : null,
                 `Muestra: ${point.cantidad_registros} ${point.cantidad_registros === 1 ? "precio" : "precios"}`,
@@ -135,7 +139,7 @@ export function PriceChart({ serie, forecast, selectedMaterial, action, showPric
     scales: {
       x: { grid: { display: false } },
       y: {
-        title: { display: true, text: showPrices ? "ARS/kg" : "Variacion acumulada %" },
+        title: { display: true, text: showPrices ? presentation.chartAxisLabel : "Variacion acumulada %" },
         ticks: {
           callback: (value) =>
             showPrices
@@ -154,10 +158,10 @@ export function PriceChart({ serie, forecast, selectedMaterial, action, showPric
           description={
             selectedMaterial
               ? showPrices
-                ? `${selectedMaterial.nombre}: precio normalizado en ${selectedMaterial.unidad_base}${forecastPoints.length ? " con proyeccion mensual" : ""}`
+                ? `${selectedMaterial.nombre}: ${presentation.primaryPriceLabel.toLowerCase()} en ${presentation.displayUnitLabel}${forecastPoints.length ? " con proyeccion mensual" : ""}`
                 : `${selectedMaterial.nombre}: variacion acumulada respecto del inicio del periodo${forecastPoints.length ? " con forecast proyectado" : ""}`
               : showPrices
-                ? "ARS por unidad base"
+                ? "Precio de referencia del material"
                 : "Variacion acumulada del periodo"
           }
           badge={forecastPoints.length ? "Historico + forecast" : "Promedio mensual"}

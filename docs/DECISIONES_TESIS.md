@@ -305,3 +305,18 @@ Cada decision incluye:
 - Justificacion: el selector ya concentra una politica metodologica versionada y testeable, pero su integracion al flujo productivo requiere validacion adicional sobre regressors disponibles, respuesta HTTP, compatibilidad de backward y pruebas de no regresion. Por eso, la integracion debe hacerse de manera controlada, con activacion explicita y capacidad de exponer el modelo usado junto con su justificacion, sin romper la arquitectura actual de `Prophet`.
 - Impacto en el sistema: `forecast_service` podra evolucionar hacia una interfaz donde la resolucion del modelo quede desacoplada del entrenamiento, y la respuesta del forecast exponga trazabilidad metodologica sobre la configuracion aplicada.
 - Limitaciones o trabajo futuro: hasta que el selector no se active, el comportamiento productivo sigue igual. La etapa siguiente requerira definir el contrato exacto de integracion, validar fallbacks por falta de regresores y asegurar que la salida del endpoint mantenga compatibilidad razonable con clientes actuales.
+
+## DT-21
+
+- Fecha aproximada: mayo de 2026
+- Area: identidad metodologica de materiales
+- Decision tomada: usar una identidad estable de material para la seleccion de modelos, separada del `material_id` local de cada base.
+- Problema que resuelve: evita que la calibracion metodologica del selector dependa de IDs tecnicos accidentales del ambiente, que pueden cambiar entre desarrollo, testing, produccion, seeds recreados o cargas manuales.
+- Alternativas consideradas:
+  - seguir calibrando por `material_id`;
+  - resolver la identidad por nombre raw sin normalizacion;
+  - incorporar inmediatamente un campo persistido nuevo en base;
+  - postergar el problema y asumir consistencia de IDs entre ambientes.
+- Justificacion: la validacion runtime real mostro que el cableado tecnico del selector funciona, pero tambien evidencio que un mismo material logico puede quedar representado con IDs distintos o con series utiles en otro registro del catalogo. Por eso, la recomendacion del modelo debe asociarse al material logico y no a una clave accidental del ambiente. Para el MVP, conviene resolver una `material_key` estable desde el catalogo actual mediante normalizacion controlada del nombre o slug derivado, sin migracion de base todavia. Como evolucion futura, esa clave deberia persistirse explicitamente.
+- Impacto en el sistema: el selector podra migrar de un mapping basado en `material_id + horizonte_meses` a uno basado en `material_key + horizonte_meses`, mejorando portabilidad, trazabilidad y reproducibilidad entre ambientes sin cambiar la logica de `Prophet` ni el contrato externo del endpoint.
+- Limitaciones o trabajo futuro: la resolucion derivada desde nombres sigue siendo una solucion intermedia y requiere criterios claros de normalizacion. A futuro convendra incorporar un campo persistido como `codigo_material` o `clave_modelo`, y eventualmente una tabla de calibraciones gobernada por `material_key`.
