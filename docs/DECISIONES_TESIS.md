@@ -258,6 +258,20 @@ Cada decision incluye:
 - Problema que resuelve: reduce la ambiguedad del paquete `app.db`, que mezclaba compatibilidad historica con scripts operativos reales, y deja mas clara la frontera entre infraestructura compartida y tareas de inicializacion/importacion.
 - Alternativas consideradas:
   - mantener todos los scripts en `app.db`;
+
+## DT-19
+
+- Fecha aproximada: mayo de 2026
+- Area: integracion controlada de forecasting
+- Decision tomada: integrar el selector de modelos con `forecast_service.py` detras del flag interno `USAR_SELECTOR_MODELO_FORECAST = False`, manteniendo inalterado el comportamiento productivo por defecto.
+- Problema que resuelve: permite incorporar resolucion explicita de modelo por `material_id` y `horizonte_meses` sin introducir un cambio abrupto en el serving productivo ni mezclar la politica metodologica con la activacion operativa.
+- Alternativas consideradas:
+  - activar inmediatamente el selector en todos los requests de forecast;
+  - mantener la integracion solo documentada, sin implementacion en el servicio;
+  - absorber la logica de seleccion con condicionales ad hoc dentro del flujo productivo.
+- Justificacion: la evidencia de backtesting ya justifica seleccionar configuraciones distintas por material y horizonte, pero esa capacidad debia incorporarse de forma reversible y defendible. El flag interno permite validar la integracion sin alterar la salida vigente del endpoint. Cuando se activa, el sistema resuelve el modelo recomendado, sus regresores y los metadatos metodologicos asociados; si no existe calibracion o faltan regresores operativos, degrada de forma controlada a `prophet_base`, marcado como `no_calibrado`, sin romper el endpoint ni inventar metricas nuevas.
+- Impacto en el sistema: `forecast_service` ya puede consumir `resolve_model_selection(material_id, horizonte_meses)`, traducir la seleccion a una configuracion efectiva de `Prophet`, preservar la normalizacion por `kg`, y exponer `seleccion_modelo` con `modelo`, `regresores`, metricas de referencia, confiabilidad, `origen_decision`, `justificacion` y `no_calibrado` cuando el flag se encuentra activo. El frontend no fue modificado en esta etapa.
+- Limitaciones o trabajo futuro: la integracion permanece desactivada por defecto hasta completar la validacion controlada en ambientes de prueba y definir un criterio de activacion progresiva. La parametrizacion sigue versionada en codigo y no fue migrada todavia a una fuente persistente.
   - eliminar de inmediato los paths legacy sin transicion;
   - mezclar bootstrap con comandos informales fuera del repositorio.
 - Justificacion: un namespace operativo explicito mejora la legibilidad del proyecto, facilita explicar la arquitectura y permite migrar de manera incremental sin romper de golpe referencias existentes. La compatibilidad minima en `app.db` evita una ruptura innecesaria mientras se termina de limpiar el remanente legacy.

@@ -2,9 +2,33 @@
 
 ## Objetivo
 
-Definir como `forecast_service.py` deberia consumir en una etapa futura la seleccion de modelo por material y horizonte provista por `app/modules/pricing/application/model_selector.py`, sin activar todavia ese comportamiento en produccion y sin modificar la logica actual de `Prophet`.
+Documentar la integracion controlada ya implementada entre `forecast_service.py` y la seleccion de modelo por material y horizonte provista por `app/modules/pricing/application/model_selector.py`, manteniendo desactivado por defecto ese comportamiento en produccion y sin modificar la logica base de `Prophet`.
 
-El alcance de este documento es contractual y arquitectonico. No introduce cambios de codigo productivo ni altera el flujo actual del endpoint.
+El alcance de este documento es contractual, arquitectonico y de trazabilidad de implementacion. Registra el estado actual del backend y el criterio metodologico adoptado para su activacion futura.
+
+## Estado actual
+
+La integracion ya fue implementada en el backend de SICONS.
+
+Su activacion quedo protegida por el flag interno:
+
+```python
+USAR_SELECTOR_MODELO_FORECAST = False
+```
+
+Mientras ese flag permanezca en `False`:
+
+- el endpoint de forecast conserva el comportamiento productivo vigente;
+- no cambia el modelo productivo por defecto;
+- no se modifica la normalizacion por `kg`;
+- no se expone ninguna dependencia nueva en frontend.
+
+Cuando el flag se activa en un ambiente controlado:
+
+- `forecast_service.py` invoca `resolve_model_selection(material_id, horizonte_meses)`;
+- el sistema resuelve modelo, regresores y metadatos de referencia segun material y horizonte;
+- el runtime de forecast intenta ejecutar solo los regresores efectivamente soportados por el flujo actual;
+- si no hay calibracion o faltan regresores operativos, se aplica fallback controlado a `prophet_base`.
 
 ## 1. Proposito de la integracion
 
@@ -20,9 +44,9 @@ En otras palabras:
 
 ## 2. Punto de integracion
 
-La llamada a `resolve_model_selection(material_id, horizonte_meses)` deberia ocurrir despues de validar que el material existe y antes de construir o entrenar el modelo concreto de forecast.
+La llamada a `resolve_model_selection(material_id, horizonte_meses)` ya ocurre dentro de `forecast_service.py` cuando el flag interno de selector esta activo. La resolucion se realiza despues de construir el dataset base y antes de ejecutar backtesting y forecast con la configuracion efectiva.
 
-Conceptualmente, el orden futuro del flujo seria:
+El flujo implementado queda, conceptualmente, en este orden:
 
 1. cargar material;
 2. construir serie mensual y dataset base;
@@ -30,9 +54,9 @@ Conceptualmente, el orden futuro del flujo seria:
 4. traducir esa seleccion a configuracion efectiva de `Prophet`;
 5. validar disponibilidad de regresores requeridos;
 6. ejecutar backtesting y forecast con la configuracion resuelta;
-7. devolver forecast mas metadatos de seleccion.
+7. devolver forecast mas metadatos de seleccion cuando corresponde.
 
-Esto implica que `forecast_service.py` deberia recibir desde el selector, como minimo:
+En la implementacion actual, `forecast_service.py` recibe desde el selector, como minimo:
 
 - `modelo`;
 - `regresores`;
@@ -46,21 +70,22 @@ Esto implica que `forecast_service.py` deberia recibir desde el selector, como m
 
 No corresponde que `forecast_service` deduzca esas decisiones por su cuenta.
 
-## 3. Datos que debe devolver el forecast
+## 3. Datos que devuelve el forecast cuando el selector esta activo
 
-La respuesta futura del forecast deberia incluir, ademas de los puntos proyectados y metricas operativas del request, un bloque explicito de seleccion de modelo.
+La respuesta del forecast puede incluir, ademas de los puntos proyectados y metricas operativas del request, un bloque explicito `seleccion_modelo`.
 
-Campos recomendados:
+Campos expuestos:
 
-- `modelo_usado`
-- `regresores_usados`
+- `modelo_resuelto`
+- `regresores_resueltos`
 - `mape_referencia`
 - `mae_referencia`
-- `folds_referencia`
-- `confiabilidad_relativa`
+- `folds`
+- `confiabilidad`
 - `origen_decision`
 - `justificacion`
 - `no_calibrado`
+- `advertencia`, cuando existe degradacion operativa
 
 La idea no es reemplazar las metricas operativas del request actual, sino complementarlas con metadatos metodologicos de la politica de seleccion.
 
@@ -73,13 +98,13 @@ Ejemplo conceptual:
     "mape": 7.74
   },
   "forecast": [],
-  "model_selection": {
-    "modelo_usado": "prophet_ipim_nivel_general",
-    "regresores_usados": ["ipim_nivel_general"],
+  "seleccion_modelo": {
+    "modelo_resuelto": "prophet_ipim_nivel_general",
+    "regresores_resueltos": ["ipim_nivel_general"],
     "mape_referencia": 4.98,
     "mae_referencia": 6.76,
-    "folds_referencia": 9,
-    "confiabilidad_relativa": "alta",
+    "folds": 9,
+    "confiabilidad": "alta",
     "origen_decision": "material_horizonte",
     "justificacion": "Configuracion recomendada para Cemento Portland a 3 meses segun benchmark documentado.",
     "no_calibrado": false
@@ -114,7 +139,7 @@ Si falta un regresor requerido, el sistema deberia:
 
 ## 5. Fallbacks
 
-La integracion futura debe respetar el orden de fallback ya definido por el selector, pero ademas contemplar faltantes operativos de regresores.
+La integracion implementada respeta el orden de fallback ya definido por el selector y ademas contempla faltantes operativos de regresores.
 
 ### Caso 1: no existe seleccion exacta para material + horizonte
 
@@ -146,11 +171,11 @@ Consecuencias:
 
 Este caso debe separarse de la falta de calibracion. Puede existir una seleccion valida, pero no disponibilidad operativa de datos para ejecutarla.
 
-Politica recomendada:
+Politica implementada:
 
 1. detectar de forma explicita que faltan regresores requeridos;
-2. intentar fallback a una configuracion alternativa permitida por politica;
-3. si no existe fallback seguro, responder con advertencia controlada o degradar a `prophet_base` marcado como `no_calibrado`.
+2. degradar de forma controlada a `prophet_base`;
+3. devolver `seleccion_modelo` con `origen_decision = fallback_regresores`, `no_calibrado = true` y una advertencia explicita.
 
 La decision no debe quedar implicita ni silenciosa.
 
@@ -158,16 +183,16 @@ La decision no debe quedar implicita ni silenciosa.
 
 `forecast_service` debe aceptar esa salida como un caso legitimo de fallback operativo. No corresponde tratarlo como error.
 
-La respuesta futura deberia exponerlo claramente para que quien consuma el endpoint sepa que el sistema no conto con una calibracion metodologica especifica para ese material u horizonte.
+La respuesta actual puede exponerlo claramente para que quien consuma el endpoint sepa que el sistema no conto con una calibracion metodologica especifica para ese material u horizonte.
 
 ## 6. Compatibilidad hacia atras
 
-La integracion no debe activarse de golpe.
+La integracion fue implementada sin activarse de golpe.
 
-La recomendacion es introducir un `feature flag` o parametro interno equivalente, por ejemplo:
+El mecanismo adoptado es un `feature flag` interno:
 
 ```python
-usar_selector_modelo = False
+USAR_SELECTOR_MODELO_FORECAST = False
 ```
 
 Mientras ese flag este desactivado:
@@ -182,29 +207,31 @@ Cuando el flag se active en ambientes de prueba:
 - el service traduce esa politica a runtime;
 - la respuesta expone trazabilidad adicional.
 
-Esto permite una migracion por etapas:
+Esto mantiene una migracion por etapas:
 
 1. contrato definido;
-2. integracion interna implementada pero desactivada;
+2. integracion interna implementada pero desactivada por defecto;
 3. validacion en tests y ambiente controlado;
 4. activacion gradual.
 
-## 7. Tests necesarios antes de activar
+## 7. Tests verificados en la implementacion
 
-Antes de encender el selector en produccion, deberian existir pruebas para estos escenarios:
+La integracion quedo respaldada por pruebas que validan, como minimo, estos escenarios:
 
 - forecast con selector desactivado mantiene exactamente el comportamiento actual;
-- forecast con selector activado usa el modelo recomendado para `material_id + horizonte_meses`;
+- forecast con selector activado usa el modelo recomendado para `Cemento Portland`, `Pastina` y `Membrana Megaflex`;
+- fallback por material cuando no existe calibracion exacta para el horizonte;
 - material sin calibracion cae a `prophet_base` y queda marcado como `no_calibrado`;
 - faltante de regresor requerido no rompe el endpoint y produce fallback o advertencia controlada;
-- la respuesta expone `modelo`, `regresores`, metricas de referencia y `justificacion`;
+- la respuesta expone `modelo`, `regresores`, metricas de referencia, confiabilidad, `origen_decision`, `justificacion` y `no_calibrado` cuando corresponde;
 - no se modifica la logica actual de normalizacion por `kg` ni las equivalencias comerciales ya existentes.
 
-Tambien conviene cubrir:
+Adicionalmente, se mantuvieron validaciones sobre:
 
-- que no se mezclen metricas de referencia de un horizonte con otro distinto;
 - que la ausencia de `folds` se exprese de forma valida cuando corresponda;
 - que los fallbacks no borren trazabilidad sobre el origen de la decision.
+
+La bateria relevante paso correctamente al momento de registrar esta integracion.
 
 ## 8. Riesgos y mitigaciones
 
@@ -258,11 +285,12 @@ Mitigacion:
 
 ## Cierre metodologico
 
-La integracion propuesta no cambia la naturaleza del forecast: sigue siendo un sistema basado en `Prophet`.
+La integracion implementada no cambia la naturaleza del forecast: sigue siendo un sistema basado en `Prophet`.
 
 Lo que cambia es la forma de decidir y exponer la configuracion aplicada:
 
 - la politica de seleccion deja de estar implicita;
 - el runtime deja de hardcodear decisiones experimentales;
 - la respuesta del forecast gana trazabilidad metodologica;
-- la activacion puede hacerse de manera controlada y reversible.
+- la activacion puede hacerse de manera controlada y reversible;
+- el frontend no fue modificado en esta etapa.
