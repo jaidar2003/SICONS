@@ -40,7 +40,8 @@ services:
       python -m app.operations.bootstrap.seed &&
       python -m app.operations.bootstrap.import_cemento_canonico &&
       python -m app.operations.bootstrap.import_pastina &&
-      python -m app.operations.bootstrap.import_membrana_megaflex"
+      python -m app.operations.bootstrap.import_membrana_megaflex &&
+      python -m app.operations.bootstrap.import_external_indices_snapshot"
 
   postgres:
     image: postgres:16-alpine

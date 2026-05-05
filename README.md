@@ -81,15 +81,62 @@ Debe incluir, como minimo:
 
 ### Fuente canonica de Cemento
 
-La fuente metodologicamente correcta para reconstruir la serie robusta de `Cemento Portland` es `import_sicons_excel`.
+La fuente metodologicamente correcta para reconstruir la serie robusta de `Cemento Portland` hoy esta representada por `import_sicons_excel`, pero no debe seguir dependiendo en forma final de `db/sicons.xlsx` ni de archivos personales externos al repositorio.
 
 En consecuencia:
 
+- la fuente canonica reproducible de tesis debe definirse como `db/bootstrap/cemento_portland_historico.csv`;
+- ese archivo debe ser un extracto congelado, reducido y auditable dentro del repo;
+- el futuro importador oficial del bootstrap minimo debe ser `app/operations/bootstrap/import_cemento_canonico.py`;
+- `import_sicons_excel.py` debe quedar como herramienta legacy o transitoria de conversion desde Excel;
 - `import_cemento_facturas` debe considerarse un import incremental u operativo;
 - no constituye por si solo el dataset minimo reproducible de tesis;
-- `db/sicons.xlsx` no debe seguir tratandose como una dependencia personal no gobernada.
+- `db/sicons.xlsx` no debe seguir tratandose como una dependencia personal no gobernada ni como requisito final del bootstrap minimo.
 
-La opcion preferida es incorporar un extracto congelado y versionado en una ruta estable dentro del repositorio. Como transicion, la ruta podria parametrizarse mediante `SICONS_XLSX_PATH`, pero eso no debe presentarse como reproducibilidad cerrada si el archivo no queda versionado.
+El formato recomendado para esa fuente canonica es `CSV`, no `XLSX` ni `JSON`, porque para este caso resulta:
+
+- mas auditable;
+- mas facil de versionar;
+- con diffs mas claros en Git;
+- mas adecuado para reducir columnas al minimo necesario;
+- menos propenso a arrastrar datos sensibles o irrelevantes del origen Excel.
+
+Como transicion operativa puede admitirse una ruta parametrizable mediante `SICONS_XLSX_PATH`, pero eso no debe presentarse como reproducibilidad cerrada si el artefacto historico no queda versionado dentro del repositorio.
+
+Columnas minimas esperadas para `db/bootstrap/cemento_portland_historico.csv`:
+
+- `fecha`
+- `empresa`
+- `numero_comprobante`
+- `articulo`
+- `precio_original`
+- `precio_normalizado`
+- `moneda`
+- `origen_dato`
+- `metodo_estimacion`
+- `observaciones_origen`
+
+Contrato metodologico:
+
+- `origen_dato` debe ser `REAL` en la fuente canonica de `Cemento Portland`;
+- `metodo_estimacion` debe quedar vacio o `null`;
+- si `numero_comprobante` resultara sensible, podra reemplazarse por un identificador estable anonimizado, siempre que preserve trazabilidad e idempotencia.
+
+Contrato tecnico del futuro `import_cemento_canonico.py`:
+
+- crear o actualizar `Cemento Portland`;
+- crear o actualizar `Bolsa 25 kg` y `Bolsa 50 kg` cuando correspondan;
+- crear una fuente separada, por ejemplo `Historico canonico Cemento Portland`;
+- leer `db/bootstrap/cemento_portland_historico.csv`;
+- insertar o actualizar `PrecioHistorico`;
+- marcar `origen_dato = REAL`;
+- preservar idempotencia.
+
+Convivencia esperada:
+
+- `import_cemento_facturas` queda como carga incremental de facturas recientes;
+- no debe ser necesario para reproducir metricas base de tesis;
+- debe usar una fuente distinta para no mezclar historico canonico con incremental operativo.
 
 ### Bootstrap oficial objetivo
 
@@ -103,7 +150,7 @@ Secuencia esperada:
 
 1. `alembic upgrade head`
 2. `python -m app.operations.bootstrap.seed`
-3. `python -m app.operations.bootstrap.import_sicons_excel`
+3. `python -m app.operations.bootstrap.import_cemento_canonico`
 4. `python -m app.operations.bootstrap.import_pastina`
 5. `python -m app.operations.bootstrap.import_membrana_megaflex`
 6. `python -m app.operations.bootstrap.import_external_indices_snapshot`
@@ -112,10 +159,11 @@ Secuencia esperada:
 Estado actual del bootstrap versionado:
 
 - ya incluye `seed`;
-- ya incluye `import_cemento_facturas`;
+- ya incluye `import_cemento_canonico`;
 - ya incluye `import_pastina`;
 - ya incluye `import_membrana_megaflex`;
-- todavia no incluye la fuente canonica de cemento ni el snapshot local de `ipim_nivel_general`.
+- ya incluye `import_external_indices_snapshot`;
+- todavia no incluye la validacion final del dataset minimo.
 
 ### Regresores congelados
 
@@ -143,6 +191,16 @@ El cierre del bootstrap minimo debe incluir un script `validate_minimum_dataset`
 - presencia detectable de `REAL` y `ESTIMADO` en `Pastina` y `Membrana Megaflex`;
 - disponibilidad de regresores requeridos;
 - respuesta `200` en endpoints basicos de pricing y forecast.
+
+Tests futuros esperados para la fuente canonica de `Cemento Portland`:
+
+- existencia del CSV canónico y de sus columnas esperadas;
+- importador sin dependencia de archivos externos al repo;
+- idempotencia del importador;
+- persistencia de `origen_dato = REAL`;
+- volumen y rango temporal suficientes para `Cemento Portland`;
+- serie mensual resultante sin huecos;
+- compatibilidad posterior con `import_cemento_facturas` sin romper trazabilidad.
 
 Hasta que este cierre no se implemente, la activacion futura del selector debe considerarse condicionada y el frontend no deberia tomarse como frente prioritario.
 
