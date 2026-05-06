@@ -81,17 +81,15 @@ Debe incluir, como minimo:
 
 ### Fuente canonica de Cemento
 
-La fuente metodologicamente correcta para reconstruir la serie robusta de `Cemento Portland` hoy esta representada por `import_sicons_excel`, pero no debe seguir dependiendo en forma final de `db/sicons.xlsx` ni de archivos personales externos al repositorio.
+La fuente metodologicamente correcta para reconstruir la serie robusta de `Cemento Portland` ya no depende de `db/sicons.xlsx` como artefacto operativo final. Hoy la fuente canonica reproducible de tesis es el extracto versionado `db/bootstrap/cemento_portland_historico.csv`, y su carga oficial se realiza con `app/operations/bootstrap/import_cemento_canonico.py`.
 
 En consecuencia:
 
-- la fuente canonica reproducible de tesis debe definirse como `db/bootstrap/cemento_portland_historico.csv`;
-- ese archivo debe ser un extracto congelado, reducido y auditable dentro del repo;
-- el futuro importador oficial del bootstrap minimo debe ser `app/operations/bootstrap/import_cemento_canonico.py`;
-- `import_sicons_excel.py` debe quedar como herramienta legacy o transitoria de conversion desde Excel;
-- `import_cemento_facturas` debe considerarse un import incremental u operativo;
-- no constituye por si solo el dataset minimo reproducible de tesis;
-- `db/sicons.xlsx` no debe seguir tratandose como una dependencia personal no gobernada ni como requisito final del bootstrap minimo.
+- `db/bootstrap/cemento_portland_historico.csv` es el artefacto canonico, congelado, reducido y auditable dentro del repo;
+- `app/operations/bootstrap/import_cemento_canonico.py` es el importador oficial del bootstrap minimo;
+- `import_sicons_excel.py` queda como herramienta legacy o transitoria de conversion desde Excel;
+- `import_cemento_facturas` queda como import incremental u operativo;
+- `db/sicons.xlsx` deja de ser una dependencia personal no gobernada para la reproducibilidad de tesis.
 
 El formato recomendado para esa fuente canonica es `CSV`, no `XLSX` ni `JSON`, porque para este caso resulta:
 
@@ -122,7 +120,7 @@ Contrato metodologico:
 - `metodo_estimacion` debe quedar vacio o `null`;
 - si `numero_comprobante` resultara sensible, podra reemplazarse por un identificador estable anonimizado, siempre que preserve trazabilidad e idempotencia.
 
-Contrato tecnico del futuro `import_cemento_canonico.py`:
+Contrato tecnico de `import_cemento_canonico.py`:
 
 - crear o actualizar `Cemento Portland`;
 - crear o actualizar `Bolsa 25 kg` y `Bolsa 50 kg` cuando correspondan;
@@ -165,6 +163,8 @@ Estado actual del bootstrap versionado:
 - ya incluye `import_external_indices_snapshot`;
 - ya incluye `validate_minimum_dataset`.
 
+`validate_minimum_dataset` forma parte del cierre de bootstrap, pero su cobertura tecnica sigue en ajuste y no debe interpretarse como una certificacion mas amplia que la que realmente valida hoy.
+
 ### Regresores congelados
 
 - `ipc` y `dolar_*` ya se apoyan en CSV locales versionados con el proyecto;
@@ -191,6 +191,8 @@ El cierre del bootstrap minimo debe incluir un script `validate_minimum_dataset`
 - presencia detectable de `REAL` y `ESTIMADO` en `Pastina` y `Membrana Megaflex`;
 - disponibilidad de regresores requeridos;
 - respuesta `200` en endpoints basicos de pricing y forecast.
+
+La cobertura efectiva de ese script debe mantenerse alineada con su implementacion real; si la validacion de todos los regresores sigue en ajuste, la documentacion no debe sobredimensionarla.
 
 Tests futuros esperados para la fuente canonica de `Cemento Portland`:
 
