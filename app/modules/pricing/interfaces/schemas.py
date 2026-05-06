@@ -186,3 +186,38 @@ class PurchaseRecommendationRead(BaseModel):
     criticidad: str
     justificacion: str
     advertencias: list[str]
+
+
+class PurchaseStrategyComparisonCreate(BaseModel):
+    horizonte_meses: int = Field(default=3, ge=1, le=12)
+    cantidad_objetivo: Decimal = Field(gt=0, decimal_places=4)
+    porcentaje_compra_inmediata: Decimal = Field(
+        default=Decimal("0.50"),
+        ge=0,
+        le=1,
+        decimal_places=4,
+    )
+
+
+class PurchaseStrategyRead(BaseModel):
+    nombre: Literal["COMPRAR_AHORA", "ESPERAR_AL_HORIZONTE", "COMPRA_PARCIAL"]
+    costo_estimado: Decimal
+    riesgo: str
+    descripcion: str
+
+
+class PurchaseStrategyComparisonRead(BaseModel):
+    material_id: int
+    material_key: str
+    horizonte_meses: int
+    cantidad_objetivo: Decimal
+    porcentaje_compra_inmediata: Decimal
+    precio_actual: Decimal
+    precio_proyectado_horizonte: Decimal
+    variacion_esperada_pct: Decimal
+    confiabilidad: str
+    estrategias: list[PurchaseStrategyRead]
+    mejor_estrategia: Literal["COMPRAR_AHORA", "ESPERAR_AL_HORIZONTE", "COMPRA_PARCIAL"]
+    ahorro_estimado: Decimal
+    justificacion: str
+    advertencias: list[str]
