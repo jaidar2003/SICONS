@@ -25,16 +25,28 @@ Mientras ese flag permanezca en `False`:
 
 Cuando el flag se activa en un ambiente controlado:
 
-- `forecast_service.py` invoca `resolve_model_selection(material_id, horizonte_meses)`;
+- `forecast_service.py` recibe `material_id`, resuelve el `Material` correspondiente y deriva `material_key` desde `Material.nombre`;
+- el selector se invoca con `material_key` y `horizonte_meses`;
 - el sistema resuelve modelo, regresores y metadatos de referencia segun material y horizonte;
 - el runtime de forecast intenta ejecutar solo los regresores efectivamente soportados por el flujo actual;
 - si no hay calibracion o faltan regresores operativos, se aplica fallback controlado a `prophet_base`.
 
 Sin embargo, la validacion runtime real dejo una salvedad de diseno relevante: aunque el cableado tecnico funciona, calibrar el selector directamente contra `material_id` es fragil entre ambientes porque ese identificador es local a cada base y no representa por si mismo una identidad metodologica estable del material.
 
+Adicionalmente, la activacion futura del selector queda condicionada a cerrar primero la reproducibilidad del entorno. Antes de cambiar el valor por defecto del flag o de exponer `seleccion_modelo` como capacidad madura del sistema, una base limpia levantada con `Docker + bootstrap` debe poder reconstruir sin intervencion manual el dataset minimo que la tesis asume.
+
+Ese dataset minimo reproducible debe incluir:
+
+- `Cemento Portland` con serie historica real, densa y continua;
+- `Pastina` con serie mensual hibrida, diferenciando `REAL` y `ESTIMADO`;
+- `Membrana Megaflex` con serie mensual hibrida, diferenciando `REAL` y `ESTIMADO`;
+- regresores `ipc`, `dolar_oficial`, `dolar_mayorista`, `dolar_blue` e `ipim_nivel_general`.
+
+La fuente canonica correcta para la serie robusta de `Cemento Portland` ya es `db/bootstrap/cemento_portland_historico.csv`, cargado por `app/operations/bootstrap/import_cemento_canonico.py`. `import_cemento_facturas` queda reclasificado como import incremental u operativo y no debe seguir considerandose base suficiente para reproducibilidad de tesis. `import_sicons_excel` queda como mecanismo legacy o transitorio de conversion desde Excel. A su vez, `ipim_nivel_general` debe cargarse desde un snapshot local versionado, dejando la sincronizacion online solo como actualizacion opcional.
+
 ## 1. Proposito de la integracion
 
-La integracion busca que SICONS deje de depender implicitamente de una configuracion unica de forecast y pueda resolver, de forma explicita y trazable, que modelo recomendado usar para cada combinacion de `material_id` y `horizonte_meses`.
+La integracion busca que SICONS deje de depender implicitamente de una configuracion unica de forecast y pueda resolver, de forma explicita y trazable, que modelo recomendado usar para cada material logico y `horizonte_meses`.
 
 El selector no reemplaza a `Prophet`. Su responsabilidad es definir que configuracion de `Prophet` corresponde aplicar segun la evidencia documentada.
 
@@ -57,7 +69,7 @@ Esto confirma que `material_id` no debe tratarse como clave metodologica de cali
 
 La solucion propuesta es mantener `material_id` como parametro externo del endpoint, pero resolver internamente:
 
-- `material_id -> material_key estable -> modelo recomendado`
+- `material_id -> Material.nombre -> material_key -> modelo recomendado`
 
 La seleccion deberia operar sobre:
 
@@ -69,9 +81,9 @@ y no directamente sobre:
 
 Claves iniciales recomendadas:
 
-- `cemento_portland`
-- `pastina_klaukol`
-- `membrana_megaflex`
+- `cemento-portland`
+- `pastina`
+- `membrana-megaflex`
 
 Para el MVP, la recomendacion es resolver `material_key` desde el catalogo actual mediante normalizacion controlada del nombre o slug derivado, sin migracion de base todavia. Como evolucion futura, conviene incorporar un campo persistido explicito como `codigo_material` o `clave_modelo`.
 
@@ -83,7 +95,7 @@ Si no se puede resolver `material_key` con suficiente confianza, el sistema debe
 
 ## 3. Punto de integracion
 
-La llamada a `resolve_model_selection(material_id, horizonte_meses)` ya ocurre dentro de `forecast_service.py` cuando el flag interno de selector esta activo. La resolucion se realiza despues de construir el dataset base y antes de ejecutar backtesting y forecast con la configuracion efectiva.
+La llamada a `resolve_model_selection(material_key, horizonte_meses)` ya ocurre dentro de `forecast_service.py` cuando el flag interno de selector esta activo. El service recibe `material_id` desde el endpoint, resuelve el material, deriva `material_key` y luego realiza la seleccion antes de ejecutar backtesting y forecast con la configuracion efectiva.
 
 El flujo implementado queda, conceptualmente, en este orden:
 
@@ -98,10 +110,11 @@ El flujo implementado queda, conceptualmente, en este orden:
 
 En la implementacion actual, `forecast_service.py` recibe desde el selector, como minimo:
 
-- `modelo`;
-- `regresores`;
-- `mape`;
-- `mae`;
+- `material_key`;
+- `modelo_resuelto`;
+- `regresores_resueltos`;
+- `mape_referencia`;
+- `mae_referencia`;
 - `folds`;
 - `confiabilidad`;
 - `origen_decision`;
@@ -139,6 +152,7 @@ Ejemplo conceptual:
   },
   "forecast": [],
   "seleccion_modelo": {
+    "material_key": "cemento-portland",
     "modelo_resuelto": "prophet_ipim_nivel_general",
     "regresores_resueltos": ["ipim_nivel_general"],
     "mape_referencia": 4.98,
@@ -274,7 +288,7 @@ La integracion quedo respaldada por pruebas que validan, como minimo, estos esce
 - fallback por material cuando no existe calibracion exacta para el horizonte;
 - material sin calibracion cae a `prophet_base` y queda marcado como `no_calibrado`;
 - faltante de regresor requerido no rompe el endpoint y produce fallback o advertencia controlada;
-- la respuesta expone `modelo`, `regresores`, metricas de referencia, confiabilidad, `origen_decision`, `justificacion` y `no_calibrado` cuando corresponde;
+- la respuesta expone `material_key`, `modelo_resuelto`, `regresores_resueltos`, metricas de referencia, confiabilidad, `origen_decision`, `justificacion` y `no_calibrado` cuando corresponde;
 - no se modifica la logica actual de normalizacion por `kg` ni las equivalencias comerciales ya existentes.
 
 Adicionalmente, se mantuvieron validaciones sobre:
@@ -303,7 +317,7 @@ Resultados observados en la validacion controlada:
 - `Pastina` resolvio `prophet_blue_ipc` con regresores `dolar_blue` e `ipc`, `MAPE 5.00`, `MAE 120.90`, `folds 9`, confiabilidad `media` y `no_calibrado = false`.
 - `Membrana Megaflex` resolvio `prophet_ipc` con regresor `ipc`, `MAPE 8.31`, `MAE 734.37`, `folds 9`, confiabilidad `media-baja` y `no_calibrado = false`.
 - un material no calibrado resolvio `prophet_base`, con escenario base sin regresores externos, `no_calibrado = true` y `origen_decision = global_fallback`.
-- el endpoint no se rompio y pudo exponer `seleccion_modelo` con `modelo_resuelto`, `regresores_resueltos`, `mape_referencia`, `mae_referencia`, `folds`, `confiabilidad`, `origen_decision`, `justificacion` y `no_calibrado`.
+- el endpoint no se rompio y pudo exponer `seleccion_modelo` con `material_key`, `modelo_resuelto`, `regresores_resueltos`, `mape_referencia`, `mae_referencia`, `folds`, `confiabilidad`, `origen_decision`, `justificacion` y `no_calibrado`.
 
 La misma validacion tambien evidencio una limitacion de diseno: el selector funciona tecnicamente, pero la calibracion basada unicamente en `material_id` puede ser fragil entre ambientes. Por eso, antes de una activacion mas amplia, corresponde introducir la resolucion de una identidad estable de material.
 
@@ -329,6 +343,7 @@ La activacion del selector no debe tratarse como una consecuencia automatica de 
 
 Antes de habilitar `USAR_SELECTOR_MODELO_FORECAST = True` en un ambiente de prueba, deberian cumplirse como minimo estas condiciones:
 
+- cierre del dataset minimo reproducible mediante `Docker + bootstrap`, sin archivos personales fuera del repositorio;
 - bateria completa de tests en verde;
 - validacion manual o automatizada de `Cemento Portland`, `Pastina` y `Membrana Megaflex`;
 - confirmacion de que cada material resuelve el modelo esperado para el horizonte evaluado;
@@ -341,6 +356,7 @@ Antes de habilitar `USAR_SELECTOR_MODELO_FORECAST = True` en un ambiente de prue
 
 La activacion en produccion no deberia evaluarse solo porque el cableado tecnico ya funciona. Antes de considerarla, deberian cumplirse simultaneamente estas condiciones:
 
+- bootstrap oficial capaz de reconstruir el dataset minimo reproducible y validarlo automaticamente;
 - backtesting actualizado por material y horizonte;
 - comparacion explicita contra el comportamiento productivo vigente;
 - mejora o, como minimo, mantenimiento de `MAPE` respecto del modelo actual;
@@ -419,6 +435,11 @@ Mitigacion:
 
 ## 12. Trabajo futuro
 
+- cerrar el dataset minimo reproducible de tesis en `Docker + bootstrap`;
+- gobernar una fuente canonica versionada para la serie historica de `Cemento Portland`;
+- incorporar un snapshot local versionado de `ipim_nivel_general`;
+- persistir `origen_dato` y `metodo_estimacion` de forma estructurada en series hibridas;
+- agregar `validate_minimum_dataset` como verificacion post-bootstrap;
 - introducir resolucion explicita `material_id -> material_key`;
 - migrar el mapping declarativo a una tabla parametrizable;
 - incorporar eventualmente un campo persistido como `codigo_material` o `clave_modelo`;

@@ -21,24 +21,18 @@ Sin esta capa, el sistema queda atado a una de estas dos alternativas debiles:
 
 ## 2. Entrada del selector
 
-La interfaz minima externa del flujo debe aceptar:
+La interfaz minima externa del flujo sigue aceptando:
 
 - `material_id`
 - `horizonte_meses`
 
-Sin embargo, la validacion runtime real mostro que `material_id` no es una identidad metodologica estable del material, sino una identidad tecnica local de una base concreta. Puede variar entre desarrollo, testing, produccion, seeds recreados o cargas manuales.
+El contrato interno real ya no depende de `material_id` como clave metodologica. El endpoint recibe `material_id`, pero el backend resuelve primero el material y deriva una identidad estable:
 
-Por eso, el contrato interno recomendado deja de ser:
+- `material_id -> Material.nombre -> material_key`
 
-- `material_id + horizonte_meses`
-
-y pasa a ser:
+Luego el selector opera sobre:
 
 - `material_key + horizonte_meses`
-
-El endpoint puede y debe seguir recibiendo `material_id`, pero antes de seleccionar el modelo el backend deberia resolver internamente:
-
-- `material_id -> material_key estable -> modelo recomendado`
 
 Esta separacion reduce tres riesgos:
 
@@ -52,9 +46,9 @@ Conviene que `horizonte_meses` siga siendo obligatorio en el contrato interno, i
 
 Para la etapa actual, las claves estables recomendadas son:
 
-- `cemento_portland`
-- `pastina_klaukol`
-- `membrana_megaflex`
+- `cemento-portland`
+- `pastina`
+- `membrana-megaflex`
 
 ## 3. Salida esperada
 
@@ -62,29 +56,31 @@ La salida del selector no debe ser solo el nombre de un modelo. Debe ser una dec
 
 Campos esperados:
 
-- `modelo`: identificador simbolico del modelo recomendado.
-- `regresores`: lista declarativa de regresores requeridos por ese modelo.
-- `mape`: metrica principal usada para sostener la recomendacion.
-- `mae`: metrica de soporte.
+- `material_key`: identidad estable resuelta para el material.
+- `modelo_resuelto`: identificador simbolico del modelo recomendado.
+- `regresores_resueltos`: lista declarativa de regresores requeridos por ese modelo.
+- `mape_referencia`: metrica principal usada para sostener la recomendacion.
+- `mae_referencia`: metrica de soporte.
 - `folds`: cantidad de folds usada en backtesting, cuando este dato exista.
 - `confiabilidad`: calificacion metodologica de la serie asociada a esa recomendacion.
 - `origen_decision`: fuente concreta de donde sale la regla aplicada.
 - `justificacion`: texto breve, tecnico y auditable, apto para log, respuesta HTTP o debugging funcional.
-- `calibrado`: indicador booleano para distinguir una recomendacion respaldada por benchmark de un fallback no calibrado.
+- `no_calibrado`: indicador booleano para distinguir una recomendacion respaldada por benchmark de un fallback no calibrado.
 
 Ejemplo conceptual de salida:
 
 ```json
 {
-  "modelo": "prophet_ipim_nivel_general",
-  "regresores": ["ipim_nivel_general"],
-  "mape": 4.98,
-  "mae": 6.76,
+  "material_key": "cemento-portland",
+  "modelo_resuelto": "prophet_ipim_nivel_general",
+  "regresores_resueltos": ["ipim_nivel_general"],
+  "mape_referencia": 4.98,
+  "mae_referencia": 6.76,
   "folds": 9,
   "confiabilidad": "alta",
   "origen_decision": "material_horizonte",
   "justificacion": "Configuracion recomendada para Cemento Portland a 3 meses segun benchmark documentado y MAPE minimo medido.",
-  "calibrado": true
+  "no_calibrado": false
 }
 ```
 
@@ -104,9 +100,9 @@ Con la evidencia actualmente documentada, solo corresponde fijar de manera expli
 
 | Material key | Material visible | Horizonte | Modelo recomendado | Regresores | MAPE | MAE | Folds | Confiabilidad |
 |---|---:|---|---|---:|---:|---:|---|
-| `cemento_portland` | `Cemento Portland` | `3` | `prophet_ipim_nivel_general` | `["ipim_nivel_general"]` | `4.98%` | `6.76` | `9` | alta |
-| `pastina_klaukol` | `Pastina Klaukol` | `3` | `prophet_blue_ipc` | `["dolar_blue", "ipc"]` | `5.00%` | `120.90` | `9` | media |
-| `membrana_megaflex` | `Membrana Megaflex` | `3` | `prophet_ipc` | `["ipc"]` | `8.31%` | `734.37` | `9` | media-baja |
+| `cemento-portland` | `Cemento Portland` | `3` | `prophet_ipim_nivel_general` | `["ipim_nivel_general"]` | `4.98%` | `6.76` | `9` | alta |
+| `pastina` | `Pastina` | `3` | `prophet_blue_ipc` | `["dolar_blue", "ipc"]` | `5.00%` | `120.90` | `9` | media |
+| `membrana-megaflex` | `Membrana Megaflex` | `3` | `prophet_ipc` | `["ipc"]` | `8.31%` | `734.37` | `9` | media-baja |
 
 No corresponde completar artificialmente otros horizontes con resultados no medidos. Para horizontes no calibrados, el selector debe caer en reglas de fallback y dejar esa condicion explicitada.
 
@@ -117,7 +113,7 @@ La politica inicial debe resolver en este orden:
 1. configuracion exacta por `material_key` y `horizonte_meses`;
 2. configuracion generica por `material_key`;
 3. `prophet_base` sin regresores;
-4. marcado explicito como `no calibrado`, si la decision no proviene de benchmark especifico para esa combinacion.
+4. marcado explicito como `no_calibrado`, si la decision no proviene de benchmark especifico para esa combinacion.
 
 ### Fallback 1: configuracion exacta por material y horizonte
 
@@ -126,7 +122,7 @@ Es la ruta preferida. Solo se usa cuando existe una calibracion documentada para
 Valores esperados:
 
 - `origen_decision = "material_horizonte"`
-- `calibrado = true`
+- `no_calibrado = false`
 
 ### Fallback 2: configuracion por material
 
@@ -135,7 +131,7 @@ Aplica cuando existe evidencia suficiente para el material, pero no para el hori
 Valores esperados:
 
 - `origen_decision = "material_default"`
-- `calibrado = false`
+- `no_calibrado = true`
 - la `justificacion` debe indicar que se reutiliza la mejor configuracion conocida del material por ausencia de evidencia especifica para ese horizonte.
 
 ### Fallback 3: `prophet_base` sin regresores
@@ -145,15 +141,15 @@ Aplica cuando no existe ninguna recomendacion documentada para el material.
 Valores esperados:
 
 - `origen_decision = "global_fallback"`
-- `modelo = "prophet_base"`
-- `regresores = []`
-- `calibrado = false`
+- `modelo_resuelto = "prophet_base"`
+- `regresores_resueltos = []`
+- `no_calibrado = true`
 
 Esta salida no debe presentarse como recomendacion metodologica fuerte. Debe presentarse como fallback operativo conservador.
 
 ### Marcado de no calibrado
 
-El selector debe poder marcar como `no calibrado` cualquier resolucion que no tenga respaldo exacto de benchmark para esa combinacion de material y horizonte.
+El selector debe poder marcar como `no_calibrado` cualquier resolucion que no tenga respaldo exacto de benchmark para esa combinacion de material y horizonte.
 
 Ese marcado es importante por dos razones:
 
@@ -257,8 +253,8 @@ Sin implementar serving nuevo, ya puede definirse que pruebas deberia cubrir el 
 - resuelve la configuracion exacta cuando existe `material_key + horizonte_meses`;
 - cae a configuracion por material cuando falta la exacta;
 - cae a `prophet_base` cuando no existe configuracion del material;
-- marca `calibrado = true` solo para reglas exactas respaldadas por benchmark;
-- marca `calibrado = false` en todos los fallbacks;
+- marca `no_calibrado = false` solo para reglas exactas respaldadas por benchmark;
+- marca `no_calibrado = true` en todos los fallbacks;
 - conserva `MAPE`, `MAE`, `folds`, `confiabilidad` y `justificacion` sin alterarlos;
 - expone `regresores` coherentes con el modelo recomendado;
 - no inventa horizontes ni metricas ausentes.
@@ -266,8 +262,8 @@ Sin implementar serving nuevo, ya puede definirse que pruebas deberia cubrir el 
 Tambien conviene cubrir especificamente la capa de identidad estable:
 
 - el mismo material logico con distinto `material_id` resuelve la misma `material_key`;
-- `Membrana Megaflex` resuelve `membrana_megaflex`;
-- `Pastina Klaukol` resuelve `pastina_klaukol`;
+- `Membrana Megaflex` resuelve `membrana-megaflex`;
+- `Pastina` resuelve `pastina`;
 - un material desconocido cae a `prophet_base/no_calibrado`;
 - el selector deja de depender de IDs locales para devolver modelos calibrados.
 
@@ -284,16 +280,17 @@ La forma recomendada es agregar un bloque de metadatos de seleccion, por ejemplo
 ```json
 {
   "forecast": { "...": "..." },
-  "model_selection": {
-    "modelo": "prophet_ipim_nivel_general",
-    "regresores": ["ipim_nivel_general"],
-    "mape": 4.98,
-    "mae": 6.76,
+  "seleccion_modelo": {
+    "material_key": "cemento-portland",
+    "modelo_resuelto": "prophet_ipim_nivel_general",
+    "regresores_resueltos": ["ipim_nivel_general"],
+    "mape_referencia": 4.98,
+    "mae_referencia": 6.76,
     "folds": 9,
     "confiabilidad": "alta",
     "origen_decision": "material_horizonte",
     "justificacion": "Configuracion recomendada para Cemento Portland a 3 meses segun benchmark documentado y MAPE minimo medido.",
-    "calibrado": true
+    "no_calibrado": false
   }
 }
 ```

@@ -14,6 +14,29 @@ Supuestos principales usados en esta etapa:
 - backtesting temporal sobre serie mensual
 - las comparaciones principales de regresores se midieron con horizonte de `3 meses`
 
+## Precondicion de reproducibilidad
+
+Las metricas registradas en este documento suponen un dataset minimo reproducible de tesis que todavia debe cerrarse operativamente en el bootstrap oficial.
+
+Ese dataset minimo debe reconstruir:
+
+- `Cemento Portland` con serie historica real, densa y continua;
+- `Pastina` con serie mensual hibrida, diferenciando `REAL` y `ESTIMADO`;
+- `Membrana Megaflex` con serie mensual hibrida, diferenciando `REAL` y `ESTIMADO`;
+- regresores `ipc`, `dolar_oficial`, `dolar_mayorista`, `dolar_blue` e `ipim_nivel_general`.
+
+La fuente canonica correcta para la serie robusta de `Cemento Portland` ya es el extracto versionado y auditable `db/bootstrap/cemento_portland_historico.csv`, cargado por `app/operations/bootstrap/import_cemento_canonico.py`. En consecuencia, `import_cemento_facturas` debe leerse como import incremental u operativo y no como base suficiente para reproducir estas mediciones. `import_sicons_excel` queda como mecanismo legacy o transitorio de conversion desde Excel.
+
+El contrato tecnico previsto para esa fuente canonica es:
+
+- formato `CSV` versionado dentro del repo;
+- columnas minimas `fecha`, `empresa`, `numero_comprobante`, `articulo`, `precio_original`, `precio_normalizado`, `moneda`, `origen_dato`, `metodo_estimacion` y `observaciones_origen`;
+- `origen_dato = REAL` en todos los registros de `Cemento Portland`;
+- `metodo_estimacion` vacio o `null`;
+- posibilidad de anonimizar `numero_comprobante` si hubiera sensibilidad, siempre que se preserve un identificador estable para trazabilidad e idempotencia.
+
+Mientras la reconstruccion automatica de ese dataset minimo no quede cerrada en `Docker + bootstrap`, estas metricas deben interpretarse como evidencia metodologica ya medida, pero todavia no como resultado automaticamente regenerable en cualquier base limpia sin pasos adicionales gobernados.
+
 ## Datos utilizados
 
 - registros crudos de cemento: `1624`
@@ -196,9 +219,37 @@ La comparacion actual es:
 - La efectividad informal debe leerse solo como `100 - MAPE`, con funcion comunicacional de apoyo. La metrica principal de comparacion y defensa metodologica sigue siendo `MAPE`.
 - La continuidad mensual mejora la estabilidad del forecast, pero no equivale automaticamente a mayor confiabilidad real si la serie depende en gran proporcion de valores estimados.
 
+La lectura anterior debe entenderse sobre la base de tres fuentes de datos ya diferenciadas en el repositorio:
+
+- `Cemento Portland` se apoya en el dataset canónico versionado;
+- `Pastina` y `Membrana Megaflex` conservan series hibridas con `REAL` y `ESTIMADO`;
+- `IPIM Nivel General` se integra desde un snapshot local versionado y no debe asumirse como sincronizacion online obligatoria.
+
 ## Próximas mediciones a agregar
 
 - estabilidad fold por fold de `oficial + mayorista`
 - comparación diaria vs mensual una vez corregida la evaluación diaria irregular
 - nuevas corridas con regresores adicionales como `ICC`
 - evaluacion de `CAC` cuando exista una serie oficial usable integrada en el benchmark experimental
+
+## Proximo cierre operativo
+
+Antes de activar el selector o priorizar nuevas features, el proyecto debe implementar un cierre de reproducibilidad con este flujo objetivo:
+
+1. `alembic upgrade head`
+2. `python -m app.operations.bootstrap.seed`
+3. `python -m app.operations.bootstrap.import_cemento_canonico`
+4. `python -m app.operations.bootstrap.import_pastina`
+5. `python -m app.operations.bootstrap.import_membrana_megaflex`
+6. `python -m app.operations.bootstrap.import_external_indices_snapshot`
+7. `python -m app.operations.bootstrap.validate_minimum_dataset`
+
+La validacion post-bootstrap debera comprobar:
+
+- existencia de `Cemento Portland`, `Pastina` y `Membrana Megaflex`;
+- presentaciones esperadas por material;
+- series mensuales sin huecos;
+- suficientes datos reales en `Cemento Portland`;
+- deteccion estructurada de `REAL` y `ESTIMADO` en `Pastina` y `Membrana Megaflex`;
+- disponibilidad de regresores requeridos;
+- respuesta `200` en endpoints basicos de pricing y forecast.
