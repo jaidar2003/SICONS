@@ -16,6 +16,7 @@ from app.modules.pricing.application.forecast_service import (
 from app.modules.pricing.application.external_indices import list_external_indices, sync_external_index
 from app.modules.pricing.application.imputation import impute_monthly_prices
 from app.modules.pricing.application.purchase_recommendations import recomendar_momento_compra
+from app.modules.pricing.application.purchase_strategies import comparar_estrategias_compra
 from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
 from app.modules.pricing.domain.exceptions import MaterialNotFoundException
@@ -34,6 +35,8 @@ from app.modules.pricing.interfaces.schemas import (
     MaterialCriticidadResponseRead,
     PurchaseRecommendationCreate,
     PurchaseRecommendationRead,
+    PurchaseStrategyComparisonCreate,
+    PurchaseStrategyComparisonRead,
     PriceImputationRequest,
     PriceImputationResponse,
     PrecioHistoricoCreate,
@@ -227,6 +230,55 @@ def recomendar_momento_compra_material(
         variacion_esperada_pct=result.variacion_esperada_pct,
         confiabilidad=result.confiabilidad,
         criticidad=result.criticidad,
+        justificacion=result.justificacion,
+        advertencias=list(result.advertencias),
+    )
+
+
+@router.post(
+    "/materiales/{material_id}/comparacion-estrategias-compra",
+    response_model=PurchaseStrategyComparisonRead,
+)
+def comparar_estrategias_compra_material(
+    material_id: int,
+    payload: PurchaseStrategyComparisonCreate,
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
+) -> PurchaseStrategyComparisonRead:
+    material = material_repo.get_by_id(material_id)
+    if material is None:
+        raise MaterialNotFoundException(material_id)
+
+    result = comparar_estrategias_compra(
+        material,
+        payload.horizonte_meses,
+        payload.cantidad_objetivo,
+        pricing_repo,
+        porcentaje_compra_inmediata=payload.porcentaje_compra_inmediata,
+        usar_selector_modelo=USAR_SELECTOR_MODELO_FORECAST,
+    )
+
+    return PurchaseStrategyComparisonRead(
+        material_id=result.material_id,
+        material_key=result.material_key,
+        horizonte_meses=result.horizonte_meses,
+        cantidad_objetivo=result.cantidad_objetivo,
+        porcentaje_compra_inmediata=result.porcentaje_compra_inmediata,
+        precio_actual=result.precio_actual,
+        precio_proyectado_horizonte=result.precio_proyectado_horizonte,
+        variacion_esperada_pct=result.variacion_esperada_pct,
+        confiabilidad=result.confiabilidad,
+        estrategias=[
+            {
+                "nombre": estrategia.nombre,
+                "costo_estimado": estrategia.costo_estimado,
+                "riesgo": estrategia.riesgo,
+                "descripcion": estrategia.descripcion,
+            }
+            for estrategia in result.estrategias
+        ],
+        mejor_estrategia=result.mejor_estrategia,
+        ahorro_estimado=result.ahorro_estimado,
         justificacion=result.justificacion,
         advertencias=list(result.advertencias),
     )
