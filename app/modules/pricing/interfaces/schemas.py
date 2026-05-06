@@ -62,6 +62,7 @@ class ForecastPuntoRead(BaseModel):
 
 
 class ForecastSelectionRead(BaseModel):
+    material_key: str | None = None
     modelo_resuelto: str
     regresores_resueltos: list[str]
     mape_referencia: Decimal | None = None

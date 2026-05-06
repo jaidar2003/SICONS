@@ -3,13 +3,15 @@ from datetime import date
 from decimal import Decimal
 
 from app.modules.pricing.application.forecast_cache import ForecastCacheKey
+from dataclasses import replace
+
 from app.modules.pricing.application.forecast_service import ForecastMaterialResult
 from app.modules.pricing.application.forecasting import ProphetRow
 from app.modules.pricing.infrastructure.forecast_snapshots import (
     cargar_forecast_snapshot,
     guardar_forecast_snapshot,
 )
-from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead
+from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead, ForecastSelectionRead
 
 
 def _forecast_result(valor: str) -> ForecastMaterialResult:
@@ -37,13 +39,30 @@ def test_guardar_y_cargar_forecast_snapshot(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("app.modules.pricing.infrastructure.forecast_snapshots.settings.forecast_snapshot_path", str(snapshot_path))
 
     cache_key = ForecastCacheKey(material_id=1, horizonte_meses=3, dataset_signature="firma-1")
-    guardar_forecast_snapshot(cache_key, _forecast_result("110.00"))
+    result = replace(
+        _forecast_result("110.00"),
+        seleccion_modelo=ForecastSelectionRead(
+            material_key="cemento-portland",
+            modelo_resuelto="prophet_ipim_nivel_general",
+            regresores_resueltos=["ipim_nivel_general"],
+            mape_referencia=Decimal("4.98"),
+            mae_referencia=Decimal("6.76"),
+            folds=9,
+            confiabilidad="alta",
+            origen_decision="material_horizonte",
+            justificacion="Configuracion recomendada.",
+            no_calibrado=False,
+        ),
+    )
+    guardar_forecast_snapshot(cache_key, result)
 
     cargado = cargar_forecast_snapshot(cache_key)
 
     assert cargado is not None
     assert cargado.metricas.mape == Decimal("7.74")
     assert cargado.forecast[0].precio_proyectado == Decimal("110.00")
+    assert cargado.seleccion_modelo is not None
+    assert cargado.seleccion_modelo.material_key == "cemento-portland"
     assert snapshot_path.exists()
 
 

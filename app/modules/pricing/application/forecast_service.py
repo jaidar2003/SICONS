@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.modules.catalog.infrastructure.models import Material
+from app.modules.catalog.application.utils import derive_material_key
 from app.modules.catalog.domain.repositories import MaterialRepository
 from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.domain.exceptions import ExternalRegressorError, InsufficientDataException
@@ -75,6 +76,7 @@ def _descripcion_regresores(regresores: tuple[str, ...]) -> str:
 
 def _selection_to_metadata(selection: ForecastModelSelection, *, advertencia: str | None = None) -> ForecastSelectionRead:
     return ForecastSelectionRead(
+        material_key=selection.material_key,
         modelo_resuelto=selection.modelo,
         regresores_resueltos=list(selection.regresores),
         mape_referencia=selection.mape,
@@ -93,6 +95,7 @@ def _fallback_selection_for_missing_regressors(
     detalle_error: str,
 ) -> ForecastSelectionRead:
     return ForecastSelectionRead(
+        material_key=selection.material_key,
         modelo_resuelto="prophet_base",
         regresores_resueltos=[],
         mape_referencia=None,
@@ -121,8 +124,8 @@ def _resolver_plan_legacy(pd) -> ForecastExecutionPlan:
     )
 
 
-def _resolver_plan_selector(material_id: int, horizonte_meses: int, pd) -> ForecastExecutionPlan:
-    selection = resolve_model_selection(material_id, horizonte_meses)
+def _resolver_plan_selector(material_key: str, horizonte_meses: int, pd) -> ForecastExecutionPlan:
+    selection = resolve_model_selection(material_key, horizonte_meses)
     metadata = _selection_to_metadata(selection)
     if not selection.regresores:
         return ForecastExecutionPlan(
@@ -157,10 +160,10 @@ def _resolver_plan_selector(material_id: int, horizonte_meses: int, pd) -> Forec
     )
 
 
-def _resolver_plan_ejecucion(material_id: int, horizonte_meses: int, usar_selector_modelo: bool, pd) -> ForecastExecutionPlan:
+def _resolver_plan_ejecucion(material_key: str, horizonte_meses: int, usar_selector_modelo: bool, pd) -> ForecastExecutionPlan:
     if not usar_selector_modelo:
         return _resolver_plan_legacy(pd)
-    return _resolver_plan_selector(material_id, horizonte_meses, pd)
+    return _resolver_plan_selector(material_key, horizonte_meses, pd)
 
 
 def obtener_forecast_cacheado(material_id: int, horizonte_meses: int, dataset_signature: str) -> ForecastMaterialResult | None:
@@ -413,4 +416,3 @@ def precomputar_forecasts_materiales(
             forecast_material(material, horizonte, pricing_repo)
             completados.append((material.id, horizonte))
     return completados
- completados

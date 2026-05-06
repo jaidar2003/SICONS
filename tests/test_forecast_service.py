@@ -14,6 +14,8 @@ from app.modules.pricing.application.forecast_service import (
     forecast_material,
     limpiar_forecast_cache,
 )
+from app.modules.catalog.application.utils import derive_material_key
+from app.modules.pricing.application.model_selector import resolve_model_selection as resolve_selector_model
 from app.modules.pricing.application.forecasting import ProphetRow
 from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead, ForecastSelectionRead
 from app.modules.pricing.interfaces.routes import obtener_forecast_material
@@ -223,6 +225,8 @@ def test_selector_activado_usa_modelo_recomendado(monkeypatch: pytest.MonkeyPatc
     limpiar_forecast_cache()
     material = SimpleNamespace(id=material_id, nombre=nombre, unidad_base="kg")
     dataset = [ProphetRow(ds=date(2024, 1, 1), y=100.0)] * 30
+    material_key_esperado = derive_material_key(nombre)
+    llamadas: list[tuple[str, int]] = []
 
     monkeypatch.setattr(
         "app.modules.pricing.application.forecast_service.serie_mensual_material",
@@ -252,6 +256,14 @@ def test_selector_activado_usa_modelo_recomendado(monkeypatch: pytest.MonkeyPatc
         "app.modules.pricing.application.forecast_service.cargar_regresores_mensuales",
         lambda _pd, columnas: {"columnas": columnas},
     )
+    def fake_resolve_model_selection(material_key: str, horizonte_meses: int):
+        llamadas.append((material_key, horizonte_meses))
+        return resolve_selector_model(material_key, horizonte_meses)
+
+    monkeypatch.setattr(
+        "app.modules.pricing.application.forecast_service.resolve_model_selection",
+        fake_resolve_model_selection,
+    )
 
     def fake_forecast(_material, _horizonte, _dataset, _pd, _prophet, plan):
         return _forecast_result(
@@ -266,7 +278,9 @@ def test_selector_activado_usa_modelo_recomendado(monkeypatch: pytest.MonkeyPatc
     result = forecast_material(material, 3, object(), usar_selector_modelo=True)
 
     assert result.modelo == modelo
+    assert llamadas == [(material_key_esperado, 3)]
     assert result.seleccion_modelo is not None
+    assert result.seleccion_modelo.material_key == material_key_esperado
     assert result.seleccion_modelo.modelo_resuelto == modelo
     assert tuple(result.seleccion_modelo.regresores_resueltos) == regresores
     assert result.seleccion_modelo.no_calibrado is False
@@ -316,6 +330,7 @@ def test_material_no_calibrado_cae_a_prophet_base(monkeypatch: pytest.MonkeyPatc
 
     assert result.modelo == "prophet_base"
     assert result.seleccion_modelo is not None
+    assert result.seleccion_modelo.material_key == "material-sin-calibrar"
     assert result.seleccion_modelo.no_calibrado is True
 
 
@@ -367,6 +382,7 @@ def test_selector_activado_hace_fallback_por_material_si_no_hay_horizonte_exacto
 
     assert result.modelo == "prophet_blue_ipc"
     assert result.seleccion_modelo is not None
+    assert result.seleccion_modelo.material_key == "pastina"
     assert result.seleccion_modelo.origen_decision == "material_default"
     assert result.seleccion_modelo.no_calibrado is True
 
@@ -377,10 +393,11 @@ def test_regresor_faltante_no_rompe_el_forecast(monkeypatch: pytest.MonkeyPatch)
         lambda _pd, _columnas: (_ for _ in ()).throw(HTTPException(status_code=500, detail="Regresor faltante")),
     )
 
-    selection = _resolver_plan_ejecucion(material_id=1, horizonte_meses=3, usar_selector_modelo=True, pd=object())
+    selection = _resolver_plan_ejecucion(material_key="cemento-portland", horizonte_meses=3, usar_selector_modelo=True, pd=object())
 
     assert selection.modelo == "prophet_base"
     assert selection.seleccion_modelo is not None
+    assert selection.seleccion_modelo.material_key == "cemento-portland"
     assert selection.seleccion_modelo.no_calibrado is True
     assert selection.seleccion_modelo.advertencia is not None
 
@@ -406,6 +423,7 @@ def test_regresor_faltante_no_rompe_el_endpoint(monkeypatch: pytest.MonkeyPatch)
                 justificacion="Se degrada a prophet_base por faltante operativo de regresores.",
                 no_calibrado=True,
                 advertencia="Regresor faltante",
+                material_key="cemento-portland",
             ),
         ),
     )
@@ -420,6 +438,7 @@ def test_regresor_faltante_no_rompe_el_endpoint(monkeypatch: pytest.MonkeyPatch)
     assert response.modelo == "prophet_base"
     assert response.seleccion_modelo is not None
     assert response.seleccion_modelo.advertencia == "Regresor faltante"
+    assert response.seleccion_modelo.material_key == "cemento-portland"
 
 
 def test_respuesta_expone_metadatos_de_seleccion_cuando_corresponde(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -434,6 +453,7 @@ def test_respuesta_expone_metadatos_de_seleccion_cuando_corresponde(monkeypatch:
         origen_decision="material_horizonte",
         justificacion="Configuracion recomendada.",
         no_calibrado=False,
+        material_key="cemento-portland",
     )
 
     monkeypatch.setattr("app.modules.pricing.interfaces.routes.USAR_SELECTOR_MODELO_FORECAST", True)
@@ -458,6 +478,7 @@ def test_respuesta_expone_metadatos_de_seleccion_cuando_corresponde(monkeypatch:
     assert response.seleccion_modelo is not None
     assert response.seleccion_modelo.modelo_resuelto == "prophet_ipim_nivel_general"
     assert response.seleccion_modelo.mape_referencia == Decimal("4.98")
+    assert response.seleccion_modelo.material_key == "cemento-portland"
 
 
 def test_normalizacion_por_kg_no_cambia_con_selector_activado(monkeypatch: pytest.MonkeyPatch) -> None:
