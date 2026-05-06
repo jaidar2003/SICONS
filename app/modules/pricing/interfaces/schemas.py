@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -167,3 +168,21 @@ class PriceImputationResponse(BaseModel):
     updated: int
     skipped_real_months: int
     generated_months: list[date]
+
+
+class PurchaseRecommendationCreate(BaseModel):
+    horizonte_meses: int = Field(default=3, ge=1, le=12)
+    criticidad: Literal["alta", "media", "media-baja", "baja"]
+    cantidad_objetivo: Decimal = Field(gt=0, decimal_places=4)
+
+
+class PurchaseRecommendationRead(BaseModel):
+    material_id: int
+    material_key: str
+    horizonte_meses: int
+    decision: Literal["COMPRAR_AHORA", "ESPERAR", "MONITOREAR"]
+    variacion_esperada_pct: Decimal | None = None
+    confiabilidad: str
+    criticidad: str
+    justificacion: str
+    advertencias: list[str]

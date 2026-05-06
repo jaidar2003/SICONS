@@ -15,6 +15,7 @@ from app.modules.pricing.application.forecast_service import (
 )
 from app.modules.pricing.application.external_indices import list_external_indices, sync_external_index
 from app.modules.pricing.application.imputation import impute_monthly_prices
+from app.modules.pricing.application.purchase_recommendations import recomendar_momento_compra
 from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
 from app.modules.pricing.domain.exceptions import MaterialNotFoundException
@@ -31,6 +32,8 @@ from app.modules.pricing.interfaces.schemas import (
     MaterialCriticidadCreate,
     MaterialCriticidadRead,
     MaterialCriticidadResponseRead,
+    PurchaseRecommendationCreate,
+    PurchaseRecommendationRead,
     PriceImputationRequest,
     PriceImputationResponse,
     PrecioHistoricoCreate,
@@ -194,6 +197,38 @@ def obtener_forecast_material(
         metricas=forecast_result.metricas,
         puntos=forecast_result.forecast,
         seleccion_modelo=forecast_result.seleccion_modelo,
+    )
+
+
+@router.post("/materiales/{material_id}/recomendacion-compra", response_model=PurchaseRecommendationRead)
+def recomendar_momento_compra_material(
+    material_id: int,
+    payload: PurchaseRecommendationCreate,
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
+) -> PurchaseRecommendationRead:
+    material = material_repo.get_by_id(material_id)
+    if material is None:
+        raise MaterialNotFoundException(material_id)
+
+    result = recomendar_momento_compra(
+        material,
+        payload.horizonte_meses,
+        payload.criticidad,
+        payload.cantidad_objetivo,
+        pricing_repo,
+        usar_selector_modelo=USAR_SELECTOR_MODELO_FORECAST,
+    )
+    return PurchaseRecommendationRead(
+        material_id=result.material_id,
+        material_key=result.material_key,
+        horizonte_meses=result.horizonte_meses,
+        decision=result.decision,
+        variacion_esperada_pct=result.variacion_esperada_pct,
+        confiabilidad=result.confiabilidad,
+        criticidad=result.criticidad,
+        justificacion=result.justificacion,
+        advertencias=list(result.advertencias),
     )
 
 
