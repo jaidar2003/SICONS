@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     auth_token_ttl_minutes: int = 480
     forecast_cache_ttl_seconds: int = 1800
     forecast_snapshot_path: str = "tmp/forecast_snapshots.json"
+    openai_api_key: str | None = None
+    openai_base_url: str | None = None
+    openai_model: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

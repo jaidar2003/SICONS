@@ -2,9 +2,12 @@ alembic==1.14.0
 fastapi==0.115.6
 httpx==0.28.1
 pandas==2.2.3
+openpyxl==3.1.5
 prophet==1.1.6
+pulp==2.9.0
 psycopg[binary]==3.2.3
 pydantic-settings==2.7.1
 pytest==8.3.4
+requests==2.33.1
 sqlalchemy==2.0.36
 uvicorn[standard]==0.34.0

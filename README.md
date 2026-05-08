@@ -13,6 +13,7 @@ La idea no es solo guardar precios, sino ayudar a responder preguntas concretas:
 - cuanto cuesta realmente por kg, metro o unidad
 - como evoluciono el precio en el tiempo
 - que impacto podria tener comprar ahora o mas adelante
+- como asignar un presupuesto limitado entre materiales con mejor ahorro esperado
 
 El foco principal esta en el comprador de materiales. El administrador existe para mantener la base de datos limpia y confiable.
 
@@ -31,6 +32,9 @@ El proyecto ya tiene:
 - grafico historico
 - filtros por material y periodo
 - datos reales de cemento
+- recomendacion de momento de compra backend
+- comparacion de estrategias de compra backend
+- optimizacion de compra con presupuesto usando PuLP en backend
 
 ## Demo local
 
@@ -39,6 +43,15 @@ Levantar todo:
 ```bash
 cp .env.example .env
 docker compose up -d --build
+```
+
+Configuracion de credenciales locales:
+
+```bash
+# completar en .env con tu token real, sin commitearlo
+OPENAI_API_KEY=replace-with-your-token
+OPENAI_BASE_URL=https://ai.cloud.um.edu.ar/api/v1
+OPENAI_MODEL=gemma4-26b
 ```
 
 URLs principales:

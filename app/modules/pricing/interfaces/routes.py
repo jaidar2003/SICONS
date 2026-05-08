@@ -15,6 +15,10 @@ from app.modules.pricing.application.forecast_service import (
 )
 from app.modules.pricing.application.external_indices import list_external_indices, sync_external_index
 from app.modules.pricing.application.imputation import impute_monthly_prices
+from app.modules.pricing.application.purchase_optimization import (
+    PurchaseOptimizationInputItem,
+    optimizar_compra_con_presupuesto,
+)
 from app.modules.pricing.application.purchase_recommendations import recomendar_momento_compra
 from app.modules.pricing.application.purchase_strategies import comparar_estrategias_compra
 from app.modules.pricing.domain.repositories import PricingRepository
@@ -35,6 +39,8 @@ from app.modules.pricing.interfaces.schemas import (
     MaterialCriticidadResponseRead,
     PurchaseRecommendationCreate,
     PurchaseRecommendationRead,
+    PurchaseOptimizationCreate,
+    PurchaseOptimizationRead,
     PurchaseStrategyComparisonCreate,
     PurchaseStrategyComparisonRead,
     PriceImputationRequest,
@@ -279,6 +285,57 @@ def comparar_estrategias_compra_material(
         ],
         mejor_estrategia=result.mejor_estrategia,
         ahorro_estimado=result.ahorro_estimado,
+        justificacion=result.justificacion,
+        advertencias=list(result.advertencias),
+    )
+
+
+@router.post("/compras/optimizar-presupuesto", response_model=PurchaseOptimizationRead)
+def optimizar_presupuesto_compra(
+    payload: PurchaseOptimizationCreate,
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
+) -> PurchaseOptimizationRead:
+    result = optimizar_compra_con_presupuesto(
+        presupuesto_total=payload.presupuesto_total,
+        horizonte_meses=payload.horizonte_meses,
+        materiales=[
+            PurchaseOptimizationInputItem(
+                material_id=item.material_id,
+                cantidad_objetivo=item.cantidad_objetivo,
+                criticidad=item.criticidad,
+            )
+            for item in payload.materiales
+        ],
+        material_repo=material_repo,
+        pricing_repo=pricing_repo,
+        usar_selector_modelo=USAR_SELECTOR_MODELO_FORECAST,
+    )
+
+    return PurchaseOptimizationRead(
+        presupuesto_total=result.presupuesto_total,
+        presupuesto_utilizado=result.presupuesto_utilizado,
+        presupuesto_restante=result.presupuesto_restante,
+        horizonte_meses=result.horizonte_meses,
+        estado_optimizacion=result.estado_optimizacion,
+        items=[
+            {
+                "material_id": item.material_id,
+                "material_key": item.material_key,
+                "cantidad_objetivo": item.cantidad_objetivo,
+                "cantidad_recomendada_comprar_ahora": item.cantidad_recomendada_comprar_ahora,
+                "precio_actual": item.precio_actual,
+                "precio_proyectado_horizonte": item.precio_proyectado_horizonte,
+                "costo_compra_ahora": item.costo_compra_ahora,
+                "ahorro_unitario_estimado": item.ahorro_unitario_estimado,
+                "ahorro_total_estimado": item.ahorro_total_estimado,
+                "criticidad": item.criticidad,
+                "peso_criticidad": item.peso_criticidad,
+                "confiabilidad": item.confiabilidad,
+            }
+            for item in result.items
+        ],
+        ahorro_total_estimado=result.ahorro_total_estimado,
         justificacion=result.justificacion,
         advertencias=list(result.advertencias),
     )

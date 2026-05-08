@@ -178,7 +178,20 @@ Cada decision incluye:
   - resolver la priorizacion solo de forma cualitativa y no cuantificada.
 - Justificacion: `HU24` consume precios actuales y proyectados ya provistos por el modulo de pricing/forecasting, no modifica la logica de `Prophet` y permite validar una capa inicial de decision economica sin introducir aun complejidad de optimizacion. La criticidad se definio combinando variacion esperada normalizada e impacto absoluto normalizado, evitando sumar directamente porcentajes con montos monetarios.
 - Impacto en el sistema: se incorpora una capacidad nueva de ranking de materiales criticos, con reglas testeables, explicacion funcional y base metodologica reutilizable para `HU21`, `HU22` y `HU23`.
-- Limitaciones o trabajo futuro: `PuLP` se mantiene reservado para `HU23`, cuando aparezca formalmente la restriccion presupuestaria. La capa actual prioriza materiales, pero todavia no recomienda estrategias completas de compra.
+
+## DT-17
+
+- Fecha aproximada: mayo de 2026
+- Area: optimizacion presupuestaria
+- Decision tomada: implementar `HU23` mediante una formulacion de programacion lineal en `PuLP`, manteniendo `OR-Tools` y otros solvers fuera del alcance actual.
+- Problema que resuelve: permite asignar presupuesto entre materiales de forma optima y trazable, usando precios actuales, precios proyectados y criticidad sin introducir una capa de optimizacion mas compleja que la requerida por el problema actual.
+- Alternativas consideradas:
+  - resolver `HU23` solo con reglas heuristicas y ordenamiento manual;
+  - incorporar `OR-Tools` desde la primera version;
+  - modelar el problema con implementaciones ad hoc sin una formulacion explicita de optimizacion.
+- Justificacion: el problema vigente de `HU23` puede expresarse de forma natural como un modelo lineal con funcion objetivo y restricciones transparentes: presupuesto disponible, cantidades objetivo y no negatividad. En este contexto, `PuLP` ofrece una forma simple de declarar el modelo y resolverlo con un solver estandar, manteniendo una explicacion metodologica clara para tesis. La decision evita adelantar complejidad combinatoria que hoy no agrega valor real. En la formulacion continua actual, el problema es esencialmente lineal y puede interpretarse como resoluble por tecnicas tipo simplex; si en una evolucion futura aparecen variables enteras o decisiones discretas por presentacion, la resolucion pasara a requerir mecanismos de ramificacion sobre esa base.
+- Impacto en el sistema: `HU23` queda respaldada por una optimizacion formal, auditable y alineada con la arquitectura Python existente. La capa de decision economica conserva trazabilidad entre inputs, restricciones, resultado y justificacion funcional.
+- Limitaciones o trabajo futuro: si el problema incorpora lotes enteros obligatorios, multiples proveedores, ventanas temporales multiples o restricciones logisticas complejas, debera reevaluarse la conveniencia de migrar a `OR-Tools` u otro solver con mejor soporte para optimizacion combinatoria mas rica.
 
 ## DT-13
 

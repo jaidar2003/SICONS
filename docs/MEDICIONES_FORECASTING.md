@@ -139,6 +139,36 @@ Con la evidencia actual, la recomendacion metodologica deja de ser un modelo glo
 - la seleccion automatica o parametrizada de modelos por material queda como evolucion natural del sistema;
 - `CAC` queda pendiente porque todavia no hay una serie oficial usable integrada para evaluarlo en igualdad de condiciones.
 
+### Criterio de saturacion del ajuste
+
+La busqueda de mejoras no se cerro por conveniencia sino por rendimiento marginal decreciente dentro de subconjuntos concretos de variantes efectivamente exploradas.
+
+En `Cemento Portland` se probaron sucesivamente:
+
+- `Prophet` base;
+- regresores individuales como `dolar_blue`, `dolar_oficial`, `dolar_mayorista` e `ipc`;
+- combinaciones de dos y tres regresores;
+- una medicion posterior con `IPIM Nivel General`.
+
+La trayectoria de resultados muestra una mejora fuerte al pasar de `prophet_base` (`MAPE 13.90%`) a variantes con regresores economicos, luego una mejora mas acotada al combinar señales, y finalmente un salto relevante con `IPIM Nivel General` hasta `MAPE 4.98%`.
+
+Desde el mejor resultado previo documentado para cemento, `prophet_oficial_mayorista` con `MAPE 7.74%`, varias combinaciones adicionales ya no produjeron mejoras relevantes:
+
+- `prophet_oficial_blue`: `8.55%`
+- `prophet_oficial_ipc_mayorista`: `8.58%`
+- `prophet_oficial_ipc_blue`: `9.04%`
+- `prophet_oficial_ipc`: `9.48%`
+
+Esta evidencia permite sostener que, dentro de la familia de combinaciones basada en `dolar_oficial`, `dolar_mayorista`, `dolar_blue` e `ipc`, las mejoras comenzaron a amesetarse y que agregar mas combinaciones del mismo tipo no estaba generando una ganancia metodologicamente significativa. La incorporacion de `IPIM Nivel General` no contradice esa lectura: muestra que no se habia alcanzado una saturacion absoluta del problema, pero si una meseta relativa dentro de la familia previamente explorada. Eso refuerza que el criterio correcto no era seguir agregando combinaciones arbitrarias, sino evaluar regresores economicamente defendibles y conservar solo aquellos que demostraran una mejora clara en backtesting.
+
+Por eso, para el horizonte de `3` meses en `Cemento Portland`, el valor de referencia adoptado es `MAPE 4.98%`, considerado adecuado para el tipo de estimacion buscada en esta tesis porque:
+
+- surge de backtesting temporal con `9` folds sobre una serie real, densa y continua;
+- mejora de forma marcada frente a `Prophet` base y frente a la mejor variante previa sin `IPIM`;
+- deja de apoyarse en ajustes marginales o visuales y pasa a sostenerse en evidencia cuantitativa reproducible.
+
+La misma logica de meseta relativa aplica al resto de materiales: cuando una nueva variante no mejora al mejor modelo ya documentado dentro de la familia evaluada, no corresponde seguir promoviendo complejidad adicional sin evidencia de ganancia real.
+
 ## Prophet + dólar oficial por horizonte
 
 ### Horizonte 3 meses
