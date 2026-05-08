@@ -7,3 +7,7 @@ __pycache__/
 CONTEXT.md
 frontend/node_modules/
 frontend/dist/
+tmp/experiments/*.out.txt
+tmp/experiments/efectividad_forecasting_tres_materiales.md
+tmp/experiments/otros_materiales_benchmark_master.csv
+tmp/experiments/otros_materiales_effectividad_notes.md
