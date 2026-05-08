@@ -1,270 +1,221 @@
 # Mediciones Forecasting
 
-## Alcance
+## Para que sirve este documento
 
-Este documento resume las métricas obtenidas hasta el momento para el pronóstico del precio del cemento en `BuildWise`.
+Este archivo resume, de forma simple, el estado actual del forecasting en `BuildWise`.
 
-Tambien incorpora una lectura comparativa de confiabilidad relativa para los materiales adicionales ya integrados al sistema, con el fin de dejar explicitadas sus diferencias metodologicas.
+La idea es responder rapido estas preguntas:
 
-Supuestos principales usados en esta etapa:
+- que material es la referencia principal;
+- cual es el modelo productivo vigente;
+- que candidatos experimentales lo mejoran;
+- que tan confiables son los otros materiales;
+- y que paso cuando se aplico la misma bateria experimental a los tres productos.
 
-- material: `Cemento Portland`
+## Idea principal
+
+Hoy la referencia metodologica del proyecto es `Cemento Portland`.
+
+La lectura corta es:
+
+- baseline productivo vigente: `prophet_ipim_nivel_general`;
+- mejor candidata experimental por regresores: `prophet_ipim_icc_var_materials`;
+- segunda mejor candidata experimental: `prophet_ipim_cac_var_materials`;
+- mejor resultado puntual a `3 meses`: `ensemble_simple_top2`;
+- la misma exploracion profunda ya se corrio tambien sobre `Pastina` y `Membrana Megaflex`;
+- no existe un unico mejor modelo para todos los materiales.
+
+## Como leer los numeros
+
+- metrica principal: `MAPE`
+- metricas de apoyo: `MAE` y cantidad de `folds`
+- efectividad informal: `100 - MAPE`
+- no se elige modelo por grafica visual
+- no se mezclan horizontes `3`, `6` y `12` meses como si fueran equivalentes
+
+## Datos base
+
+Supuestos principales de estas mediciones:
+
+- material principal: `Cemento Portland`
 - variable objetivo: `precio_promedio_normalizado`
-- ventana de trabajo: desde `2022-01-01`
-- backtesting temporal sobre serie mensual
-- las comparaciones principales de regresores se midieron con horizonte de `3 meses`
+- serie mensual desde `2022-01-01`
+- backtesting temporal
 
-## Precondicion de reproducibilidad
+Datos de `Cemento Portland` usados como referencia:
 
-Las metricas registradas en este documento suponen un dataset minimo reproducible de tesis que todavia debe cerrarse operativamente en el bootstrap oficial.
-
-Ese dataset minimo debe reconstruir:
-
-- `Cemento Portland` con serie historica real, densa y continua;
-- `Pastina` con serie mensual hibrida, diferenciando `REAL` y `ESTIMADO`;
-- `Membrana Megaflex` con serie mensual hibrida, diferenciando `REAL` y `ESTIMADO`;
-- regresores `ipc`, `dolar_oficial`, `dolar_mayorista`, `dolar_blue` e `ipim_nivel_general`.
-
-La fuente canonica correcta para la serie robusta de `Cemento Portland` ya es el extracto versionado y auditable `db/bootstrap/cemento_portland_historico.csv`, cargado por `app/operations/bootstrap/import_cemento_canonico.py`. En consecuencia, `import_cemento_facturas` debe leerse como import incremental u operativo y no como base suficiente para reproducir estas mediciones. `import_sicons_excel` queda como mecanismo legacy o transitorio de conversion desde Excel.
-
-El contrato tecnico previsto para esa fuente canonica es:
-
-- formato `CSV` versionado dentro del repo;
-- columnas minimas `fecha`, `empresa`, `numero_comprobante`, `articulo`, `precio_original`, `precio_normalizado`, `moneda`, `origen_dato`, `metodo_estimacion` y `observaciones_origen`;
-- `origen_dato = REAL` en todos los registros de `Cemento Portland`;
-- `metodo_estimacion` vacio o `null`;
-- posibilidad de anonimizar `numero_comprobante` si hubiera sensibilidad, siempre que se preserve un identificador estable para trazabilidad e idempotencia.
-
-Mientras la reconstruccion automatica de ese dataset minimo no quede cerrada en `Docker + bootstrap`, estas metricas deben interpretarse como evidencia metodologica ya medida, pero todavia no como resultado automaticamente regenerable en cualquier base limpia sin pasos adicionales gobernados.
-
-## Datos utilizados
-
-- registros crudos de cemento: `1624`
+- registros crudos: `1624`
 - puntos mensuales: `51`
 - puntos diarios: `759`
 - rango observado: `2022-01-03` a `2026-03-25`
 
-## Baselines y Prophet sin regresores
+## Cemento Portland
 
-### Mejor baseline mensual
+### Resumen rapido
 
-- modelo: `promedio_movil_3m`
-- `MAPE`: `7.28%`
+La evolucion del ajuste fue esta:
 
-### Mejor Prophet mensual sin regresores
+- `Prophet` base: `MAPE 13.90%`
+- mejor familia previa con regresores monetarios: `prophet_oficial_mayorista`, `MAPE 7.74%`
+- baseline productivo vigente con `IPIM`: `prophet_ipim_nivel_general`, `MAPE 4.93%`
+- mejor candidata experimental actual: `prophet_ipim_icc_var_materials`, `MAPE 4.22%`
 
-Configuración:
+### Baseline productivo vigente
 
-- `yearly_seasonality=False`
-- `changepoint_prior_scale=0.01`
-- `seasonality_prior_scale=1.0`
-- `seasonality_mode=additive`
+| Modelo | Regresores | Horizonte | MAE | MAPE | Efectividad informal |
+|---|---|---:|---:|---:|---:|
+| `prophet_ipim_nivel_general` | `ipim_nivel_general` | `3m` | 6.76 | 4.93% | 95.07% |
+| `prophet_ipim_nivel_general` | `ipim_nivel_general` | `6m` | - | 7.51% | 92.49% |
+| `prophet_ipim_nivel_general` | `ipim_nivel_general` | `12m` | - | 10.38% | 89.62% |
 
-Métricas:
+### Mejores candidatos experimentales
 
-- `MAPE`: `13.90%`
+| Modelo | Regresores | Horizonte | MAPE | Efectividad informal | Lectura |
+|---|---|---:|---:|---:|---|
+| `prophet_ipim_icc_var_materials` | `ipim_nivel_general` + `icc var_materials` | `3m` | 4.22% | 95.78% | mejor candidata por regresores |
+| `prophet_ipim_icc_var_materials` | `ipim_nivel_general` + `icc var_materials` | `6m` | 5.52% | 94.48% | mejor candidata por regresores |
+| `prophet_ipim_icc_var_materials` | `ipim_nivel_general` + `icc var_materials` | `12m` | 4.51% | 95.49% | mejor candidata por regresores |
+| `prophet_ipim_cac_var_materials` | `ipim_nivel_general` + `cac var_materials` | `3m` | 4.33% | 95.67% | segunda mejor candidata |
+| `prophet_ipim_cac_var_materials` | `ipim_nivel_general` + `cac var_materials` | `6m` | 5.99% | 94.01% | segunda mejor candidata |
+| `prophet_ipim_cac_var_materials` | `ipim_nivel_general` + `cac var_materials` | `12m` | 4.69% | 95.31% | segunda mejor candidata |
+| `ensemble_simple_top2` | promedio simple entre las dos mejores variantes de `3m` | `3m` | 4.08% | 95.92% | mejor resultado puntual |
 
-## Prophet sin regresores por horizonte
+### Que significa esto
 
-### Horizonte 3 meses
+- `IPIM` mejoro fuerte frente a las combinaciones anteriores con `dolar_*` e `ipc`.
+- despues de esa mejora, `ICC var_materials` y `CAC var_materials` volvieron a bajar el error.
+- `ICC var_materials` es hoy la mejor candidata experimental estable y defendible.
+- `ensemble_simple_top2` da el mejor `3m`, pero es menos simple de justificar que un modelo con regresores claros.
 
-- `MAPE`: `13.90%`
-- efectividad informal: `86.10%`
+## Otros materiales
 
-### Horizonte 6 meses
+`Pastina` y `Membrana Megaflex` se pueden pronosticar, pero no tienen la misma solidez metodologica que cemento.
 
-- `MAPE`: `18.30%`
-- efectividad informal: `81.70%`
+Motivo:
 
-### Horizonte 12 meses
+- `Cemento Portland` usa serie real, densa y continua;
+- `Pastina` y `Membrana Megaflex` usan series hibridas con datos `REAL` y `ESTIMADO`.
+- aun asi, a ambos se les aplico la misma bateria experimental usada en cemento: baseline `IPIM`, lags, medias moviles, variaciones, `CAC`, `ICC` y ensemble simple.
 
-- `MAPE`: `19.31%`
-- efectividad informal: `80.69%`
+### Mejores resultados por material y horizonte
 
-## Regresores externos probados
+| Material | Horizonte | Mejor modelo medido | MAPE | Efectividad informal |
+|---|---:|---|---:|---:|
+| `Cemento Portland` | `3m` | `ensemble_simple_top2` | 4.08% | 95.92% |
+| `Cemento Portland` | `3m` | `prophet_ipim_icc_var_materials` | 4.22% | 95.78% |
+| `Cemento Portland` | `6m` | `prophet_ipim_icc_var_materials` | 5.52% | 94.48% |
+| `Cemento Portland` | `12m` | `prophet_ipim_icc_var_materials` | 4.51% | 95.49% |
+| `Pastina` | `3m` | `prophet_ipim_nivel_general_lags` | 3.37% | 96.63% |
+| `Pastina` | `6m` | `ensemble_simple_top2` | 4.99% | 95.01% |
+| `Pastina` | `12m` | `prophet_ipim_cac_var_materials` | 4.94% | 95.06% |
+| `Membrana Megaflex` | `3m` | `prophet_ipim_nivel_general_lags` | 6.70% | 93.30% |
+| `Membrana Megaflex` | `6m` | `prophet_ipim_nivel_general_lags` | 7.23% | 92.77% |
+| `Membrana Megaflex` | `12m` | `prophet_mayorista` | 11.17% | 88.83% |
 
-Resultados con serie mensual desde `2022-01-01`, `9` folds y horizonte de test de `3 meses` por fold:
+### Lectura corta
 
-| Modelo | MAE | MAPE | Efectividad informal |
-|---|---:|---:|---:|
-| `prophet_base` | 18.33 | 13.90% | 86.10% |
-| `prophet_blue` | 16.51 | 12.35% | 87.65% |
-| `prophet_ipc` | 13.91 | 9.60% | 90.40% |
-| `prophet_blue_ipc` | 11.35 | 8.16% | 91.84% |
-| `prophet_oficial` | 11.47 | 7.78% | 92.22% |
-| `prophet_oficial_ipc` | 13.75 | 9.48% | 90.52% |
-| `prophet_mayorista` | 13.42 | 9.54% | 90.46% |
-| `prophet_mayorista_ipc` | 12.28 | 8.20% | 91.80% |
-| `prophet_oficial_blue` | 12.31 | 8.55% | 91.45% |
-| `prophet_oficial_mayorista` | 11.32 | 7.74% | 92.26% |
-| `prophet_oficial_ipc_blue` | 12.76 | 9.04% | 90.96% |
-| `prophet_oficial_ipc_mayorista` | 12.78 | 8.58% | 91.42% |
+- `Pastina` mejoro fuerte cuando se le aplico la bateria profunda, sobre todo con lags y con combinaciones `IPIM + CAC/ICC`.
+- `Membrana Megaflex` tambien mejoro bastante en `3m` y `6m`, especialmente con lags.
+- `Membrana Megaflex` sigue siendo el caso mas debil de los tres, y en `12m` la exploracion nueva no supero al mejor modelo previo documentado.
+- no conviene imponer un solo modelo para todos los materiales.
 
-## Actualizacion con IPIM Nivel General
+## Mejor modelo por producto
 
-Se incorporo una nueva medicion experimental usando `IPIM Nivel General` como regresor externo adicional. La evaluacion confirma que no corresponde sostener un unico modelo global para todos los materiales.
+Si se toma el mejor resultado actualmente disponible para cada producto, la foto queda asi:
 
-Los resultados medidos fueron:
+| Producto | Mejor modelo actual | Horizonte donde mejor se sostiene | Criterio de lectura |
+|---|---|---|---|
+| `Cemento Portland` | `prophet_ipim_icc_var_materials` | `3m`, `6m` y `12m` | mejor candidata por regresores, con mejora consistente frente al baseline productivo |
+| `Pastina` | `prophet_ipim_nivel_general_lags` | `3m` | mejor resultado corto; en horizontes mayores cambian los ganadores |
+| `Membrana Megaflex` | `prophet_ipim_nivel_general_lags` | `3m` y `6m` | mejor mejora nueva en corto y mediano plazo |
 
-| Material | Modelo con `IPIM` | MAE | MAPE | Mejor modelo actual comparado | MAE comparado | MAPE comparado | Conclusion |
-|---|---|---:|---:|---|---:|---:|---|
-| `Cemento Portland` | `prophet_ipim_nivel_general` | 6.76 | 4.98% | `prophet_oficial_mayorista` | 11.32 | 7.74% | mejora significativa |
-| `Pastina` | `prophet_ipim_nivel_general` | 140.16 | 6.47% | `prophet_blue_ipc` | 120.90 | 5.00% | no mejora |
-| `Membrana Megaflex` | `prophet_ipim_nivel_general` | 823.96 | 10.06% | `prophet_ipc` | 734.37 | 8.31% | no mejora |
+Observacion importante:
+
+- en `Cemento Portland` hay una mejor candidata bastante estable entre horizontes;
+- en `Pastina` y `Membrana Megaflex` no hay un ganador unico absoluto para todos los horizontes;
+- por eso el criterio correcto no es elegir un unico modelo global, sino seleccionar por material y horizonte.
+
+## Confiabilidad relativa
+
+| Material | Datos reales | Datos estimados | Folds | Confiabilidad relativa |
+|---|---:|---:|---:|---|
+| `Cemento Portland` | 1624 precios | 0 | 9 | alta |
+| `Pastina` | 10 registros | 41 | 9 | media |
+| `Membrana Megaflex` | 9 registros | 43 | 5 | media-baja |
 
 Interpretacion:
 
-- `IPIM Nivel General` pasa a ser un candidato fuerte para `Cemento Portland`.
-- `IPIM Nivel General` no debe adoptarse para `Pastina` ni `Membrana Megaflex`, porque empeora sus metricas frente a los mejores modelos ya medidos.
-- una mejora en un material no debe generalizarse automaticamente a los demas.
-- un mejor resultado visual no alcanza para cambiar la recomendacion metodologica; la metrica principal sigue siendo `MAPE`.
+- `Cemento Portland` es la base mas fuerte para defender resultados de tesis.
+- un `MAPE` bueno en un material hibrido no vale lo mismo que en una serie totalmente real.
+- la efectividad informal sirve para comunicar, pero no reemplaza al `MAPE`.
 
-## Seleccion de modelo por material
+## Criterio metodologico
 
-Con la evidencia actual, la recomendacion metodologica deja de ser un modelo global unico y pasa a ser una seleccion diferenciada por material y horizonte.
+Las decisiones de modelo se tomaron con estas reglas:
 
-### Horizonte 3 meses
+- primero se comparo contra baselines simples;
+- despues se probaron regresores monetarios e inflacionarios;
+- cuando esas combinaciones empezaron a amesetarse, se probaron regresores sectoriales mas defendibles;
+- despues se aplico la misma bateria experimental a los tres materiales para no sobreconcluir solo desde cemento;
+- una mejora solo cuenta si baja el error y no empeora demasiado la estabilidad entre folds;
+- no se promueve un modelo solo porque la curva “se vea bien”.
 
-| Material | Modelo recomendado actual | MAE | MAPE | Efectividad informal | Soporte metodologico |
-|---|---|---:|---:|---:|---|
-| `Cemento Portland` | `prophet_ipim_nivel_general` | 6.76 | 4.98% | 95.02% | serie real, densa y continua |
-| `Pastina` | `prophet_blue_ipc` | 120.90 | 5.00% | 95.00% | serie hibrida, continuidad mensual y `9` folds |
-| `Membrana Megaflex` | `prophet_ipc` | 734.37 | 8.31% | 91.69% | serie hibrida, continuidad mensual y `9` folds |
+## Como elegir modelo si se agregan mas productos
 
-### Criterio de seleccion
+Si en el futuro se incorporan mas materiales, la seleccion del mejor modelo debe seguir este mismo criterio:
 
-- la metrica principal sigue siendo `MAPE`;
-- `MAE`, cantidad de `folds` y confiabilidad relativa de la serie se usan como soporte;
-- los regresores externos solo deben incorporarse si mejoran el backtesting y tienen coherencia economica;
-- la seleccion automatica o parametrizada de modelos por material queda como evolucion natural del sistema;
-- `CAC` queda pendiente porque todavia no hay una serie oficial usable integrada para evaluarlo en igualdad de condiciones.
+1. construir una serie mensual comparable sobre `precio_promedio_normalizado`;
+2. correr un baseline simple y un baseline productivo con `IPIM`;
+3. evaluar la misma bateria experimental:
+   - lags
+   - medias moviles
+   - variaciones
+   - combinaciones con `CAC`
+   - combinaciones con `ICC`
+   - ensemble simple si tiene sentido
+4. comparar por horizonte `3`, `6` y `12` meses por separado;
+5. elegir el modelo con mejor `MAPE`, controlando tambien:
+   - `MAE`
+   - cantidad de `folds`
+   - estabilidad entre folds
+   - coherencia economica de los regresores
+6. no promover un modelo si mejora apenas el error pero se vuelve mucho mas inestable;
+7. documentar el mejor modelo por material, no asumir que el ganador de un producto sirve para otro.
 
-### Criterio de saturacion del ajuste
+En otras palabras:
 
-La busqueda de mejoras no se cerro por conveniencia sino por rendimiento marginal decreciente dentro de subconjuntos concretos de variantes efectivamente exploradas.
+- primero se mira `MAPE`;
+- despues se valida estabilidad;
+- despues se revisa si el modelo es defendible economicamente;
+- recien entonces se recomienda como mejor modelo para ese nuevo producto.
 
-En `Cemento Portland` se probaron sucesivamente:
+## Estado actual de decision
 
-- `Prophet` base;
-- regresores individuales como `dolar_blue`, `dolar_oficial`, `dolar_mayorista` e `ipc`;
-- combinaciones de dos y tres regresores;
-- una medicion posterior con `IPIM Nivel General`.
+Hoy conviene distinguir dos planos:
 
-La trayectoria de resultados muestra una mejora fuerte al pasar de `prophet_base` (`MAPE 13.90%`) a variantes con regresores economicos, luego una mejora mas acotada al combinar señales, y finalmente un salto relevante con `IPIM Nivel General` hasta `MAPE 4.98%`.
+- productivo vigente: `prophet_ipim_nivel_general`
+- mejor candidata experimental: `prophet_ipim_icc_var_materials`
 
-Desde el mejor resultado previo documentado para cemento, `prophet_oficial_mayorista` con `MAPE 7.74%`, varias combinaciones adicionales ya no produjeron mejoras relevantes:
+Eso significa que el sistema actual puede sostener su baseline productivo, pero ya existe evidencia seria de variantes experimentales mejores en los tres materiales, aunque con distinta fortaleza metodologica.
 
-- `prophet_oficial_blue`: `8.55%`
-- `prophet_oficial_ipc_mayorista`: `8.58%`
-- `prophet_oficial_ipc_blue`: `9.04%`
-- `prophet_oficial_ipc`: `9.48%`
+Lectura material por material:
 
-Esta evidencia permite sostener que, dentro de la familia de combinaciones basada en `dolar_oficial`, `dolar_mayorista`, `dolar_blue` e `ipc`, las mejoras comenzaron a amesetarse y que agregar mas combinaciones del mismo tipo no estaba generando una ganancia metodologicamente significativa. La incorporacion de `IPIM Nivel General` no contradice esa lectura: muestra que no se habia alcanzado una saturacion absoluta del problema, pero si una meseta relativa dentro de la familia previamente explorada. Eso refuerza que el criterio correcto no era seguir agregando combinaciones arbitrarias, sino evaluar regresores economicamente defendibles y conservar solo aquellos que demostraran una mejora clara en backtesting.
+- `Cemento Portland`: la mejor candidata experimental sigue siendo `prophet_ipim_icc_var_materials`.
+- `Pastina`: la exploracion profunda encontro mejoras claras frente al baseline `IPIM`; en `3m` gano `prophet_ipim_nivel_general_lags`.
+- `Membrana Megaflex`: la exploracion profunda tambien encontro mejoras claras en `3m` y `6m`, pero no alcanzo para superar el mejor `12m` historico ya documentado.
 
-Por eso, para el horizonte de `3` meses en `Cemento Portland`, el valor de referencia adoptado es `MAPE 4.98%`, considerado adecuado para el tipo de estimacion buscada en esta tesis porque:
+## Reproducibilidad
 
-- surge de backtesting temporal con `9` folds sobre una serie real, densa y continua;
-- mejora de forma marcada frente a `Prophet` base y frente a la mejor variante previa sin `IPIM`;
-- deja de apoyarse en ajustes marginales o visuales y pasa a sostenerse en evidencia cuantitativa reproducible.
+Estas mediciones dependen de cerrar bien el bootstrap minimo reproducible de tesis.
 
-La misma logica de meseta relativa aplica al resto de materiales: cuando una nueva variante no mejora al mejor modelo ya documentado dentro de la familia evaluada, no corresponde seguir promoviendo complejidad adicional sin evidencia de ganancia real.
+Piezas clave:
 
-## Prophet + dólar oficial por horizonte
+- dataset canonico: `db/bootstrap/cemento_portland_historico.csv`
+- importador oficial: `app/operations/bootstrap/import_cemento_canonico.py`
+- materiales hibridos: `Pastina` y `Membrana Megaflex`
+- regresores base: `ipc`, `dolar_*`, `ipim_nivel_general`
 
-### Horizonte 3 meses
-
-- `MAE`: `11.47`
-- `MAPE`: `7.78%`
-- efectividad informal: `92.22%`
-
-### Horizonte 6 meses
-
-- `MAE`: `15.30`
-- `MAPE`: `10.49%`
-- efectividad informal: `89.51%`
-
-### Horizonte 12 meses
-
-- `MAE`: `23.28`
-- `MAPE`: `16.09%`
-- efectividad informal: `83.91%`
-
-## Mejor combinación actual por horizonte
-
-Modelo:
-
-- `prophet_oficial_mayorista`
-
-### Horizonte 3 meses
-
-- `folds`: `9`
-- `MAE`: `11.32`
-- `MAPE`: `7.74%`
-- efectividad informal: `92.26%`
-- nota: este resultado sigue siendo una referencia valida para `Cemento Portland`, pero deja de ser la recomendacion principal una vez incorporada la medicion con `IPIM Nivel General`.
-
-### Horizonte 6 meses
-
-- `folds`: `4`
-- `MAE`: `12.53`
-- `MAPE`: `8.53%`
-- efectividad informal: `91.47%`
-
-### Horizonte 12 meses
-
-- `folds`: `2`
-- `MAE`: `14.32`
-- `MAPE`: `9.56%`
-- efectividad informal: `90.44%`
-
-## Lecturas principales
-
-- `Prophet` base no supera al mejor baseline mensual
-- `dólar blue` mejora frente a Prophet base, pero no es la mejor señal
-- `IPC` mejora más que `blue` cuando se usa solo
-- para `Cemento Portland`, `IPIM Nivel General` pasa a ser la mejor variante individual medida hasta el momento
-- para `Pastina` y `Membrana Megaflex`, `IPIM` no mejora frente a los mejores modelos ya documentados
-- la mejor combinación medida previamente para cemento sigue siendo `dólar oficial + dólar mayorista`, pero deja de ser la recomendacion principal a `3 meses` una vez incorporado `IPIM`
-- una mejora puntual no debe generalizarse a todos los materiales
-- el mejor modelo debe definirse por material, horizonte y evidencia de backtesting
-
-## Confiabilidad relativa por material
-
-Los tres materiales actualmente pronosticables del sistema tienen series mensuales continuas. Esa continuidad habilita el forecast y mejora la estabilidad operativa del pipeline, pero no implica por si sola la misma confiabilidad metodologica en todos los casos.
-
-La comparacion actual es:
-
-| Material | Continuidad mensual | Datos reales | Datos estimados | Folds | MAPE | Efectividad informal | Confiabilidad relativa |
-|---|---|---:|---:|---:|---:|---:|---|
-| `Cemento Portland` | si | 1624 precios | 0 | 9 | 8.58% | 91.42% | alta |
-| `Pastina` | si, `51` meses | 10 registros | 41 | 9 | 5.75% | 94.25% | media |
-| `Membrana Megaflex` | si, `52` meses | 9 registros | 43 | 5 | 14.64% | 85.36% | media-baja |
-
-### Interpretacion
-
-- `Cemento Portland` es la referencia principal del sistema porque combina continuidad mensual, densidad de observaciones y una serie historica real.
-- `Pastina` y `Membrana Megaflex` usan series hibridas, compuestas por observaciones reales y meses estimados para cerrar continuidad temporal.
-- En consecuencia, sus metricas sirven como evidencia de utilidad operativa y de capacidad de pronostico, pero no deben interpretarse con la misma solidez metodologica que las del cemento.
-- Un `MAPE` bajo sobre una serie con muchos datos estimados puede sobrestimar la confiabilidad real del modelo, porque parte de la estructura temporal fue reconstruida y no observada directamente.
-- La efectividad informal debe leerse solo como `100 - MAPE`, con funcion comunicacional de apoyo. La metrica principal de comparacion y defensa metodologica sigue siendo `MAPE`.
-- La continuidad mensual mejora la estabilidad del forecast, pero no equivale automaticamente a mayor confiabilidad real si la serie depende en gran proporcion de valores estimados.
-
-La lectura anterior debe entenderse sobre la base de tres fuentes de datos ya diferenciadas en el repositorio:
-
-- `Cemento Portland` se apoya en el dataset canónico versionado;
-- `Pastina` y `Membrana Megaflex` conservan series hibridas con `REAL` y `ESTIMADO`;
-- `IPIM Nivel General` se integra desde un snapshot local versionado y no debe asumirse como sincronizacion online obligatoria.
-
-## Próximas mediciones a agregar
-
-- estabilidad fold por fold de `oficial + mayorista`
-- comparación diaria vs mensual una vez corregida la evaluación diaria irregular
-- nuevas corridas con regresores adicionales como `ICC`
-- evaluacion de `CAC` cuando exista una serie oficial usable integrada en el benchmark experimental
-
-## Proximo cierre operativo
-
-Antes de activar el selector o priorizar nuevas features, el proyecto debe implementar un cierre de reproducibilidad con este flujo objetivo:
+Flujo objetivo:
 
 1. `alembic upgrade head`
 2. `python -m app.operations.bootstrap.seed`
@@ -274,12 +225,11 @@ Antes de activar el selector o priorizar nuevas features, el proyecto debe imple
 6. `python -m app.operations.bootstrap.import_external_indices_snapshot`
 7. `python -m app.operations.bootstrap.validate_minimum_dataset`
 
-La validacion post-bootstrap debera comprobar:
+## Siguiente paso
 
-- existencia de `Cemento Portland`, `Pastina` y `Membrana Megaflex`;
-- presentaciones esperadas por material;
-- series mensuales sin huecos;
-- suficientes datos reales en `Cemento Portland`;
-- deteccion estructurada de `REAL` y `ESTIMADO` en `Pastina` y `Membrana Megaflex`;
-- disponibilidad de regresores requeridos;
-- respuesta `200` en endpoints basicos de pricing y forecast.
+Lo que falta cerrar con claridad es:
+
+- si `ensemble_simple_top2` queda solo como evidencia exploratoria o como candidata real;
+- si `prophet_ipim_icc_var_materials` pasa de experimental a recomendacion formal;
+- si los nuevos mejores modelos de `Pastina` y `Membrana Megaflex` deben reemplazar formalmente a los previamente documentados;
+- terminar de endurecer la reproducibilidad del bootstrap.

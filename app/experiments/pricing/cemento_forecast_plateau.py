@@ -20,11 +20,10 @@ from app.modules.pricing.application.backtesting import TimeSeriesFold, construi
 from app.modules.pricing.application.forecasting import BEST_PROPHET_CONFIG, ProphetRow
 
 
-MATERIAL_NAME = "Cemento Portland"
+DEFAULT_MATERIAL_NAME = "Cemento Portland"
 TARGET_NAME = "precio_promedio_normalizado"
 IPIM_NIVEL_GENERAL_SERIES_ID = "448.1_NIVEL_GENERAL_0_0_13_46"
 BASELINE_NAME = "prophet_ipim_nivel_general"
-DEFAULT_OUTPUT_CSV = Path("tmp/experiments/cemento_portland_forecast_plateau.csv")
 DEFAULT_IPIM_SNAPSHOT_CSV = Path("db/bootstrap/ipim_nivel_general_historico.csv")
 DEFAULT_CAC_CSV = Path("tmp/experiments/cac_historico.csv")
 DEFAULT_ICC_CSV = Path("tmp/experiments/icc_historico.csv")
@@ -75,7 +74,12 @@ class ModelRunResult:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Bloque experimental de amesetamiento de forecasting para Cemento Portland.",
+        description="Bloque experimental de amesetamiento de forecasting por material.",
+    )
+    parser.add_argument(
+        "--material",
+        default=DEFAULT_MATERIAL_NAME,
+        help="Nombre exacto del material a evaluar.",
     )
     parser.add_argument(
         "--horizontes",
@@ -93,7 +97,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-csv",
         type=Path,
-        default=DEFAULT_OUTPUT_CSV,
+        default=None,
         help="Ruta donde se exportara la tabla comparativa en CSV.",
     )
     parser.add_argument(
@@ -140,9 +144,32 @@ def _importar_dependencias():
     return pd, Prophet
 
 
-def _load_base_dataframe(pd):
+def _material_slug(material_name: str) -> str:
+    slug = material_name.lower()
+    for source, target in (
+        (" ", "_"),
+        ("/", "_"),
+        ("-", "_"),
+        ("á", "a"),
+        ("é", "e"),
+        ("í", "i"),
+        ("ó", "o"),
+        ("ú", "u"),
+        ("ñ", "n"),
+    ):
+        slug = slug.replace(source, target)
+    while "__" in slug:
+        slug = slug.replace("__", "_")
+    return slug.strip("_")
+
+
+def _default_output_csv_for_material(material_name: str) -> Path:
+    return Path(f"tmp/experiments/{_material_slug(material_name)}_forecast_plateau.csv")
+
+
+def _load_base_dataframe(pd, material_name: str):
     dataset = construir_dataset_material(
-        MATERIAL_NAME,
+        material_name,
         frecuencia="mensual",
         objetivo=TARGET_NAME,
         dataset_start=DEFAULT_DATASET_START,
@@ -159,7 +186,7 @@ def _load_base_dataframe(pd):
         ipim_df = _load_ipim_snapshot(pd)
     base_df = y_df.merge(ipim_df, on="ds", how="inner").sort_values("ds").reset_index(drop=True)
     if base_df.empty:
-        raise RuntimeError("No hay dataset mensual disponible para Cemento Portland con IPIM.")
+        raise RuntimeError(f"No hay dataset mensual disponible para {material_name} con IPIM.")
     return base_df
 
 
@@ -863,7 +890,9 @@ def main() -> None:
     args = parser.parse_args()
 
     pd, Prophet = _importar_dependencias()
-    base_df = _load_base_dataframe(pd)
+    material_name = args.material
+    output_csv = args.output_csv or _default_output_csv_for_material(material_name)
+    base_df = _load_base_dataframe(pd, material_name)
     cac_path = args.cac_csv or (DEFAULT_CAC_CSV if DEFAULT_CAC_CSV.exists() else None)
     cac_df = _load_cac_dataframe(pd, cac_path) if cac_path is not None else None
     icc_path = args.icc_csv or (DEFAULT_ICC_CSV if DEFAULT_ICC_CSV.exists() else None)
@@ -921,6 +950,9 @@ def main() -> None:
                 )
 
             if model_name == BASELINE_NAME and not result.skipped:
+                baseline_note = "baseline_obligatorio"
+                if material_name == DEFAULT_MATERIAL_NAME and horizonte == 3:
+                    baseline_note = f"{baseline_note}; referencia_documentada_3m≈4.98"
                 baseline_result = result
                 horizon_rows.append(
                     ModelRunResult(
@@ -930,11 +962,7 @@ def main() -> None:
                         mae=result.mae,
                         mape=result.mape,
                         folds=result.folds,
-                        observaciones=(
-                            f"{result.observaciones}; baseline_obligatorio; referencia_documentada_3m≈4.98"
-                            if horizonte == 3
-                            else f"{result.observaciones}; baseline_obligatorio"
-                        ),
+                        observaciones=f"{result.observaciones}; {baseline_note}",
                         mejora_vs_baseline="0.00 pp",
                         fold_metrics=result.fold_metrics,
                         predictions=result.predictions,
@@ -965,13 +993,15 @@ def main() -> None:
             )
         )
         print("")
+        print("")
+        print(f"Material: {material_name}")
         print(f"### Horizonte {horizonte} meses")
         _print_table(horizon_rows)
         all_rows.extend(horizon_rows)
 
-    _write_report_csv(all_rows, args.output_csv)
+    _write_report_csv(all_rows, output_csv)
     print("")
-    print(f"Reporte CSV exportado en: {args.output_csv}")
+    print(f"Reporte CSV exportado en: {output_csv}")
 
 
 if __name__ == "__main__":
