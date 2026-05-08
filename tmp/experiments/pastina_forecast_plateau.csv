@@ -1,0 +1,76 @@
+nombre_modelo,regresores_features,horizonte_meses,MAE,MAPE,folds,observaciones,mejora_vs_baseline
+prophet_ipim_nivel_general_lags,ipim_nivel_general + lag_1m + lag_3m + lag_6m,3,72.10,3.37,9,std_mape_folds=2.58; std_mae_folds=50.10,+3.10 pp
+ensemble_simple_top2,"promedio(prophet_ipim_nivel_general_lags, prophet_ipim_nivel_general_medias_moviles)",3,77.41,3.66,9,std_mape_folds=2.52; std_mae_folds=46.29; ensemble_simple_top2=prophet_ipim_nivel_general_lags+prophet_ipim_nivel_general_medias_moviles,+2.81 pp
+prophet_ipim_nivel_general_medias_moviles,ipim_nivel_general + ma_3m + ma_6m,3,83.80,4.01,9,std_mape_folds=2.50; std_mae_folds=43.05,+2.46 pp
+prophet_ipim_cac_labour_force,ipim_nivel_general + labour_force,3,97.97,4.27,9,std_mape_folds=2.27; std_mae_folds=59.85,+2.19 pp
+prophet_ipim_icc_var_general,ipim_nivel_general + icc_var_general,3,120.49,5.41,9,std_mape_folds=2.19; std_mae_folds=55.60,+1.06 pp
+prophet_ipim_cac_general,ipim_nivel_general + general,3,111.77,5.46,9,std_mape_folds=3.29; std_mae_folds=61.48,+1.01 pp
+prophet_ipim_cac_var_general,ipim_nivel_general + var_general,3,123.10,5.61,9,std_mape_folds=2.15; std_mae_folds=53.24,+0.85 pp
+prophet_cac_general,general,3,120.05,5.88,9,std_mape_folds=3.26; std_mae_folds=52.86,+0.58 pp
+prophet_ipim_icc_var_materials,ipim_nivel_general + icc_var_materials,3,129.07,5.94,9,std_mape_folds=2.23; std_mae_folds=52.80,+0.52 pp
+prophet_ipim_cac_var_materials,ipim_nivel_general + var_materials,3,129.37,6.01,9,std_mape_folds=2.26; std_mae_folds=50.47,+0.46 pp
+prophet_ipim_cac_var_labour,ipim_nivel_general + var_labour,3,133.99,6.15,9,std_mape_folds=2.25; std_mae_folds=50.37,+0.31 pp
+prophet_ipim_icc_var_labour,ipim_nivel_general + icc_var_labour,3,137.11,6.31,9,std_mape_folds=2.53; std_mae_folds=56.32,+0.16 pp
+prophet_ipim_nivel_general,ipim_nivel_general,3,140.16,6.47,9,std_mape_folds=2.68; std_mae_folds=59.23; baseline_obligatorio,0.00 pp
+prophet_ipim_cac_materials,ipim_nivel_general + materials,3,149.88,6.82,9,std_mape_folds=2.70; std_mae_folds=65.43,-0.35 pp
+prophet_ipim_nivel_general_variaciones,ipim_nivel_general + var_1m_pct + var_3m_pct + var_6m_pct,3,158.24,7.56,9,std_mape_folds=3.78; std_mae_folds=67.60,-1.10 pp
+prophet_cac_labour_force,labour_force,3,175.61,7.87,9,std_mape_folds=2.04; std_mae_folds=57.06,-1.41 pp
+prophet_cac_materials,materials,3,165.44,8.11,9,std_mape_folds=5.02; std_mae_folds=96.38,-1.65 pp
+prophet_cac_var_general,var_general,3,306.01,15.95,9,std_mape_folds=13.74; std_mae_folds=185.59,-9.48 pp
+prophet_cac_var_materials,var_materials,3,306.21,16.03,9,std_mape_folds=13.99; std_mae_folds=188.17,-9.57 pp
+prophet_icc_var_general,icc_var_general,3,311.31,16.10,9,std_mape_folds=13.18; std_mae_folds=179.34,-9.63 pp
+prophet_icc_var_materials,icc_var_materials,3,312.31,16.28,9,std_mape_folds=13.67; std_mae_folds=184.21,-9.82 pp
+prophet_icc_var_labour,icc_var_labour,3,324.44,16.66,9,std_mape_folds=12.25; std_mae_folds=170.42,-10.20 pp
+prophet_cac_var_labour,var_labour,3,327.32,16.76,9,std_mape_folds=12.12; std_mae_folds=168.72,-10.30 pp
+sarimax_ipim_nivel_general,ipim_nivel_general,3,-,-,0,Experimento opcional omitido: statsmodels no esta instalado.,skip
+xgboost_temporal_ipim,ipim_nivel_general + lags + medias_moviles + variaciones + month_sin/cos + time_idx,3,-,-,0,Experimento opcional omitido: xgboost no esta instalado.,skip
+ensemble_simple_top2,"promedio(prophet_ipim_cac_labour_force, prophet_ipim_icc_var_general)",6,111.59,4.99,4,std_mape_folds=2.36; std_mae_folds=63.02; ensemble_simple_top2=prophet_ipim_cac_labour_force+prophet_ipim_icc_var_general,+3.39 pp
+prophet_ipim_cac_labour_force,ipim_nivel_general + labour_force,6,115.97,5.26,4,std_mape_folds=2.41; std_mae_folds=63.58,+3.12 pp
+prophet_ipim_icc_var_general,ipim_nivel_general + icc_var_general,6,129.46,5.82,4,std_mape_folds=2.13; std_mae_folds=57.76,+2.56 pp
+prophet_ipim_cac_var_general,ipim_nivel_general + var_general,6,129.78,5.87,4,std_mape_folds=2.14; std_mae_folds=58.11,+2.51 pp
+prophet_ipim_icc_var_materials,ipim_nivel_general + icc_var_materials,6,136.52,6.21,4,std_mape_folds=2.11; std_mae_folds=57.90,+2.17 pp
+prophet_ipim_cac_var_materials,ipim_nivel_general + var_materials,6,137.34,6.32,4,std_mape_folds=1.86; std_mae_folds=52.57,+2.05 pp
+prophet_ipim_nivel_general_medias_moviles,ipim_nivel_general + ma_3m + ma_6m,6,146.34,6.99,4,std_mape_folds=2.23; std_mae_folds=32.03,+1.38 pp
+prophet_ipim_nivel_general_lags,ipim_nivel_general + lag_1m + lag_3m + lag_6m,6,147.46,7.11,4,std_mape_folds=4.12; std_mae_folds=68.75; mejora_en_mape_pero_peor_estabilidad_vs_baseline(4.12>2.92),+1.27 pp
+prophet_ipim_cac_general,ipim_nivel_general + general,6,153.87,7.62,4,std_mape_folds=4.18; std_mae_folds=68.89; mejora_en_mape_pero_peor_estabilidad_vs_baseline(4.18>2.92),+0.76 pp
+prophet_ipim_cac_var_labour,ipim_nivel_general + var_labour,6,162.95,7.67,4,std_mape_folds=2.32; std_mae_folds=42.82,+0.71 pp
+prophet_ipim_icc_var_labour,ipim_nivel_general + icc_var_labour,6,173.49,8.16,4,std_mape_folds=2.01; std_mae_folds=33.12,+0.22 pp
+prophet_cac_general,general,6,165.61,8.26,4,std_mape_folds=4.30; std_mae_folds=57.98; mejora_en_mape_pero_peor_estabilidad_vs_baseline(4.30>2.92),+0.12 pp
+prophet_ipim_nivel_general,ipim_nivel_general,6,178.18,8.38,4,std_mape_folds=1.95; std_mae_folds=30.29; baseline_obligatorio,0.00 pp
+prophet_cac_labour_force,labour_force,6,186.62,8.39,4,std_mape_folds=2.19; std_mae_folds=72.30,-0.01 pp
+prophet_ipim_cac_materials,ipim_nivel_general + materials,6,193.38,9.12,4,std_mape_folds=4.17; std_mae_folds=88.64,-0.75 pp
+prophet_cac_materials,materials,6,227.47,11.22,4,std_mape_folds=5.61; std_mae_folds=92.84,-2.84 pp
+prophet_ipim_nivel_general_variaciones,ipim_nivel_general + var_1m_pct + var_3m_pct + var_6m_pct,6,235.44,11.25,4,std_mape_folds=5.81; std_mae_folds=118.54,-2.87 pp
+prophet_icc_var_labour,icc_var_labour,6,399.05,20.85,4,std_mape_folds=15.37; std_mae_folds=233.23,-12.47 pp
+prophet_icc_var_general,icc_var_general,6,399.78,21.13,4,std_mape_folds=17.83; std_mae_folds=264.74,-12.75 pp
+prophet_cac_var_labour,var_labour,6,408.34,21.21,4,std_mape_folds=15.12; std_mae_folds=229.33,-12.84 pp
+prophet_cac_var_general,var_general,6,399.73,21.34,4,std_mape_folds=19.11; std_mae_folds=285.92,-12.96 pp
+prophet_icc_var_materials,icc_var_materials,6,404.51,21.57,4,std_mape_folds=18.75; std_mae_folds=280.32,-13.19 pp
+prophet_cac_var_materials,var_materials,6,402.61,21.59,4,std_mape_folds=19.58; std_mae_folds=294.01,-13.21 pp
+sarimax_ipim_nivel_general,ipim_nivel_general,6,-,-,0,Experimento opcional omitido: statsmodels no esta instalado.,skip
+xgboost_temporal_ipim,ipim_nivel_general + lags + medias_moviles + variaciones + month_sin/cos + time_idx,6,-,-,0,Experimento opcional omitido: xgboost no esta instalado.,skip
+prophet_ipim_cac_var_materials,ipim_nivel_general + var_materials,12,105.88,4.94,2,std_mape_folds=0.30; std_mae_folds=7.25,+4.91 pp
+ensemble_simple_top2,"promedio(prophet_ipim_cac_var_materials, prophet_ipim_icc_var_materials)",12,108.28,5.02,2,std_mape_folds=0.33; std_mae_folds=5.87; ensemble_simple_top2=prophet_ipim_cac_var_materials+prophet_ipim_icc_var_materials,+4.84 pp
+prophet_ipim_icc_var_materials,ipim_nivel_general + icc_var_materials,12,110.82,5.11,2,std_mape_folds=0.37; std_mae_folds=4.35,+4.75 pp
+prophet_ipim_cac_var_general,ipim_nivel_general + var_general,12,113.38,5.19,2,std_mape_folds=0.52; std_mae_folds=0.61,+4.67 pp
+prophet_ipim_icc_var_general,ipim_nivel_general + icc_var_general,12,125.18,5.71,2,std_mape_folds=1.00; std_mae_folds=10.08,+4.15 pp
+prophet_ipim_cac_labour_force,ipim_nivel_general + labour_force,12,154.11,6.98,2,std_mape_folds=0.25; std_mae_folds=23.59,+2.88 pp
+prophet_ipim_nivel_general_medias_moviles,ipim_nivel_general + ma_3m + ma_6m,12,192.11,8.96,2,std_mape_folds=0.33; std_mae_folds=19.97,+0.90 pp
+prophet_cac_labour_force,labour_force,12,214.22,9.49,2,std_mape_folds=3.18; std_mae_folds=95.64,+0.37 pp
+prophet_ipim_cac_var_labour,ipim_nivel_general + var_labour,12,202.19,9.63,2,std_mape_folds=4.88; std_mae_folds=86.27,+0.23 pp
+prophet_ipim_icc_var_labour,ipim_nivel_general + icc_var_labour,12,202.61,9.67,2,std_mape_folds=4.98; std_mae_folds=88.71,+0.18 pp
+prophet_ipim_nivel_general,ipim_nivel_general,12,206.44,9.86,2,std_mape_folds=5.01; std_mae_folds=89.20; baseline_obligatorio,0.00 pp
+prophet_ipim_cac_general,ipim_nivel_general + general,12,201.54,9.94,2,std_mape_folds=6.99; std_mae_folds=130.06,-0.08 pp
+prophet_cac_general,general,12,223.97,11.11,2,std_mape_folds=7.63; std_mae_folds=139.74,-1.26 pp
+prophet_ipim_nivel_general_lags,ipim_nivel_general + lag_1m + lag_3m + lag_6m,12,249.08,11.61,2,std_mape_folds=2.14; std_mae_folds=16.32,-1.75 pp
+prophet_ipim_nivel_general_variaciones,ipim_nivel_general + var_1m_pct + var_3m_pct + var_6m_pct,12,245.78,11.77,2,std_mape_folds=5.28; std_mae_folds=86.04,-1.91 pp
+prophet_ipim_cac_materials,ipim_nivel_general + materials,12,268.41,12.72,2,std_mape_folds=5.42; std_mae_folds=88.96,-2.86 pp
+prophet_cac_materials,materials,12,298.28,14.62,2,std_mape_folds=8.74; std_mae_folds=157.20,-4.76 pp
+prophet_icc_var_labour,icc_var_labour,12,535.41,27.32,2,std_mape_folds=19.89; std_mae_folds=352.75,-17.47 pp
+prophet_cac_var_labour,var_labour,12,554.96,28.14,2,std_mape_folds=19.75; std_mae_folds=348.85,-18.28 pp
+prophet_icc_var_materials,icc_var_materials,12,624.42,31.95,2,std_mape_folds=24.13; std_mae_folds=432.39,-22.09 pp
+prophet_icc_var_general,icc_var_general,12,642.79,32.56,2,std_mape_folds=23.00; std_mae_folds=407.55,-22.71 pp
+prophet_cac_var_materials,var_materials,12,640.28,32.79,2,std_mape_folds=25.04; std_mae_folds=449.71,-22.93 pp
+prophet_cac_var_general,var_general,12,650.26,33.13,2,std_mape_folds=24.47; std_mae_folds=437.47,-23.27 pp
+sarimax_ipim_nivel_general,ipim_nivel_general,12,-,-,0,Experimento opcional omitido: statsmodels no esta instalado.,skip
+xgboost_temporal_ipim,ipim_nivel_general + lags + medias_moviles + variaciones + month_sin/cos + time_idx,12,-,-,0,Experimento opcional omitido: xgboost no esta instalado.,skip

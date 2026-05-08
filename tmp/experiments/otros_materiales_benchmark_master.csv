@@ -1,0 +1,73 @@
+material,horizonte_meses,nombre_modelo,MAE,MAPE,efectividad_informal
+Pastina,3,prophet_blue_ipc,120.90,5.00,95.00
+Pastina,3,prophet_oficial_ipc_blue,122.62,5.12,94.88
+Pastina,3,prophet_ipc,129.00,5.34,94.66
+Pastina,3,prophet_oficial_ipc,129.44,5.29,94.71
+Pastina,3,prophet_mayorista_ipc,131.49,5.40,94.60
+Pastina,3,prophet_oficial_ipc_mayorista,135.98,5.75,94.25
+Pastina,3,prophet_oficial,219.97,10.03,89.97
+Pastina,3,prophet_oficial_mayorista,224.92,10.54,89.46
+Pastina,3,prophet_oficial_blue,235.63,10.78,89.22
+Pastina,3,prophet_mayorista,250.42,12.36,87.64
+Pastina,3,prophet_blue,300.04,15.03,84.97
+Pastina,3,prophet_base,324.02,16.68,83.32
+Pastina,6,prophet_ipc,117.08,4.92,95.08
+Pastina,6,prophet_blue_ipc,122.29,5.19,94.81
+Pastina,6,prophet_mayorista_ipc,127.36,5.42,94.58
+Pastina,6,prophet_oficial_ipc,128.79,5.50,94.50
+Pastina,6,prophet_oficial_ipc_mayorista,134.95,5.94,94.06
+Pastina,6,prophet_oficial_ipc_blue,138.74,6.10,93.90
+Pastina,6,prophet_oficial_mayorista,240.78,11.16,88.84
+Pastina,6,prophet_oficial,264.89,12.21,87.79
+Pastina,6,prophet_oficial_blue,292.56,13.58,86.42
+Pastina,6,prophet_mayorista,320.27,16.12,83.88
+Pastina,6,prophet_blue,392.79,19.72,80.28
+Pastina,6,prophet_base,399.47,20.89,79.11
+Pastina,12,prophet_ipc,131.35,5.49,94.51
+Pastina,12,prophet_mayorista_ipc,141.17,6.05,93.95
+Pastina,12,prophet_oficial_ipc_mayorista,145.53,6.38,93.62
+Pastina,12,prophet_blue_ipc,150.68,6.39,93.61
+Pastina,12,prophet_oficial_ipc,160.30,6.92,93.08
+Pastina,12,prophet_oficial_mayorista,198.36,9.21,90.79
+Pastina,12,prophet_oficial_ipc_blue,208.09,9.18,90.82
+Pastina,12,prophet_oficial,301.48,14.04,85.96
+Pastina,12,prophet_mayorista,322.85,16.41,83.59
+Pastina,12,prophet_oficial_blue,371.24,17.24,82.76
+Pastina,12,prophet_blue,474.77,23.93,76.07
+Pastina,12,prophet_base,527.27,27.01,72.99
+Membrana Megaflex,3,prophet_ipc,734.37,8.31,91.69
+Membrana Megaflex,3,prophet_oficial_ipc_mayorista,760.91,8.63,91.37
+Membrana Megaflex,3,prophet_blue_ipc,794.36,9.09,90.91
+Membrana Megaflex,3,prophet_mayorista_ipc,809.14,9.30,90.70
+Membrana Megaflex,3,prophet_oficial_ipc_blue,860.73,9.96,90.04
+Membrana Megaflex,3,prophet_oficial_ipc,862.56,9.83,90.17
+Membrana Megaflex,3,prophet_oficial_mayorista,1039.84,12.31,87.69
+Membrana Megaflex,3,prophet_mayorista,1079.31,13.09,86.91
+Membrana Megaflex,3,prophet_oficial,1237.18,14.74,85.26
+Membrana Megaflex,3,prophet_oficial_blue,1304.95,15.45,84.55
+Membrana Megaflex,3,prophet_blue,1578.23,19.74,80.26
+Membrana Megaflex,3,prophet_base,1651.21,21.22,78.78
+Membrana Megaflex,6,prophet_oficial_ipc_mayorista,794.53,9.51,90.49
+Membrana Megaflex,6,prophet_ipc,839.34,10.26,89.74
+Membrana Megaflex,6,prophet_mayorista_ipc,842.88,10.11,89.89
+Membrana Megaflex,6,prophet_oficial_ipc,942.15,11.33,88.67
+Membrana Megaflex,6,prophet_oficial_ipc_blue,963.03,11.62,88.38
+Membrana Megaflex,6,prophet_blue_ipc,971.45,11.81,88.19
+Membrana Megaflex,6,prophet_mayorista,1075.12,13.06,86.94
+Membrana Megaflex,6,prophet_oficial_mayorista,1115.22,13.33,86.67
+Membrana Megaflex,6,prophet_oficial,1531.31,18.66,81.34
+Membrana Megaflex,6,prophet_oficial_blue,1660.73,20.16,79.84
+Membrana Megaflex,6,prophet_base,1964.07,25.74,74.26
+Membrana Megaflex,6,prophet_blue,1984.65,25.06,74.94
+Membrana Megaflex,12,prophet_mayorista,911.50,11.17,88.83
+Membrana Megaflex,12,prophet_mayorista_ipc,1123.75,13.30,86.70
+Membrana Megaflex,12,prophet_oficial_ipc_mayorista,1160.85,13.67,86.33
+Membrana Megaflex,12,prophet_oficial_mayorista,1232.35,14.70,85.30
+Membrana Megaflex,12,prophet_oficial_ipc,1368.44,16.17,83.83
+Membrana Megaflex,12,prophet_ipc,1412.54,16.78,83.22
+Membrana Megaflex,12,prophet_oficial_ipc_blue,1500.65,17.65,82.35
+Membrana Megaflex,12,prophet_blue_ipc,1609.02,18.98,81.02
+Membrana Megaflex,12,prophet_oficial,2031.95,24.57,75.43
+Membrana Megaflex,12,prophet_oficial_blue,2387.66,28.51,71.49
+Membrana Megaflex,12,prophet_blue,2578.46,32.18,67.82
+Membrana Megaflex,12,prophet_base,2666.50,34.00,66.00
