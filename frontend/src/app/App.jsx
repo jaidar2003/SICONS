@@ -403,14 +403,18 @@ export function App() {
                 <>
                   <MetricsGrid serie={serie} showPrices={showPrices} selectedMaterial={selectedMaterial} />
                   <InsightStrip serie={serie} selectedMaterial={selectedMaterial} showPrices={showPrices} />
-                  <Box className="mt-3 grid gap-3 xl:grid-cols-[1.3fr_.7fr]">
-                    <PriceChart
+                  <Box className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] lg:items-stretch">
+                    <Box className="min-w-0">
+                      <PriceChart
                       serie={serie}
                       forecast={forecast}
                       selectedMaterial={selectedMaterial}
                       showPrices={showPrices}
-                    />
-                    <ComparisonCard rows={comparisonRows} selectedMaterialId={selectedMaterialId} showPrices={showPrices} />
+                      />
+                    </Box>
+                    <Box className="min-w-0">
+                      <ComparisonCard rows={comparisonRows} selectedMaterialId={selectedMaterialId} showPrices={showPrices} />
+                    </Box>
                   </Box>
                 </>
               ) : null}
