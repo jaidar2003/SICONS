@@ -146,6 +146,21 @@ Estado resumido:
 - baseline productivo vigente para cemento: `prophet_ipim_nivel_general`;
 - mejor candidata experimental actual: `prophet_ipim_icc_var_materials`;
 - segunda mejor candidata experimental: `prophet_ipim_cac_var_materials`.
+- `Pastina` y `Membrana Megaflex` ya pasaron por la misma bateria experimental profunda.
+
+Mejores estimaciones hoy:
+
+- `Cemento Portland`
+  - `3m`: `ensemble_simple_top2`
+  - mejor candidata por regresores: `prophet_ipim_icc_var_materials`
+- `Pastina`
+  - `3m`: `prophet_ipim_nivel_general_lags`
+  - `6m`: `ensemble_simple_top2`
+  - `12m`: `prophet_ipim_cac_var_materials`
+- `Membrana Megaflex`
+  - `3m`: `prophet_ipim_nivel_general_lags`
+  - `6m`: `prophet_ipim_nivel_general_lags`
+  - `12m`: `prophet_mayorista`
 
 Detalle completo:
 
@@ -165,7 +180,7 @@ La optimizacion bajo presupuesto usa `PuLP`.
 
 Detalle metodologico:
 
-- [docs/DISENO_EPICA_5.md](docs/HU/DISENO_EPICA_5.md)
+- [docs/HU/DISENO_EPICA_5.md](docs/HU/DISENO_EPICA_5.md)
 
 ## Bootstrap y reproducibilidad
 
@@ -238,12 +253,13 @@ Tests:
 
 - [docs/MEDICIONES_FORECASTING.md](docs/MEDICIONES_FORECASTING.md): metricas, backtesting y comparativas
 - [docs/DECISIONES_TESIS.md](docs/DECISIONES_TESIS.md): decisiones metodologicas
-- [docs/DISENO_EPICA_1.md](docs/HU/DISENO_EPICA_1.md): gestion y preparacion de datos
-- [docs/DISENO_EPICA_2.md](docs/HU/DISENO_EPICA_2.md): analisis y visualizacion
-- [docs/DISENO_EPICA_3.md](docs/HU/DISENO_EPICA_3.md): prediccion de precios
-- [docs/DISENO_EPICA_4.md](docs/HU/DISENO_EPICA_4.md): proyeccion de costos de obra
-- [docs/DISENO_EPICA_5.md](docs/HU/DISENO_EPICA_5.md): optimizacion de compras
-- [docs/DISENO_EPICA_6.md](docs/HU/DISENO_EPICA_6.md): asistencia conversacional
+- [docs/HU/HU.md](docs/HU/HU.md): historias de usuario y estado funcional
+- [docs/HU/DISENO_EPICA_1.md](docs/HU/DISENO_EPICA_1.md): gestion y preparacion de datos
+- [docs/HU/DISENO_EPICA_2.md](docs/HU/DISENO_EPICA_2.md): analisis y visualizacion
+- [docs/HU/DISENO_EPICA_3.md](docs/HU/DISENO_EPICA_3.md): prediccion de precios
+- [docs/HU/DISENO_EPICA_4.md](docs/HU/DISENO_EPICA_4.md): proyeccion de costos de obra
+- [docs/HU/DISENO_EPICA_5.md](docs/HU/DISENO_EPICA_5.md): optimizacion de compras
+- [docs/HU/DISENO_EPICA_6.md](docs/HU/DISENO_EPICA_6.md): asistencia conversacional
 - [docs/DISENO_SELECTOR_MODELOS.md](docs/DISENO_SELECTOR_MODELOS.md): seleccion de modelos
 - [docs/DISENO_INTEGRACION_SELECTOR_FORECAST.md](docs/DISENO_INTEGRACION_SELECTOR_FORECAST.md): integracion futura del selector
 - [docs/TESIS_BORRADOR.md](docs/TESIS_BORRADOR.md): redaccion de tesis en curso
