@@ -1,0 +1,8 @@
+nombre_modelo,regresores_features,horizonte_meses,MAE,MAPE,folds,observaciones,mejora_vs_baseline
+prophet_ipim_cac_var_materials,ipim_nivel_general + var_materials,3,5.97,4.33,9,std_mape_folds=2.52; std_mae_folds=3.06,+0.60 pp
+prophet_ipim_cac_var_general,ipim_nivel_general + var_general,3,6.42,4.62,9,std_mape_folds=2.78; std_mae_folds=3.43,+0.31 pp
+prophet_ipim_nivel_general,ipim_nivel_general,3,6.66,4.93,9,std_mape_folds=4.58; std_mae_folds=5.40; baseline_obligatorio; referencia_documentada_3m≈4.98,0.00 pp
+prophet_ipim_cac_var_labour,ipim_nivel_general + var_labour,3,7.48,5.53,9,std_mape_folds=4.66; std_mae_folds=5.52,-0.60 pp
+prophet_cac_var_labour,var_labour,3,18.95,14.24,9,std_mape_folds=15.67; std_mae_folds=18.49,-9.31 pp
+prophet_cac_var_materials,var_materials,3,19.23,14.53,9,std_mape_folds=16.53; std_mae_folds=18.66,-9.60 pp
+prophet_cac_var_general,var_general,3,19.52,14.65,9,std_mape_folds=16.41; std_mae_folds=18.70,-9.72 pp

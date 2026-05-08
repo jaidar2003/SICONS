@@ -157,6 +157,21 @@ Cuando se activa, la respuesta puede exponer:
 - origen de decisión;
 - justificación.
 
+### 8.4 Criterio de suficiencia del ajuste
+
+Los ajustes del forecasting no se detuvieron de manera arbitraria. Se continuaron probando variantes mientras aparecieran mejoras cuantitativas defendibles en backtesting y mientras esas mejoras conservaran coherencia economica con la dinamica del material analizado.
+
+En `Cemento Portland`, la secuencia de pruebas mostró tres etapas. Primero, una mejora clara al pasar de `Prophet` base a variantes con regresores economicos. Segundo, una etapa de rendimiento marginal decreciente, donde varias combinaciones adicionales ya no mejoraban de manera relevante al mejor resultado disponible hasta ese momento. Tercero, una mejora fuerte y metodologicamente consistente al incorporar `IPIM Nivel General`, alcanzando `MAPE 4.98%` a `3` meses con `9` folds de backtesting temporal.
+
+Sobre esa evidencia, la tesis puede sostener que se exploraron ajustes suficientes para identificar una meseta relativa dentro de una familia relevante de variantes y que el valor finalmente adoptado no se eligio por conveniencia, sino porque:
+
+- mejora de forma marcada frente al baseline y frente a las variantes previas relevantes;
+- se apoya en una serie real, densa y continua para `Cemento Portland`;
+- mantiene trazabilidad metodologica y no depende de una mejora visual aislada;
+- resulta adecuado para el objetivo del sistema, que no es predecir sin error, sino ofrecer estimaciones economicamente utiles, comparables y suficientemente confiables para apoyar decisiones de compra.
+
+En consecuencia, el umbral de aceptacion no se define como perfeccion predictiva ni como agotamiento absoluto del espacio de modelos, sino como una combinacion de precision medida, estabilidad en backtesting, utilidad para el usuario final y cierre razonable de las familias de variantes mas defendibles. Bajo ese criterio, el resultado alcanzado para `Cemento Portland` se considera suficiente y defendible para esta tesis.
+
 ## 9. Reproducibilidad operativa
 
 La reproducibilidad no es sólo un tema de documentación. Es una propiedad operacional del sistema.
@@ -211,4 +226,3 @@ Existen algunas inconsistencias documentales que conviene resolver antes de usar
 - `validate_minimum_dataset` existe como objetivo de bootstrap, pero su alcance debe seguir alineándose con todos los regresores que la tesis promete.
 
 Este borrador asume el estado más actual del código y de las decisiones metodológicas, no los textos heredados que todavía no se han reescrito.
-

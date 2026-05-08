@@ -221,3 +221,42 @@ class PurchaseStrategyComparisonRead(BaseModel):
     ahorro_estimado: Decimal
     justificacion: str
     advertencias: list[str]
+
+
+class PurchaseOptimizationMaterialCreate(BaseModel):
+    material_id: int
+    cantidad_objetivo: Decimal = Field(gt=0, decimal_places=4)
+    criticidad: Literal["alta", "media", "baja"]
+
+
+class PurchaseOptimizationCreate(BaseModel):
+    presupuesto_total: Decimal = Field(gt=0, decimal_places=2)
+    horizonte_meses: int = Field(default=3, ge=1, le=12)
+    materiales: list[PurchaseOptimizationMaterialCreate] = Field(min_length=1)
+
+
+class PurchaseOptimizationItemRead(BaseModel):
+    material_id: int
+    material_key: str
+    cantidad_objetivo: Decimal
+    cantidad_recomendada_comprar_ahora: Decimal
+    precio_actual: Decimal
+    precio_proyectado_horizonte: Decimal
+    costo_compra_ahora: Decimal
+    ahorro_unitario_estimado: Decimal
+    ahorro_total_estimado: Decimal
+    criticidad: str
+    peso_criticidad: Decimal
+    confiabilidad: str
+
+
+class PurchaseOptimizationRead(BaseModel):
+    presupuesto_total: Decimal
+    presupuesto_utilizado: Decimal
+    presupuesto_restante: Decimal
+    horizonte_meses: int
+    estado_optimizacion: str
+    items: list[PurchaseOptimizationItemRead]
+    ahorro_total_estimado: Decimal
+    justificacion: str
+    advertencias: list[str]

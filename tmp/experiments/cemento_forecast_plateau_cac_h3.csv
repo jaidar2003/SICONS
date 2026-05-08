@@ -1,0 +1,8 @@
+nombre_modelo,regresores_features,horizonte_meses,MAE,MAPE,folds,observaciones,mejora_vs_baseline
+prophet_ipim_nivel_general,ipim_nivel_general,3,6.66,4.93,9,std_mape_folds=4.58; std_mae_folds=5.40; baseline_obligatorio; referencia_documentada_3m≈4.98,0.00 pp
+prophet_ipim_cac_general,ipim_nivel_general + general,3,6.86,5.23,9,std_mape_folds=6.61; std_mae_folds=7.64,-0.30 pp
+prophet_ipim_cac_labour_force,ipim_nivel_general + labour_force,3,7.30,5.34,9,std_mape_folds=4.52; std_mae_folds=5.51,-0.41 pp
+prophet_cac_materials,materials,3,8.10,5.86,9,std_mape_folds=6.99; std_mae_folds=8.43,-0.93 pp
+prophet_ipim_cac_materials,ipim_nivel_general + materials,3,8.59,6.52,9,std_mape_folds=7.16; std_mae_folds=8.09,-1.60 pp
+prophet_cac_general,general,3,8.93,6.57,9,std_mape_folds=5.51; std_mae_folds=6.28,-1.65 pp
+prophet_cac_labour_force,labour_force,3,18.67,13.14,9,std_mape_folds=7.10; std_mae_folds=9.29,-8.22 pp

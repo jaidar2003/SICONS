@@ -178,11 +178,13 @@ Esta historia debe implementarse despues de `HU24`, `HU21` y `HU22`, una vez con
 
 `Prophet` sigue siendo el proveedor de precios futuros normalizados. La optimizacion no reemplaza el forecasting: utiliza sus resultados como insumo para la toma de decisiones.
 
-### Herramienta propuesta
+### Herramienta adoptada
 
-`PuLP` se considera la primera herramienta de optimizacion para esta historia por su adecuacion a problemas iniciales de programacion lineal o entera mixta.
+`PuLP` queda adoptado como primera implementacion de optimizacion para esta historia por su adecuacion al problema actual, que puede formularse de manera lineal con restricciones explicitas de presupuesto, cantidades requeridas y no negatividad.
 
-`OR-Tools` queda reservado como alternativa futura para escenarios con mayor complejidad combinatoria.
+En la formulacion continua vigente, el problema se apoya en una estructura de programacion lineal interpretable y defendible metodologicamente. Dicho de forma simple, esta capa equivale a resolver un problema tipo simplex sobre una funcion objetivo y restricciones transparentes, sin introducir todavia complejidad combinatoria innecesaria.
+
+`OR-Tools` queda reservado como alternativa futura para escenarios con mayor complejidad combinatoria, por ejemplo lotes enteros obligatorios, multiples proveedores, varias ventanas temporales o restricciones logisticas mas ricas.
 
 ### Variables de decisión
 
