@@ -1,0 +1,8 @@
+nombre_modelo,regresores_features,horizonte_meses,MAE,MAPE,folds,observaciones,mejora_vs_baseline
+ensemble_simple_top2,"promedio(prophet_ipim_nivel_general, prophet_ipim_nivel_general_medias_moviles)",3,5.53,4.08,9,std_mape_folds=4.66; std_mae_folds=5.83; ensemble_simple_top2=prophet_ipim_nivel_general+prophet_ipim_nivel_general_medias_moviles,+0.84 pp
+prophet_ipim_nivel_general,ipim_nivel_general,3,6.66,4.93,9,std_mape_folds=4.58; std_mae_folds=5.40; baseline_obligatorio; referencia_documentada_3m≈4.98,0.00 pp
+prophet_ipim_nivel_general_medias_moviles,ipim_nivel_general + ma_3m + ma_6m,3,9.34,6.82,9,std_mape_folds=10.50; std_mae_folds=14.39,-1.89 pp
+prophet_ipim_nivel_general_variaciones,ipim_nivel_general + var_1m_pct + var_3m_pct + var_6m_pct,3,10.60,7.72,9,std_mape_folds=8.76; std_mae_folds=11.80,-2.79 pp
+prophet_ipim_nivel_general_lags,ipim_nivel_general + lag_1m + lag_3m + lag_6m,3,11.42,8.26,9,std_mape_folds=14.51; std_mae_folds=19.71,-3.33 pp
+sarimax_ipim_nivel_general,ipim_nivel_general,3,-,-,0,Experimento opcional omitido: statsmodels no esta instalado.,skip
+xgboost_temporal_ipim,ipim_nivel_general + lags + medias_moviles + variaciones + month_sin/cos + time_idx,3,-,-,0,Experimento opcional omitido: xgboost no esta instalado.,skip

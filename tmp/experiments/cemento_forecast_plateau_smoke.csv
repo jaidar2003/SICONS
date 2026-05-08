@@ -1,0 +1,2 @@
+nombre_modelo,regresores_features,horizonte_meses,MAE,MAPE,folds,observaciones,mejora_vs_baseline
+prophet_ipim_nivel_general,ipim_nivel_general,3,6.66,4.93,9,std_mape_folds=4.58; std_mae_folds=5.40; baseline_obligatorio; referencia_documentada_3m≈4.98,0.00 pp

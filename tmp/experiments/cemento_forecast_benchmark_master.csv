@@ -1,0 +1,37 @@
+nombre_modelo,regresores_features,horizonte_meses,MAE,MAPE,efectividad_informal,folds,std_mape_folds,mejora_vs_baseline,observaciones,estado,source_file
+ensemble_simple_top2,"promedio(prophet_ipim_nivel_general, prophet_ipim_nivel_general_medias_moviles)",3,5.53,4.08,95.92,9,4.66,+0.84 pp,std_mape_folds=4.66; std_mae_folds=5.83; ensemble_simple_top2=prophet_ipim_nivel_general+prophet_ipim_nivel_general_medias_moviles,candidato,cemento_forecast_plateau_h3.csv
+prophet_ipim_icc_var_materials,ipim_nivel_general + icc_var_materials,3,5.82,4.22,95.78,9,2.37,+0.71 pp,std_mape_folds=2.37; std_mae_folds=2.91,candidato,cemento_forecast_plateau_icc_var_3_6_12.csv
+prophet_ipim_cac_var_materials,ipim_nivel_general + var_materials,3,5.97,4.33,95.67,9,2.52,+0.60 pp,std_mape_folds=2.52; std_mae_folds=3.06,candidato,cemento_forecast_plateau_cac_var_3_6_12.csv
+prophet_ipim_cac_var_general,ipim_nivel_general + var_general,3,6.42,4.62,95.38,9,2.78,+0.31 pp,std_mape_folds=2.78; std_mae_folds=3.43,candidato,cemento_forecast_plateau_cac_var_3_6_12.csv
+prophet_ipim_icc_var_general,ipim_nivel_general + icc_var_general,3,6.46,4.64,95.36,9,2.81,+0.29 pp,std_mape_folds=2.81; std_mae_folds=3.55,candidato,cemento_forecast_plateau_icc_var_3_6_12.csv
+prophet_ipim_nivel_general,ipim_nivel_general,3,6.66,4.93,95.07,9,4.58,0.00 pp,std_mape_folds=4.58; std_mae_folds=5.40; baseline_obligatorio; referencia_documentada_3m≈4.98,baseline,cemento_forecast_plateau_icc_var_3_6_12.csv
+prophet_ipim_icc_var_labour,ipim_nivel_general + icc_var_labour,3,6.88,5.09,94.91,9,4.59,-0.17 pp,std_mape_folds=4.59; std_mae_folds=5.40,descartado,cemento_forecast_plateau_icc_var_3_6_12.csv
+prophet_ipim_cac_general,ipim_nivel_general + general,3,6.86,5.23,94.77,9,6.61,-0.30 pp,std_mape_folds=6.61; std_mae_folds=7.64,descartado,cemento_forecast_plateau_cac_h3.csv
+prophet_ipim_cac_labour_force,ipim_nivel_general + labour_force,3,7.30,5.34,94.66,9,4.52,-0.41 pp,std_mape_folds=4.52; std_mae_folds=5.51,descartado,cemento_forecast_plateau_cac_h3.csv
+prophet_ipim_cac_var_labour,ipim_nivel_general + var_labour,3,7.48,5.53,94.47,9,4.66,-0.60 pp,std_mape_folds=4.66; std_mae_folds=5.52,descartado,cemento_forecast_plateau_cac_var_3_6_12.csv
+prophet_cac_materials,materials,3,8.10,5.86,94.14,9,6.99,-0.93 pp,std_mape_folds=6.99; std_mae_folds=8.43,descartado,cemento_forecast_plateau_cac_h3.csv
+prophet_ipim_cac_materials,ipim_nivel_general + materials,3,8.59,6.52,93.48,9,7.16,-1.60 pp,std_mape_folds=7.16; std_mae_folds=8.09,descartado,cemento_forecast_plateau_cac_h3.csv
+prophet_cac_general,general,3,8.93,6.57,93.43,9,5.51,-1.65 pp,std_mape_folds=5.51; std_mae_folds=6.28,descartado,cemento_forecast_plateau_cac_h3.csv
+prophet_ipim_nivel_general_medias_moviles,ipim_nivel_general + ma_3m + ma_6m,3,9.34,6.82,93.18,9,10.50,-1.89 pp,std_mape_folds=10.50; std_mae_folds=14.39,descartado,cemento_forecast_plateau_h3.csv
+prophet_ipim_nivel_general_variaciones,ipim_nivel_general + var_1m_pct + var_3m_pct + var_6m_pct,3,10.60,7.72,92.28,9,8.76,-2.79 pp,std_mape_folds=8.76; std_mae_folds=11.80,descartado,cemento_forecast_plateau_h3.csv
+prophet_ipim_nivel_general_lags,ipim_nivel_general + lag_1m + lag_3m + lag_6m,3,11.42,8.26,91.74,9,14.51,-3.33 pp,std_mape_folds=14.51; std_mae_folds=19.71,descartado,cemento_forecast_plateau_h3.csv
+prophet_cac_labour_force,labour_force,3,18.67,13.14,86.86,9,7.10,-8.22 pp,std_mape_folds=7.10; std_mae_folds=9.29,descartado,cemento_forecast_plateau_cac_h3.csv
+prophet_cac_var_labour,var_labour,3,18.95,14.24,85.76,9,15.67,-9.31 pp,std_mape_folds=15.67; std_mae_folds=18.49,descartado,cemento_forecast_plateau_cac_var_h3.csv
+prophet_cac_var_materials,var_materials,3,19.23,14.53,85.47,9,16.53,-9.60 pp,std_mape_folds=16.53; std_mae_folds=18.66,descartado,cemento_forecast_plateau_cac_var_h3.csv
+prophet_cac_var_general,var_general,3,19.52,14.65,85.35,9,16.41,-9.72 pp,std_mape_folds=16.41; std_mae_folds=18.70,descartado,cemento_forecast_plateau_cac_var_h3.csv
+sarimax_ipim_nivel_general,ipim_nivel_general,3,-,-,-,0,-,skip,Experimento opcional omitido: statsmodels no esta instalado.,omitido,cemento_forecast_plateau_h3.csv
+xgboost_temporal_ipim,ipim_nivel_general + lags + medias_moviles + variaciones + month_sin/cos + time_idx,3,-,-,-,0,-,skip,Experimento opcional omitido: xgboost no esta instalado.,omitido,cemento_forecast_plateau_h3.csv
+prophet_ipim_icc_var_materials,ipim_nivel_general + icc_var_materials,6,7.58,5.52,94.48,4,2.66,+1.99 pp,std_mape_folds=2.66; std_mae_folds=3.40,candidato,cemento_forecast_plateau_icc_var_3_6_12.csv
+prophet_ipim_cac_var_materials,ipim_nivel_general + var_materials,6,8.24,5.99,94.01,4,3.04,+1.52 pp,std_mape_folds=3.04; std_mae_folds=3.82,candidato,cemento_forecast_plateau_cac_var_3_6_12.csv
+prophet_ipim_icc_var_general,ipim_nivel_general + icc_var_general,6,9.29,6.71,93.29,4,3.44,+0.81 pp,std_mape_folds=3.44; std_mae_folds=4.43,candidato,cemento_forecast_plateau_icc_var_3_6_12.csv
+prophet_ipim_cac_var_general,ipim_nivel_general + var_general,6,9.47,6.85,93.15,4,3.67,+0.66 pp,std_mape_folds=3.67; std_mae_folds=4.65,candidato,cemento_forecast_plateau_cac_var_3_6_12.csv
+prophet_ipim_nivel_general,ipim_nivel_general,6,10.14,7.51,92.49,4,7.27,0.00 pp,std_mape_folds=7.27; std_mae_folds=9.23; baseline_obligatorio,baseline,cemento_forecast_plateau_icc_var_3_6_12.csv
+prophet_ipim_icc_var_labour,ipim_nivel_general + icc_var_labour,6,10.57,7.84,92.16,4,7.18,-0.33 pp,std_mape_folds=7.18; std_mae_folds=9.09,descartado,cemento_forecast_plateau_icc_var_3_6_12.csv
+prophet_ipim_cac_var_labour,ipim_nivel_general + var_labour,6,11.59,8.56,91.44,4,7.05,-1.05 pp,std_mape_folds=7.05; std_mae_folds=8.93,descartado,cemento_forecast_plateau_cac_var_3_6_12.csv
+prophet_ipim_icc_var_materials,ipim_nivel_general + icc_var_materials,12,6.36,4.51,95.49,2,0.15,+5.86 pp,std_mape_folds=0.15; std_mae_folds=0.43,candidato,cemento_forecast_plateau_icc_var_3_6_12.csv
+prophet_ipim_cac_var_materials,ipim_nivel_general + var_materials,12,6.61,4.69,95.31,2,0.27,+5.69 pp,std_mape_folds=0.27; std_mae_folds=0.27,candidato,cemento_forecast_plateau_cac_var_3_6_12.csv
+prophet_ipim_icc_var_general,ipim_nivel_general + icc_var_general,12,7.38,5.16,94.84,2,0.10,+5.22 pp,std_mape_folds=0.10; std_mae_folds=0.51,candidato,cemento_forecast_plateau_icc_var_3_6_12.csv
+prophet_ipim_cac_var_general,ipim_nivel_general + var_general,12,8.39,5.94,94.06,2,1.15,+4.44 pp,std_mape_folds=1.15; std_mae_folds=0.94,candidato,cemento_forecast_plateau_cac_var_3_6_12.csv
+prophet_ipim_icc_var_labour,ipim_nivel_general + icc_var_labour,12,13.88,10.20,89.80,2,7.31,+0.18 pp,std_mape_folds=7.31; std_mae_folds=9.44,candidato,cemento_forecast_plateau_icc_var_3_6_12.csv
+prophet_ipim_nivel_general,ipim_nivel_general,12,14.14,10.38,89.62,2,7.45,0.00 pp,std_mape_folds=7.45; std_mae_folds=9.64; baseline_obligatorio,baseline,cemento_forecast_plateau_icc_var_3_6_12.csv
+prophet_ipim_cac_var_labour,ipim_nivel_general + var_labour,12,14.50,10.60,89.40,2,7.18,-0.23 pp,std_mape_folds=7.18; std_mae_folds=9.21,descartado,cemento_forecast_plateau_cac_var_3_6_12.csv
