@@ -57,11 +57,11 @@ HU20 Obtener un resumen del impacto presupuestario. Como comprador de materiales
 
 Epica 5. Optimización de compras
 
-HU21 Recomendar el mejor momento de compra. Como comprador de materiales, quiero recibir una recomendacion sobre cuando comprar para minimizar el costo estimado de mi obra. Estado actual: Pendiente.
+HU21 Recomendar el mejor momento de compra. Como comprador de materiales, quiero recibir una recomendacion sobre cuando comprar para minimizar el costo estimado de mi obra. Estado actual: Parcial.
 
-HU22 Comparar estrategias de compra. Como comprador de materiales, quiero comparar distintas estrategias de compra para decidir entre comprar todo hoy, comprar por etapas o esperar. Estado actual: Pendiente.
+HU22 Comparar estrategias de compra. Como comprador de materiales, quiero comparar distintas estrategias de compra para decidir entre comprar todo hoy, comprar por etapas o esperar. Estado actual: Parcial.
 
-HU23 Optimizar la compra bajo una restriccion presupuestaria. Como comprador de materiales, quiero que el sistema considere un presupuesto disponible para sugerirme una estrategia de compra viable. Estado actual: Pendiente.
+HU23 Optimizar la compra bajo una restriccion presupuestaria. Como comprador de materiales, quiero que el sistema considere un presupuesto disponible para sugerirme una estrategia de compra viable. Estado actual: Parcial.
 
 HU24 Priorizar materiales criticos. Como comprador de materiales, quiero identificar cuales materiales tienen mayor riesgo de aumento para priorizar su compra antes que otros. Estado actual: Implementada.
 

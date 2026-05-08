@@ -161,7 +161,7 @@ Cuando se activa, la respuesta puede exponer:
 
 Los ajustes del forecasting no se detuvieron de manera arbitraria. Se continuaron probando variantes mientras aparecieran mejoras cuantitativas defendibles en backtesting y mientras esas mejoras conservaran coherencia economica con la dinamica del material analizado.
 
-En `Cemento Portland`, la secuencia de pruebas mostró tres etapas. Primero, una mejora clara al pasar de `Prophet` base a variantes con regresores economicos. Segundo, una etapa de rendimiento marginal decreciente, donde varias combinaciones adicionales ya no mejoraban de manera relevante al mejor resultado disponible hasta ese momento. Tercero, una mejora fuerte y metodologicamente consistente al incorporar `IPIM Nivel General`, alcanzando `MAPE 4.98%` a `3` meses con `9` folds de backtesting temporal.
+En `Cemento Portland`, la secuencia de pruebas mostró cuatro etapas. Primero, una mejora clara al pasar de `Prophet` base a variantes con regresores economicos. Segundo, una etapa de rendimiento marginal decreciente, donde varias combinaciones adicionales ya no mejoraban de manera relevante al mejor resultado disponible hasta ese momento. Tercero, una mejora fuerte y metodologicamente consistente al incorporar `IPIM Nivel General`, alcanzando `MAPE 4.98%` a `3` meses con `9` folds de backtesting temporal. Cuarto, una ampliacion experimental posterior, donde la combinacion de `IPIM` con senales sectoriales como `ICC var_materials` y `CAC var_materials` produjo mejoras adicionales, llevando el mejor resultado por regresores a `MAPE 4.22%` en `3` meses para `prophet_ipim_icc_var_materials`.
 
 Sobre esa evidencia, la tesis puede sostener que se exploraron ajustes suficientes para identificar una meseta relativa dentro de una familia relevante de variantes y que el valor finalmente adoptado no se eligio por conveniencia, sino porque:
 
@@ -170,7 +170,9 @@ Sobre esa evidencia, la tesis puede sostener que se exploraron ajustes suficient
 - mantiene trazabilidad metodologica y no depende de una mejora visual aislada;
 - resulta adecuado para el objetivo del sistema, que no es predecir sin error, sino ofrecer estimaciones economicamente utiles, comparables y suficientemente confiables para apoyar decisiones de compra.
 
-En consecuencia, el umbral de aceptacion no se define como perfeccion predictiva ni como agotamiento absoluto del espacio de modelos, sino como una combinacion de precision medida, estabilidad en backtesting, utilidad para el usuario final y cierre razonable de las familias de variantes mas defendibles. Bajo ese criterio, el resultado alcanzado para `Cemento Portland` se considera suficiente y defendible para esta tesis.
+La misma logica se extendio luego a `Pastina` y `Membrana Megaflex`, aplicando una bateria experimental equivalente. En `Pastina` aparecieron mejoras claras con lags y con algunas combinaciones `IPIM + CAC/ICC`. En `Membrana Megaflex`, la exploracion profunda mejoro `3` y `6` meses, aunque no logro superar el mejor resultado historico ya documentado para `12` meses. Esto refuerza que la politica correcta no es buscar un unico modelo universal, sino seleccionar por material y horizonte.
+
+En consecuencia, el umbral de aceptacion no se define como perfeccion predictiva ni como agotamiento absoluto del espacio de modelos, sino como una combinacion de precision medida, estabilidad en backtesting, utilidad para el usuario final y cierre razonable de las familias de variantes mas defendibles. Bajo ese criterio, el resultado alcanzado para `Cemento Portland` y la diferenciacion posterior por material se consideran suficientes y defendibles para esta tesis.
 
 ## 9. Reproducibilidad operativa
 

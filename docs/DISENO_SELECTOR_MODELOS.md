@@ -94,6 +94,8 @@ La primera version debe ser deliberadamente simple:
 
 La recomendacion concreta es mantener una configuracion versionada, legible y acotada, separada del servicio de forecast. Esa configuracion no debe contener logica; solo datos declarativos.
 
+Importante: este documento describe la calibracion actual del selector en runtime. No debe confundirse con las mejores mediciones experimentales mas nuevas documentadas en `docs/MEDICIONES_FORECASTING.md`, porque algunas de esas mejoras todavia no fueron promovidas formalmente al selector productivo.
+
 ### Configuracion inicial conocida
 
 Con la evidencia actualmente documentada, solo corresponde fijar de manera explicita estas recomendaciones:
@@ -105,6 +107,11 @@ Con la evidencia actualmente documentada, solo corresponde fijar de manera expli
 | `membrana-megaflex` | `Membrana Megaflex` | `3` | `prophet_ipc` | `["ipc"]` | `8.31%` | `734.37` | `9` | media-baja |
 
 No corresponde completar artificialmente otros horizontes con resultados no medidos. Para horizontes no calibrados, el selector debe caer en reglas de fallback y dejar esa condicion explicitada.
+
+Nota de contexto:
+
+- `Pastina` ya tiene mejores resultados experimentales posteriores, por ejemplo `prophet_ipim_nivel_general_lags` en `3m`, pero esa mejora todavia no fue promovida al selector runtime.
+- `Membrana Megaflex` tambien tiene mejoras experimentales en `3m` y `6m`, especialmente con lags, pero el selector runtime sigue documentando la calibracion formal previa.
 
 ## 5. Reglas de fallback
 

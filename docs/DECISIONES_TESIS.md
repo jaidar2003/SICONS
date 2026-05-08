@@ -67,9 +67,9 @@ Cada decision incluye:
   - sostener un modelo global unico para todos los materiales;
   - elegir variantes solo por interpretacion economica;
   - cambiar de modelo por apreciacion visual del forecast.
-- Justificacion: las mediciones mas recientes muestran que una misma variante no optimiza por igual a todos los materiales. `IPIM Nivel General` mejora de forma significativa a `Cemento Portland`, pero empeora a `Pastina` y `Membrana Megaflex`. Por eso, la seleccion debe hacerse por material y horizonte, usando `MAPE` como criterio principal y apoyando la lectura con `MAE`, `folds` y confiabilidad de la serie.
+- Justificacion: las mediciones mas recientes muestran que una misma variante no optimiza por igual a todos los materiales ni a todos los horizontes. En `Cemento Portland`, `IPIM` y luego combinaciones con `ICC` y `CAC` mejoran con claridad. En `Pastina`, la bateria profunda encontro mejoras con lags y con algunas combinaciones `IPIM + CAC/ICC`. En `Membrana Megaflex`, la exploracion profunda mejora `3` y `6` meses, pero no supera el mejor resultado historico de `12` meses. Por eso, la seleccion debe hacerse por material y horizonte, usando `MAPE` como criterio principal y apoyando la lectura con `MAE`, `folds` y confiabilidad de la serie.
 - Impacto en el sistema: la arquitectura metodologica deja de depender de un modelo preferido universal y pasa a admitir recomendaciones diferenciadas por material, manteniendo separacion clara entre pipeline productivo y variantes experimentales.
-- Limitaciones o trabajo futuro: la parametrizacion o seleccion automatica de modelos por material queda como evolucion natural del sistema. `CAC` permanece pendiente porque todavia no hay una serie oficial usable integrada para medirlo en igualdad de condiciones.
+- Limitaciones o trabajo futuro: la parametrizacion o seleccion automatica de modelos por material queda como evolucion natural del sistema. Tambien queda pendiente decidir que mejoras experimentales deben promoverse formalmente al selector productivo.
 
 ## DT-05
 
@@ -108,9 +108,9 @@ Cada decision incluye:
   - incorporar cualquier regresor sectorial por criterio intuitivo;
   - usar un conjunto fijo de regresores para todos los materiales;
   - priorizar una mejora visual del forecast por sobre el error medido.
-- Justificacion: los resultados con `IPIM Nivel General` muestran un comportamiento heterogeneo. En `Cemento Portland` mejora con claridad frente al mejor modelo previo documentado (`MAPE 4.98%` contra `7.74%` de `prophet_oficial_mayorista`) y pasa a ser un candidato fuerte. En `Pastina` (`MAPE 6.47%`) y `Membrana Megaflex` (`MAPE 10.06%`) empeora respecto de sus mejores modelos actuales (`prophet_blue_ipc`, `MAPE 5.00%`; `prophet_ipc`, `MAPE 8.31%`). Esto refuerza que una mejora en un material no debe generalizarse automaticamente a los demas.
-- Impacto en el sistema: los regresores externos quedan subordinados a evidencia de backtesting por material. `IPIM` se incorpora como candidato prioritario para cemento, pero no debe adoptarse para pastina ni membrana con la evidencia actual.
-- Limitaciones o trabajo futuro: `ICC` y `CAC` siguen abiertos a evaluacion futura. `CAC` queda explicitamente pendiente hasta contar con una serie oficial usable e integrada en el benchmark experimental.
+- Justificacion: los resultados con `IPIM Nivel General` mostraron primero que una mejora fuerte en `Cemento Portland` no implicaba mejora automatica en el resto de materiales. Sin embargo, la exploracion profunda posterior mostro algo mas fino: `Pastina` y `Membrana Megaflex` si pueden mejorar, pero con otras familias de variables, por ejemplo lags o combinaciones `IPIM + CAC/ICC`, y no necesariamente con la misma variante que gana en cemento. Esto refuerza que una mejora en un material no debe generalizarse automaticamente a los demas.
+- Impacto en el sistema: los regresores externos quedan subordinados a evidencia de backtesting por material y por horizonte. `IPIM` se mantiene como baseline productivo vigente, mientras que `ICC`, `CAC` y features autoregresivas quedan como candidatas experimentales a promover si se formaliza su adopcion.
+- Limitaciones o trabajo futuro: `ICC` y `CAC` ya fueron evaluados experimentalmente, pero todavia falta decidir cuales de esas mejoras pasan del espacio experimental al selector productivo.
 
 ## DT-08
 

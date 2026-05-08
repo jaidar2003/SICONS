@@ -311,7 +311,7 @@ Puntos metodologicos a dejar explicitados:
 - la normalizacion por `kg` y las equivalencias comerciales siguieron resguardadas por tests;
 - no se introdujeron cambios en frontend.
 
-Resultados observados en la validacion controlada:
+Resultados observados en la validacion controlada del selector runtime:
 
 - `Cemento Portland` resolvio `prophet_ipim_nivel_general` con regresor `ipim_nivel_general`, `MAPE 4.98`, `MAE 6.76`, `folds 9`, confiabilidad `alta` y `no_calibrado = false`.
 - `Pastina` resolvio `prophet_blue_ipc` con regresores `dolar_blue` e `ipc`, `MAPE 5.00`, `MAE 120.90`, `folds 9`, confiabilidad `media` y `no_calibrado = false`.
@@ -319,7 +319,7 @@ Resultados observados en la validacion controlada:
 - un material no calibrado resolvio `prophet_base`, con escenario base sin regresores externos, `no_calibrado = true` y `origen_decision = global_fallback`.
 - el endpoint no se rompio y pudo exponer `seleccion_modelo` con `material_key`, `modelo_resuelto`, `regresores_resueltos`, `mape_referencia`, `mae_referencia`, `folds`, `confiabilidad`, `origen_decision`, `justificacion` y `no_calibrado`.
 
-La misma validacion tambien evidencio una limitacion de diseno: el selector funciona tecnicamente, pero la calibracion basada unicamente en `material_id` puede ser fragil entre ambientes. Por eso, antes de una activacion mas amplia, corresponde introducir la resolucion de una identidad estable de material.
+La misma validacion tambien evidencio dos limites de diseno. Primero, el selector basado unicamente en `material_id` puede ser fragil entre ambientes, por lo que corresponde resolver una identidad estable de material. Segundo, la calibracion runtime quedo congelada en una fotografia previa a la exploracion profunda posterior de `Pastina` y `Membrana Megaflex`. Por eso, este documento debe leerse como validacion del cableado tecnico del selector, no como foto final de las mejores mediciones experimentales actuales.
 
 Como verificacion complementaria, tambien se ejecuto la bateria:
 
