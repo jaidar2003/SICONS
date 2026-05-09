@@ -13,6 +13,9 @@ from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.pricing.application.forecast_service import (
     forecast_material,
 )
+from app.modules.pricing.application.commercial_prices import (
+    calcular_precio_comercial,
+)
 from app.modules.pricing.application.external_indices import list_external_indices, sync_external_index
 from app.modules.pricing.application.imputation import impute_monthly_prices
 from app.modules.pricing.application.purchase_optimization import (
@@ -28,8 +31,12 @@ from app.modules.pricing.application.priorities import priorizar_materiales_desd
 from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion
 from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual, construir_serie_precios
 from app.modules.pricing.domain.rules import calcular_precio_normalizado
-from app.modules.pricing.infrastructure.models import ExternalIndexValue, PrecioHistorico
+from app.modules.pricing.infrastructure.models import CommercialMargin, ExternalIndexValue, PrecioHistorico
 from app.modules.pricing.interfaces.schemas import (
+    CommercialMarginCreate,
+    CommercialMarginRead,
+    CommercialMarginUpdate,
+    CommercialPriceRead,
     ExternalIndexSyncRequest,
     ExternalIndexSyncResponse,
     ExternalIndexValueRead,
@@ -54,7 +61,7 @@ from app.shared.database.session import get_db
 
 
 router = APIRouter(tags=["precios historicos"])
-USAR_SELECTOR_MODELO_FORECAST = False
+USAR_SELECTOR_MODELO_FORECAST = True
 
 @router.get("/precios-historicos/rango", response_model=PrecioHistoricoRangoRead)
 def obtener_rango_precios_historicos(db: Session = Depends(get_db)) -> PrecioHistoricoRangoRead:
@@ -350,6 +357,109 @@ def priorizar_materiales_por_criticidad(
     if payload.alpha == 0 and payload.beta == 0:
         raise HTTPException(status_code=422, detail="alpha y beta no pueden ser ambos cero")
     return priorizar_materiales_desde_forecast(payload, material_repo, pricing_repo)
+
+
+@router.get("/admin/margenes", response_model=list[CommercialMarginRead])
+def listar_margenes_comerciales(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_admin),
+) -> list[CommercialMarginRead]:
+    margins = list(
+        db.scalars(
+            select(CommercialMargin).order_by(
+                CommercialMargin.activo.desc(),
+                CommercialMargin.scope.asc(),
+                CommercialMargin.updated_at.desc(),
+                CommercialMargin.id.desc(),
+            )
+        )
+    )
+    return [CommercialMarginRead.model_validate(margin) for margin in margins]
+
+
+@router.post("/admin/margenes", response_model=CommercialMarginRead, status_code=status.HTTP_201_CREATED)
+def crear_margen_comercial(
+    payload: CommercialMarginCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_admin),
+) -> CommercialMarginRead:
+    margin = CommercialMargin(**payload.model_dump())
+    db.add(margin)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="No fue posible crear el margen comercial") from exc
+    db.refresh(margin)
+    return CommercialMarginRead.model_validate(margin)
+
+
+@router.patch("/admin/margenes/{margin_id}", response_model=CommercialMarginRead)
+def actualizar_margen_comercial(
+    margin_id: int,
+    payload: CommercialMarginUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_admin),
+) -> CommercialMarginRead:
+    margin = db.get(CommercialMargin, margin_id)
+    if margin is None:
+        raise HTTPException(status_code=404, detail="Margen comercial no encontrado")
+
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(margin, field, value)
+
+    db.add(margin)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="No fue posible actualizar el margen comercial") from exc
+    db.refresh(margin)
+    return CommercialMarginRead.model_validate(margin)
+
+
+@router.get("/materiales/{material_id}/precio-comercial", response_model=CommercialPriceRead)
+def obtener_precio_comercial_material(
+    material_id: int,
+    presentacion_id: int | None = None,
+    product_key: str | None = None,
+    horizonte_meses: int = 3,
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    db: Session = Depends(get_db),
+) -> CommercialPriceRead:
+    if horizonte_meses < 1 or horizonte_meses > 12:
+        raise HTTPException(status_code=422, detail="El horizonte_meses debe estar entre 1 y 12")
+
+    material = material_repo.get_by_id(material_id)
+    if material is None:
+        raise MaterialNotFoundException(material_id)
+
+    result = calcular_precio_comercial(
+        material=material,
+        pricing_repo=pricing_repo,
+        db=db,
+        horizonte_meses=horizonte_meses,
+        presentation_id=presentacion_id,
+        product_key=product_key,
+        usar_selector_modelo=USAR_SELECTOR_MODELO_FORECAST,
+    )
+    return CommercialPriceRead(
+        material_id=result.material_id,
+        material_key=result.material_key,
+        presentation_id=result.presentation_id,
+        product_key=result.product_key,
+        costo_base_actual=result.costo_base_actual,
+        costo_base_proyectado=result.costo_base_proyectado,
+        margen_ganancia_pct=result.margen_ganancia_pct,
+        origen_margen=result.origen_margen,
+        precio_final_actual=result.precio_final_actual,
+        precio_final_proyectado=result.precio_final_proyectado,
+        ganancia_unitaria_actual=result.ganancia_unitaria_actual,
+        ganancia_unitaria_proyectada=result.ganancia_unitaria_proyectada,
+        advertencias=list(result.advertencias),
+    )
 
 
 @router.post("/materiales/{material_id}/imputar-precios", response_model=PriceImputationResponse)

@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class PrecioHistoricoCreate(BaseModel):
@@ -123,6 +123,95 @@ class MaterialCriticidadResponseRead(BaseModel):
     alpha: Decimal
     beta: Decimal
     materiales: list[MaterialCriticidadRead]
+
+
+CommercialMarginScope = Literal["GLOBAL", "MATERIAL", "PRODUCT"]
+
+
+class CommercialMarginBase(BaseModel):
+    scope: CommercialMarginScope
+    material_id: int | None = None
+    presentation_id: int | None = None
+    product_key: str | None = Field(default=None, max_length=200)
+    margen_ganancia_pct: Decimal = Field(ge=0, decimal_places=2)
+    activo: bool = True
+
+    @model_validator(mode="after")
+    def validate_scope(self) -> "CommercialMarginBase":
+        if self.scope == "GLOBAL":
+            if any(value is not None for value in (self.material_id, self.presentation_id, self.product_key)):
+                raise ValueError("El margen GLOBAL no debe tener material_id, presentation_id ni product_key.")
+        elif self.scope == "MATERIAL":
+            if self.material_id is None:
+                raise ValueError("El margen MATERIAL requiere material_id.")
+            if self.presentation_id is not None or self.product_key is not None:
+                raise ValueError("El margen MATERIAL no debe tener presentation_id ni product_key.")
+        elif self.scope == "PRODUCT":
+            if self.material_id is None:
+                raise ValueError("El margen PRODUCT requiere material_id.")
+            if self.presentation_id is None and not self.product_key:
+                raise ValueError("El margen PRODUCT requiere presentation_id o product_key.")
+        return self
+
+
+class CommercialMarginCreate(CommercialMarginBase):
+    pass
+
+
+class CommercialMarginUpdate(BaseModel):
+    scope: CommercialMarginScope | None = None
+    material_id: int | None = None
+    presentation_id: int | None = None
+    product_key: str | None = Field(default=None, max_length=200)
+    margen_ganancia_pct: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    activo: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_scope(self) -> "CommercialMarginUpdate":
+        if self.scope == "GLOBAL":
+            if any(value is not None for value in (self.material_id, self.presentation_id, self.product_key)):
+                raise ValueError("El margen GLOBAL no debe tener material_id, presentation_id ni product_key.")
+        elif self.scope == "MATERIAL":
+            if self.material_id is None:
+                raise ValueError("El margen MATERIAL requiere material_id.")
+            if self.presentation_id is not None or self.product_key is not None:
+                raise ValueError("El margen MATERIAL no debe tener presentation_id ni product_key.")
+        elif self.scope == "PRODUCT":
+            if self.material_id is None:
+                raise ValueError("El margen PRODUCT requiere material_id.")
+            if self.presentation_id is None and not self.product_key:
+                raise ValueError("El margen PRODUCT requiere presentation_id o product_key.")
+        return self
+
+
+class CommercialMarginRead(BaseModel):
+    id: int
+    scope: CommercialMarginScope
+    material_id: int | None
+    presentation_id: int | None
+    product_key: str | None
+    margen_ganancia_pct: Decimal
+    activo: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CommercialPriceRead(BaseModel):
+    material_id: int
+    material_key: str
+    presentation_id: int | None
+    product_key: str | None
+    costo_base_actual: Decimal | None
+    costo_base_proyectado: Decimal | None
+    margen_ganancia_pct: Decimal | None
+    origen_margen: CommercialMarginScope | Literal["SIN_MARGEN"]
+    precio_final_actual: Decimal | None
+    precio_final_proyectado: Decimal | None
+    ganancia_unitaria_actual: Decimal | None
+    ganancia_unitaria_proyectada: Decimal | None
+    advertencias: list[str]
 
 
 class ExternalIndexValueRead(BaseModel):

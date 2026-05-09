@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Boolean,
     Identity,
     Index,
     Numeric,
@@ -81,7 +82,6 @@ class ExternalIndexValue(Base):
     __tablename__ = "external_index_values"
     __table_args__ = (
         UniqueConstraint("series_id", "date", name="external_index_values_series_date_unique"),
-        CheckConstraint("value >= 0", name="external_index_values_value_nonnegative"),
         Index("idx_external_index_values_source_name", "source_name"),
         Index("idx_external_index_values_series_date", "series_id", "date"),
     )
@@ -92,3 +92,53 @@ class ExternalIndexValue(Base):
     date: Mapped[date] = mapped_column(Date)
     value: Mapped[Decimal] = mapped_column(Numeric(18, 6))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CommercialMargin(Base):
+    __tablename__ = "commercial_margins"
+    __table_args__ = (
+        CheckConstraint("scope IN ('GLOBAL', 'MATERIAL', 'PRODUCT')", name="commercial_margins_scope_allowed"),
+        CheckConstraint("margen_ganancia_pct >= 0", name="commercial_margins_margin_nonnegative"),
+        CheckConstraint(
+            """
+            (
+                scope = 'GLOBAL'
+                AND material_id IS NULL
+                AND presentation_id IS NULL
+                AND product_key IS NULL
+            )
+            OR (
+                scope = 'MATERIAL'
+                AND material_id IS NOT NULL
+            )
+            OR (
+                scope = 'PRODUCT'
+                AND material_id IS NOT NULL
+                AND (
+                    presentation_id IS NOT NULL
+                    OR product_key IS NOT NULL
+                )
+            )
+            """.strip(),
+            name="commercial_margins_scope_consistency",
+        ),
+        Index("idx_commercial_margins_scope_activo", "scope", "activo"),
+        Index("idx_commercial_margins_material_id", "material_id"),
+        Index("idx_commercial_margins_presentation_id", "presentation_id"),
+        Index("idx_commercial_margins_product_key", "product_key"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    scope: Mapped[str] = mapped_column(String(20), nullable=False)
+    material_id: Mapped[int | None] = mapped_column(ForeignKey("materiales.id", name="commercial_margins_material_id_fkey", ondelete="RESTRICT"))
+    presentation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("presentaciones.id", name="commercial_margins_presentation_id_fkey", ondelete="RESTRICT")
+    )
+    product_key: Mapped[str | None] = mapped_column(String(200))
+    margen_ganancia_pct: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("TRUE"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    material: Mapped["Material | None"] = relationship(foreign_keys=[material_id])
+    presentacion: Mapped["Presentacion | None"] = relationship(foreign_keys=[presentation_id])

@@ -7,7 +7,7 @@ from app.shared.config.settings import settings
 from app.shared.database.base import Base
 from app.modules.auth.infrastructure.models import Usuario  # noqa: F401
 from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion  # noqa: F401
-from app.modules.pricing.infrastructure.models import ExternalIndexValue, PrecioHistorico  # noqa: F401
+from app.modules.pricing.infrastructure.models import CommercialMargin, ExternalIndexValue, PrecioHistorico  # noqa: F401
 
 
 config = context.config
