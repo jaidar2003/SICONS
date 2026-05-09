@@ -2,7 +2,7 @@ import LoginIcon from "@mui/icons-material/Login";
 import { Alert, Box, Button, Card, CardContent, TextField, Typography } from "@mui/material";
 import { useState } from "react";
 
-import bwLogo from "../../../bwlogo.jpeg";
+import bwLogo from "../../../bwlogo.jpg";
 
 export function LoginPage({ onLogin }) {
   const [username, setUsername] = useState("");

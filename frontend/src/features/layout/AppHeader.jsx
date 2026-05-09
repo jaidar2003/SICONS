@@ -2,11 +2,18 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import { Box, Button, Container, FormControlLabel, Switch, Typography } from "@mui/material";
 
 import { StatusBadge } from "../../shared/components/StatusBadge.jsx";
-import bwLogo from "../../../bwlogo.jpeg";
+import bwLogo from "../../../bwlogo.jpg";
 
 export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowPrices }) {
   return (
-    <Box component="header" className="pb-20 pt-8 text-white" sx={{ backgroundColor: "#002395" }}>
+    <Box
+      component="header"
+      className="pb-20 pt-8 text-white"
+      sx={{
+        background: "linear-gradient(180deg, #07349b 0%, #002395 100%)",
+        boxShadow: "inset 0 -1px 0 rgba(255,255,255,0.10), 0 18px 42px rgba(0, 16, 84, 0.28)",
+      }}
+    >
       <Container maxWidth="lg" className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <Box>
           <Box className="mb-4 inline-flex min-h-[96px] w-[180px] items-center justify-center rounded-[18px] border border-white/30 bg-white px-4 py-3 shadow-md1">
