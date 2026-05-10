@@ -6,18 +6,14 @@ from app.modules.catalog.interfaces import fuentes, materiales, presentaciones
 from app.modules.health.interfaces import routes as health
 from app.modules.pricing.interfaces import routes as precios_historicos
 from app.shared.api.exception_handlers import register_exception_handlers
+from app.shared.config.settings import settings
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="BuildWise API", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:3001",
-            "http://127.0.0.1:3001",
-        ],
+        allow_origins=settings.cors_origin_list,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

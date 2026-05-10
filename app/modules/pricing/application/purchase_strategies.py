@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException
 
@@ -15,7 +15,6 @@ from app.modules.pricing.application.purchase_recommendations import (
     _resolver_confiabilidad,
 )
 from app.modules.pricing.domain.rules import calcular_variacion_esperada_porcentual
-
 
 ESTRATEGIA_COMPRAR_AHORA = "COMPRAR_AHORA"
 ESTRATEGIA_ESPERAR_AL_HORIZONTE = "ESPERAR_AL_HORIZONTE"

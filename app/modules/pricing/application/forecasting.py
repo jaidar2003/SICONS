@@ -4,7 +4,6 @@ from math import ceil
 
 from app.modules.pricing.application.series import PuntoSeriePrecio
 
-
 OBJETIVOS_PROPHET = {
     "precio_promedio_normalizado",
     "precio_equivalente_25kg",

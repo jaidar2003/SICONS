@@ -1,30 +1,32 @@
+import hashlib
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from time import monotonic
-import hashlib
 
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
 
-from app.modules.catalog.infrastructure.models import Material
 from app.modules.catalog.application.utils import derive_material_key
 from app.modules.catalog.domain.repositories import MaterialRepository
-from app.modules.pricing.domain.repositories import PricingRepository
-from app.modules.pricing.domain.exceptions import ExternalRegressorError, InsufficientDataException
-from app.modules.pricing.application.forecast_cache import ForecastCacheEntry, ForecastCacheKey
+from app.modules.catalog.infrastructure.models import Material
 from app.modules.pricing.application.backtesting import construir_folds_temporales
-from app.modules.pricing.application.forecasting import BEST_PROPHET_CONFIG, construir_dataset_prophet, generar_fechas_mensuales, inicio_mes_siguiente
+from app.modules.pricing.application.forecast_cache import ForecastCacheEntry, ForecastCacheKey
+from app.modules.pricing.application.forecasting import (
+    BEST_PROPHET_CONFIG,
+    construir_dataset_prophet,
+    generar_fechas_mensuales,
+    inicio_mes_siguiente,
+)
 from app.modules.pricing.application.model_selector import ForecastModelSelection, resolve_model_selection
 from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual
+from app.modules.pricing.domain.exceptions import InsufficientDataException
+from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.infrastructure.forecast_runtime import configurar_cmdstan, importar_dependencias_forecast
-from app.modules.pricing.infrastructure.models import PrecioHistorico
-from app.modules.pricing.infrastructure.regressors import cargar_regresores_mensuales, proyectar_regresores_futuros
 from app.modules.pricing.infrastructure.forecast_snapshots import cargar_forecast_snapshot, guardar_forecast_snapshot
+from app.modules.pricing.infrastructure.regressors import cargar_regresores_mensuales, proyectar_regresores_futuros
 from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead, ForecastSelectionRead
 from app.shared.config.settings import settings
-
 
 FORECAST_DATASET_START = date(2022, 1, 1)
 FORECAST_MODEL_NAME = "prophet_oficial_ipc_mayorista"

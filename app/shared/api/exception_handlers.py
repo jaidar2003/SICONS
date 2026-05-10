@@ -3,11 +3,11 @@ from fastapi.responses import JSONResponse
 
 from app.modules.pricing.domain.exceptions import (
     ExternalIndexSyncError,
+    ExternalRegressorError,
+    InsufficientDataException,
+    MaterialNotFoundException,
     PriceImputationError,
     PricingDomainException,
-    MaterialNotFoundException,
-    InsufficientDataException,
-    ExternalRegressorError,
 )
 
 

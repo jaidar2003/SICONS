@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
@@ -11,7 +11,7 @@ class SQLAlchemyPricingRepository(PricingRepository):
     def __init__(self, session: Session):
         self.session = session
 
-    def get_historical_prices(self, material_id: int, since: date) -> List[PrecioHistorico]:
+    def get_historical_prices(self, material_id: int, since: date) -> list[PrecioHistorico]:
         stmt = (
             select(PrecioHistorico)
             .options(joinedload(PrecioHistorico.fuente))

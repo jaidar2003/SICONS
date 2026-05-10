@@ -5,7 +5,6 @@ from dataclasses import dataclass, replace
 from decimal import Decimal
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 BENCHMARK_SOURCE_FILES: dict[str, tuple[Path, ...]] = {
     "cemento-portland": (PROJECT_ROOT / "tmp/experiments/cemento_forecast_benchmark_master.csv",),

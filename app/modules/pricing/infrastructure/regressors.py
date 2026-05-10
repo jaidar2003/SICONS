@@ -7,7 +7,6 @@ from sqlalchemy import select
 from app.modules.pricing.infrastructure.models import ExternalIndexValue
 from app.shared.database.session import SessionLocal
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 FORECAST_DATASET_START = date(2022, 1, 1)
 OFICIAL_CSV = PROJECT_ROOT / "tmp" / "dolares_2022" / "dolar_oficial_historico.csv"

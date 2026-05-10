@@ -10,7 +10,6 @@ from app.modules.pricing.domain.rules import calcular_precio_normalizado
 from app.modules.pricing.infrastructure.models import PrecioHistorico
 from app.shared.database.session import SessionLocal
 
-
 FACTURAS_CEMENTO_25KG = [
     ("0256-00044369", date(2025, 7, 29), Decimal("5045.59")),
     ("0256-00044800", date(2025, 8, 18), Decimal("5045.59")),

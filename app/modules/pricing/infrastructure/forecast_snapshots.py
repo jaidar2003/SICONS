@@ -49,8 +49,11 @@ def _serializar_result(result: ForecastMaterialResultProtocol) -> dict:
 
 
 def _deserializar_result(data: dict):
-    from app.modules.pricing.application.forecast_service import ForecastMaterialResult
-    from app.modules.pricing.application.forecast_service import FORECAST_MODEL_NAME, FORECAST_REGRESSOR_NOTE
+    from app.modules.pricing.application.forecast_service import (
+        FORECAST_MODEL_NAME,
+        FORECAST_REGRESSOR_NOTE,
+        ForecastMaterialResult,
+    )
 
     return ForecastMaterialResult(
         dataset=[ProphetRow(ds=date.fromisoformat(fila["ds"]), y=float(fila["y"])) for fila in data["dataset"]],

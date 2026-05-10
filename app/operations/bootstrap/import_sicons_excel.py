@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
-from zipfile import ZipFile
 from xml.etree import ElementTree as ET
+from zipfile import ZipFile
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,7 +15,6 @@ from app.modules.pricing.domain.rules import calcular_precio_normalizado
 from app.modules.pricing.infrastructure.models import PrecioHistorico
 from app.operations.bootstrap.common import get_or_create_fuente, get_or_create_material, get_or_create_presentacion
 from app.shared.database.session import SessionLocal
-
 
 WORKBOOK_NS = {
     "m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",

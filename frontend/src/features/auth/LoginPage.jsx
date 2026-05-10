@@ -7,6 +7,7 @@ import bwLogo from "../../../bwlogo.png";
 
 const LOGIN_MODE = "login";
 const REGISTER_MODE = "register";
+const MIN_PASSWORD_LENGTH = 8;
 
 export function LoginPage({ onLogin, onRegister }) {
   const [mode, setMode] = useState(LOGIN_MODE);
@@ -37,6 +38,11 @@ export function LoginPage({ onLogin, onRegister }) {
 
     if (isRegisterMode && password !== confirmPassword) {
       setError("Las claves no coinciden");
+      return;
+    }
+
+    if (isRegisterMode && password.length < MIN_PASSWORD_LENGTH) {
+      setError(`La clave debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`);
       return;
     }
 
@@ -120,6 +126,7 @@ export function LoginPage({ onLogin, onRegister }) {
                 value={password}
                 autoComplete={isRegisterMode ? "new-password" : "current-password"}
                 required
+                helperText={isRegisterMode ? `Minimo ${MIN_PASSWORD_LENGTH} caracteres` : undefined}
                 onChange={(event) => setPassword(event.target.value)}
               />
               {isRegisterMode ? (

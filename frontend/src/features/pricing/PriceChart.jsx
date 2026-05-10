@@ -39,7 +39,6 @@ export function PriceChart({
   );
   const forecastPoints = forecast?.puntos ?? [];
   const labels = [...serie.map((point) => point.fecha.slice(0, 7)), ...forecastPoints.map((point) => point.fecha.slice(0, 7))];
-  const projectedValues = forecastPoints.map((point) => Number(point.precio_proyectado));
   const projectedVariationSeries = forecastPoints.map((point) =>
     baseValue === 0 ? 0 : ((Number(point.precio_proyectado) - baseValue) / baseValue) * 100
   );

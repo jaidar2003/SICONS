@@ -1,11 +1,11 @@
 from datetime import date
-from types import SimpleNamespace
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
 
-from app.modules.pricing.application import forecast_service
+from app.modules.catalog.application.utils import derive_material_key
 from app.modules.pricing.application.forecast_service import (
     FORECAST_MODEL_NAME,
     ForecastMaterialResult,
@@ -14,11 +14,10 @@ from app.modules.pricing.application.forecast_service import (
     forecast_material,
     limpiar_forecast_cache,
 )
-from app.modules.catalog.application.utils import derive_material_key
-from app.modules.pricing.application.model_selector import resolve_model_selection as resolve_selector_model
 from app.modules.pricing.application.forecasting import ProphetRow
-from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead, ForecastSelectionRead
+from app.modules.pricing.application.model_selector import resolve_model_selection as resolve_selector_model
 from app.modules.pricing.interfaces.routes import obtener_forecast_material
+from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead, ForecastSelectionRead
 
 
 def _forecast_result(

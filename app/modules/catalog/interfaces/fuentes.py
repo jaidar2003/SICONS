@@ -7,7 +7,6 @@ from app.modules.catalog.infrastructure.models import Fuente
 from app.modules.catalog.interfaces.schemas import FuenteCreate, FuenteRead
 from app.shared.database.session import get_db
 
-
 router = APIRouter(prefix="/fuentes", tags=["fuentes"])
 
 

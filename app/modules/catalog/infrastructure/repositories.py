@@ -1,4 +1,4 @@
-from typing import Optional, List
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,9 +10,9 @@ class SQLAlchemyMaterialRepository(MaterialRepository):
     def __init__(self, session: Session):
         self.session = session
 
-    def get_by_id(self, material_id: int) -> Optional[Material]:
+    def get_by_id(self, material_id: int) -> Material | None:
         return self.session.get(Material, material_id)
 
-    def list_active(self) -> List[Material]:
+    def list_active(self) -> list[Material]:
         stmt = select(Material).where(Material.activo.is_(True)).order_by(Material.id.asc())
         return list(self.session.scalars(stmt))

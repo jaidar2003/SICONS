@@ -1,10 +1,9 @@
 import json
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
 from app.modules.pricing.application.forecast_cache import ForecastCacheKey
-from dataclasses import replace
-
 from app.modules.pricing.application.forecast_service import ForecastMaterialResult
 from app.modules.pricing.application.forecasting import ProphetRow
 from app.modules.pricing.infrastructure.forecast_snapshots import (

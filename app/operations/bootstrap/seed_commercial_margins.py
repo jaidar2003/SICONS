@@ -3,14 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from sqlalchemy import and_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.catalog.application.utils import derive_material_key
 from app.modules.catalog.infrastructure.models import Material
 from app.modules.pricing.infrastructure.models import CommercialMargin
 from app.shared.database.session import SessionLocal
-
 
 DEFAULT_GLOBAL_MARGIN = Decimal("20.00")
 DEFAULT_MATERIAL_MARGINS: tuple[tuple[str, Decimal], ...] = (

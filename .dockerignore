@@ -6,3 +6,5 @@
 __pycache__/
 *.pyc
 postgres_data/
+frontend/dist/
+frontend/node_modules/

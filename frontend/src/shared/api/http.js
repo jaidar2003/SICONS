@@ -1,5 +1,23 @@
 import { API_BASE_URL } from "../../app/config.js";
 
+function formatApiError(data, fallback) {
+  if (typeof data?.detail === "string") {
+    return data.detail;
+  }
+
+  if (Array.isArray(data?.detail)) {
+    return data.detail
+      .map((item) => {
+        const field = Array.isArray(item.loc) ? item.loc.filter((part) => part !== "body").join(".") : "";
+        return field ? `${field}: ${item.msg}` : item.msg;
+      })
+      .filter(Boolean)
+      .join("; ");
+  }
+
+  return fallback;
+}
+
 export async function apiGet(path, token) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -21,7 +39,7 @@ export async function apiPost(path, payload, token) {
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(data?.detail || `API ${response.status}: ${path}`);
+    throw new Error(formatApiError(data, `API ${response.status}: ${path}`));
   }
   return data;
 }
@@ -37,7 +55,7 @@ export async function apiPatch(path, payload, token) {
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(data?.detail || `API ${response.status}: ${path}`);
+    throw new Error(formatApiError(data, `API ${response.status}: ${path}`));
   }
   return data;
 }
@@ -52,7 +70,7 @@ export async function apiDelete(path, token) {
   });
   if (!response.ok && response.status !== 204) {
     const data = await response.json().catch(() => null);
-    throw new Error(data?.detail || `API ${response.status}: ${path}`);
+    throw new Error(formatApiError(data, `API ${response.status}: ${path}`));
   }
   return null;
 }

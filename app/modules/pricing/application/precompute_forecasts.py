@@ -1,8 +1,8 @@
 import argparse
 
 from app.modules.catalog.infrastructure.repositories import SQLAlchemyMaterialRepository
-from app.modules.pricing.domain.exceptions import PricingDomainException
 from app.modules.pricing.application.forecast_service import forecast_material
+from app.modules.pricing.domain.exceptions import PricingDomainException
 from app.modules.pricing.infrastructure.repositories import SQLAlchemyPricingRepository
 from app.shared.database.session import SessionLocal
 

@@ -2,9 +2,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from app.modules.catalog.domain.repositories import MaterialRepository
-from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.application.forecast_service import forecast_material
 from app.modules.pricing.domain.exceptions import MaterialNotFoundException
+from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.domain.rules import (
     calcular_impacto_absoluto,
     calcular_puntaje_criticidad,
@@ -18,7 +18,6 @@ from app.modules.pricing.interfaces.schemas import (
     MaterialCriticidadRead,
     MaterialCriticidadResponseRead,
 )
-
 
 DEFAULT_ALPHA = Decimal("0.50")
 DEFAULT_BETA = Decimal("0.50")

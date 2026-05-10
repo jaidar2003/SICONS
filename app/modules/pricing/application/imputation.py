@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from app.modules.catalog.infrastructure.models import Fuente, Material
 from app.modules.pricing.domain.exceptions import PriceImputationError
 from app.modules.pricing.infrastructure.models import ExternalIndexValue, PrecioHistorico
-
 
 ESTIMATED_ORIGIN = "ESTIMADO"
 REAL_ORIGIN = "REAL"

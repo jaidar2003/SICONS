@@ -2,7 +2,6 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-
 CMDSTAN_VERSION = "cmdstan-2.38.0"
 
 

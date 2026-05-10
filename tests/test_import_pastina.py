@@ -2,8 +2,14 @@ from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
 
-from app.operations.bootstrap.import_pastina import grouped_prices, normalize_invoice, parse_date, parse_decimal, upsert_precio
 from app.modules.pricing.infrastructure.models import PrecioHistorico
+from app.operations.bootstrap.import_pastina import (
+    grouped_prices,
+    normalize_invoice,
+    parse_date,
+    parse_decimal,
+    upsert_precio,
+)
 
 
 class FakeScalarDb:

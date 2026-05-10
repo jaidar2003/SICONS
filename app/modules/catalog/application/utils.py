@@ -1,6 +1,7 @@
 import re
 import unicodedata
 
+
 def derive_material_key(nombre: str) -> str:
     """
     Deriva una clave estable (slug) a partir del nombre del material.

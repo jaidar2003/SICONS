@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -14,7 +14,6 @@ from app.modules.catalog.infrastructure.models import Material, Presentacion
 from app.modules.pricing.application.forecast_service import forecast_material
 from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.infrastructure.models import CommercialMargin, PrecioHistorico
-
 
 MARGEN_GLOBAL = "GLOBAL"
 MARGEN_MATERIAL = "MATERIAL"

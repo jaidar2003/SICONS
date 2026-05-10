@@ -12,8 +12,8 @@ from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.pricing.application import purchase_strategies as purchase_strategies_module
 from app.modules.pricing.application.purchase_recommendations import CONFIANZA_ALTA, CONFIANZA_BAJA
 from app.modules.pricing.application.purchase_strategies import (
-    ESTRATEGIA_COMPRAR_AHORA,
     ESTRATEGIA_COMPRA_PARCIAL,
+    ESTRATEGIA_COMPRAR_AHORA,
     ESTRATEGIA_ESPERAR_AL_HORIZONTE,
     comparar_estrategias_compra,
     evaluar_estrategias_compra,

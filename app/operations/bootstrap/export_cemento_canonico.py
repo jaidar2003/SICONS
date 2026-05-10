@@ -5,7 +5,7 @@ import csv
 import hashlib
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 from sqlalchemy import select
@@ -15,7 +15,6 @@ from app.modules.catalog.infrastructure.models import Material
 from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual
 from app.modules.pricing.infrastructure.models import PrecioHistorico
 from app.shared.database.session import SessionLocal
-
 
 EXPORT_COLUMNS = (
     "fecha",
@@ -117,7 +116,7 @@ def extract_empresa_articulo(observaciones: str | None) -> tuple[str, str, str]:
 
 
 def anonymize_comprobante(numero_comprobante: str) -> str:
-    digest = hashlib.sha256(f"{EXPORT_HASH_SALT}:{numero_comprobante}".encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha256(f"{EXPORT_HASH_SALT}:{numero_comprobante}".encode()).hexdigest()[:16]
     return f"CMT-{digest}"
 
 

@@ -7,7 +7,6 @@ from app.modules.catalog.infrastructure.models import Material
 from app.modules.catalog.interfaces.schemas import MaterialCreate, MaterialRead
 from app.shared.database.session import get_db
 
-
 router = APIRouter(prefix="/materiales", tags=["materiales"])
 
 

@@ -7,22 +7,21 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.modules.catalog.application.utils import derive_material_key
+from app.modules.catalog.interfaces.dependencies import get_material_repository
+from app.modules.pricing.application import purchase_recommendations as purchase_recommendations_module
 from app.modules.pricing.application.purchase_recommendations import (
-    CONFIANZA_BAJA,
     CONFIANZA_ALTA,
+    CONFIANZA_BAJA,
     CONFIANZA_MEDIA,
-    CONFIANZA_MEDIA_BAJA,
     DECISION_COMPRAR_AHORA,
     DECISION_ESPERAR,
     DECISION_MONITOREAR,
     evaluar_recomendacion_compra,
     recomendar_momento_compra,
 )
-from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead, ForecastSelectionRead
-from app.modules.pricing.application import purchase_recommendations as purchase_recommendations_module
-from app.modules.catalog.application.utils import derive_material_key
-from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
+from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead, ForecastSelectionRead
 
 
 def _fake_forecast_result(

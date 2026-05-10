@@ -12,20 +12,16 @@ import {
   ButtonGroup,
   Card,
   CardContent,
-  Chip,
   CircularProgress,
   Container,
-  Tab,
-  Tabs,
   Typography,
 } from "@mui/material";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { PriceForm } from "../features/admin/PriceForm.jsx";
-import { fetchCurrentUser, loginRequest, registerRequest } from "../features/auth/auth.api.js";
 import { LoginPage } from "../features/auth/LoginPage.jsx";
-import { fetchFuentes, fetchMateriales, fetchPresentaciones } from "../features/catalog/catalog.api.js";
+import { useAuthSession } from "../features/auth/useAuthSession.js";
 import { AppHeader } from "../features/layout/AppHeader.jsx";
 import { AnomaliesCard } from "../features/pricing/AnomaliesCard.jsx";
 import { ComparisonCard } from "../features/pricing/ComparisonCard.jsx";
@@ -41,13 +37,14 @@ import { PurchaseDecisionCard } from "../features/pricing/PurchaseDecisionCard.j
 import { PriceChart } from "../features/pricing/PriceChart.jsx";
 import { CommercialMarginsAdmin } from "../features/admin/CommercialMarginsAdmin.jsx";
 import { UsersAdmin } from "../features/admin/UsersAdmin.jsx";
-import { createPrecioHistorico, fetchCommercialPrice, fetchForecast, fetchPriceRange, fetchSerie } from "../features/pricing/pricing.api.js";
+import { createPrecioHistorico } from "../features/pricing/pricing.api.js";
 import { getDisplayPrice, getMaterialPresentation } from "../features/pricing/materialPresentation.js";
 import { apiGet } from "../shared/api/http.js";
-import { formatCurrency, formatNumber, toApiDate } from "../shared/utils/formatters.js";
+import { formatCurrency, formatNumber } from "../shared/utils/formatters.js";
+import { loadInitialAppData, loadMaterialAnalysis } from "./appData.js";
+import { AppViewHeader } from "./AppViewHeader.jsx";
 import { brand } from "./brand.js";
 
-const TOKEN_KEY = "sicons_token";
 const SHOW_PRICES_KEY = "sicons_show_prices";
 const VIEW_TABS = [
   {
@@ -101,25 +98,9 @@ const VIEW_TABS = [
   },
 ];
 
-function buildComparisonRows(results) {
-  return results
-    .filter((result) => result.serie.length > 0)
-    .map((result) => {
-      const first = result.serie[0];
-      const last = result.serie[result.serie.length - 1];
-      const firstValue = Number(first.precio_promedio_normalizado);
-      const lastValue = Number(last.precio_promedio_normalizado);
-      const variation = firstValue === 0 ? 0 : ((lastValue - firstValue) / firstValue) * 100;
-      const sampleSize = result.serie.reduce((total, point) => total + Number(point.cantidad_registros || 0), 0);
-      return { material: result.material, first, last, firstValue, lastValue, variation, sampleSize };
-    })
-    .sort((left, right) => left.variation - right.variation);
-}
-
 export function App() {
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
+  const { token, user, login, register, loadCurrentUser, clearSession } = useAuthSession();
   const [showPrices, setShowPrices] = useState(() => localStorage.getItem(SHOW_PRICES_KEY) !== "false");
-  const [user, setUser] = useState(null);
   const [apiStatus, setApiStatus] = useState({ mode: "", label: "Conectando API" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -188,86 +169,47 @@ export function App() {
 
   const loadSerieData = useCallback(
     async ({ materialId = selectedMaterialId, from = desde, to = hasta, horizon = forecastHorizon } = {}) => {
-      if (!materialId) return;
-      const desdeApi = toApiDate(from);
-      const hastaApi = toApiDate(to);
-      const [serieActual, forecastActual, commercialPriceActual, comparisonResults] = await Promise.all([
-        fetchSerie({ materialId, desde: desdeApi, hasta: hastaApi, token }),
-        fetchForecast({ materialId, horizonteMeses: horizon, token }).catch(() => null),
-        fetchCommercialPrice({ materialId, horizonteMeses: horizon, token }).catch(() => null),
-        Promise.all(
-          materiales.map(async (material) => ({
-            material,
-            serie: await fetchSerie({ materialId: material.id, desde: desdeApi, hasta: hastaApi, token }),
-          }))
-        ),
-      ]);
-      setSerie(serieActual);
-      setForecast(forecastActual);
-      setCommercialPrice(commercialPriceActual);
-      setComparisonRows(buildComparisonRows(comparisonResults));
+      const result = await loadMaterialAnalysis({ materialId, from, to, horizon, materials: materiales, token });
+      setSerie(result.serie);
+      setForecast(result.forecast);
+      setCommercialPrice(result.commercialPrice);
+      setComparisonRows(result.comparisonRows);
     },
     [desde, forecastHorizon, hasta, materiales, selectedMaterialId, token]
   );
+
+  const resetWorkspaceState = useCallback(() => {
+    setSerie([]);
+    setForecast(null);
+    setComparisonRows([]);
+    setShowPriceForm(false);
+  }, []);
 
   const bootstrapApp = useCallback(
     async (activeToken) => {
       setLoading(true);
       setError("");
       try {
-        const [materials, presentations, sources, range] = await Promise.all([
-          fetchMateriales(activeToken),
-          fetchPresentaciones(activeToken),
-          fetchFuentes(activeToken),
-          fetchPriceRange(activeToken),
-        ]);
-        setMateriales(materials);
-        setPresentaciones(presentations);
-        setFuentes(sources);
-
-        const defaultMaterial = materials.find((material) => material.nombre.toLowerCase().includes("cemento")) || materials[0];
-        const defaultMaterialId = defaultMaterial ? String(defaultMaterial.id) : "";
-        const rangeDesde = range.desde ? dayjs(range.desde) : null;
-        const defaultDesde = rangeDesde ? (rangeDesde.isAfter(clientDefaultStart) ? rangeDesde : clientDefaultStart) : clientDefaultStart;
-        const defaultHasta = dayjs(range.hasta || range.hoy);
-        const max = range.hoy ? dayjs(range.hoy) : null;
-
-        setSelectedMaterialId(defaultMaterialId);
-        setDesde(defaultDesde);
-        setHasta(defaultHasta);
-        setMaxDate(max);
-        setDateWarning(
-          range.tiene_fechas_futuras
-            ? `Hay registros posteriores a hoy (${dayjs(range.hasta_real).format("DD/MM/YY")}). El analisis se limita hasta ${defaultHasta.format("DD/MM/YY")}.`
-            : ""
-        );
-
-        if (defaultMaterialId) {
-          const desdeApi = toApiDate(defaultDesde);
-          const hastaApi = toApiDate(defaultHasta);
-          const [serieActual, forecastActual, commercialPriceActual, comparisonResults] = await Promise.all([
-            fetchSerie({ materialId: defaultMaterialId, desde: desdeApi, hasta: hastaApi, token: activeToken }),
-            fetchForecast({ materialId: defaultMaterialId, horizonteMeses: forecastHorizon, token: activeToken }).catch(() => null),
-            fetchCommercialPrice({ materialId: defaultMaterialId, horizonteMeses: forecastHorizon, token: activeToken }).catch(() => null),
-            Promise.all(
-              materials.map(async (material) => ({
-                material,
-                serie: await fetchSerie({ materialId: material.id, desde: desdeApi, hasta: hastaApi, token: activeToken }),
-              }))
-            ),
-          ]);
-          setSerie(serieActual);
-          setForecast(forecastActual);
-          setCommercialPrice(commercialPriceActual);
-          setComparisonRows(buildComparisonRows(comparisonResults));
-        }
+        const data = await loadInitialAppData({ token: activeToken, forecastHorizon, clientDefaultStart });
+        setMateriales(data.materiales);
+        setPresentaciones(data.presentaciones);
+        setFuentes(data.fuentes);
+        setSelectedMaterialId(data.selectedMaterialId);
+        setDesde(data.desde);
+        setHasta(data.hasta);
+        setMaxDate(data.maxDate);
+        setDateWarning(data.dateWarning);
+        setSerie(data.serie);
+        setForecast(data.forecast);
+        setCommercialPrice(data.commercialPrice);
+        setComparisonRows(data.comparisonRows);
       } catch (bootstrapError) {
         setError(bootstrapError.message);
       } finally {
         setLoading(false);
       }
     },
-    [forecastHorizon]
+    [clientDefaultStart, forecastHorizon]
   );
 
   useEffect(() => {
@@ -282,7 +224,7 @@ export function App() {
           setLoading(false);
           return;
         }
-      } catch (initError) {
+      } catch {
         if (cancelled) return;
         setApiStatus({ mode: "error", label: "API no disponible" });
         setLoading(false);
@@ -292,19 +234,13 @@ export function App() {
       if (!token) return;
 
       try {
-        const currentUser = await fetchCurrentUser(token);
+        await loadCurrentUser(token);
         if (cancelled) return;
-        setUser(currentUser);
         await bootstrapApp(token);
-      } catch (initError) {
+      } catch {
         if (cancelled) return;
-        localStorage.removeItem(TOKEN_KEY);
-        setToken(null);
-        setUser(null);
-        setSerie([]);
-        setForecast(null);
-        setComparisonRows([]);
-        setShowPriceForm(false);
+        clearSession();
+        resetWorkspaceState();
         setError("La sesion vencio. Volve a iniciar sesion.");
         setLoading(false);
       }
@@ -313,27 +249,11 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [bootstrapApp, token]);
-
-  async function handleLogin(credentials) {
-    const data = await loginRequest(credentials);
-    localStorage.setItem(TOKEN_KEY, data.access_token);
-    setToken(data.access_token);
-    setUser(data.usuario);
-  }
-
-  async function handleRegister(payload) {
-    return registerRequest(payload);
-  }
+  }, [bootstrapApp, clearSession, loadCurrentUser, resetWorkspaceState, token]);
 
   function handleLogout() {
-    localStorage.removeItem(TOKEN_KEY);
-    setToken(null);
-    setUser(null);
-    setSerie([]);
-    setForecast(null);
-    setComparisonRows([]);
-    setShowPriceForm(false);
+    clearSession();
+    resetWorkspaceState();
   }
 
   async function handleSavePrice(payload) {
@@ -367,7 +287,7 @@ export function App() {
       />
 
       {!user ? (
-        <LoginPage onLogin={handleLogin} onRegister={handleRegister} />
+        <LoginPage onLogin={login} onRegister={register} />
       ) : (
         <Container maxWidth="lg" className="pb-12">
           {loading ? (
@@ -398,100 +318,14 @@ export function App() {
                 onRefresh={handleRefresh}
               />
 
-              <Card className="mt-3 overflow-hidden border border-slate-200 shadow-md1">
-                <CardContent className="p-0">
-                  <Box
-                    className="px-4 pb-4 pt-5 text-white"
-                    sx={{
-                      background: `linear-gradient(135deg, ${activeTabConfig.accent} 0%, rgba(2, 6, 23, 0.92) 100%)`,
-                    }}
-                  >
-                    <Box className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                      <Box className="max-w-2xl">
-                        <Typography variant="overline" sx={{ opacity: 0.8 }}>
-                          {activeTabConfig.eyebrow}
-                        </Typography>
-                        <Typography mt={1} variant="h1" component="h1" lineHeight={1}>
-                          {activeTabConfig.label}
-                        </Typography>
-                        <Typography mt={1.25} maxWidth={760} variant="body2" sx={{ color: "rgba(255,255,255,0.82)" }}>
-                          {activeTabConfig.description}
-                        </Typography>
-                      </Box>
-                      <Box className="flex flex-wrap gap-2">
-                        <Chip
-                          label={selectedMaterial ? selectedMaterial.nombre : "Sin material"}
-                          sx={{ bgcolor: "rgba(255,255,255,0.14)", color: "white", fontWeight: 800 }}
-                        />
-                        <Chip
-                          label={`Horizonte ${forecastHorizon} meses`}
-                          sx={{ bgcolor: "rgba(255,255,255,0.14)", color: "white", fontWeight: 800 }}
-                        />
-                      </Box>
-                    </Box>
-                  </Box>
-                  <Box className="border-b border-slate-200 bg-white px-2 pt-2">
-                    <Box className="flex items-end overflow-x-auto">
-                      <Tabs
-                        value={activeView}
-                        onChange={(_event, value) => setActiveView(value)}
-                        variant="scrollable"
-                        scrollButtons="auto"
-                        allowScrollButtonsMobile
-                        className="w-full"
-                        sx={{
-                          minHeight: 0,
-                          width: "100%",
-                          "& .MuiTabs-indicator": {
-                            height: 4,
-                            borderRadius: 999,
-                            backgroundColor: activeTabConfig.accent,
-                          },
-                          "& .MuiTabs-flexContainer": {
-                            gap: 8,
-                            flexWrap: "nowrap",
-                            justifyContent: "flex-start",
-                          },
-                        }}
-                      >
-                        {visibleTabs.map((tab) => (
-                          <Tab
-                            key={tab.value}
-                            value={tab.value}
-                            icon={<tab.icon fontSize="small" />}
-                            iconPosition="start"
-                            label={tab.label}
-                            disabled={tab.disabled}
-                            sx={{
-                              minHeight: 0,
-                              minWidth: "auto",
-                              px: 2,
-                              py: 1.5,
-                              textTransform: "none",
-                              fontSize: 14,
-                              fontWeight: 800,
-                              color: tab.accent,
-                              "&.Mui-selected": {
-                                color: activeTabConfig.accent,
-                              },
-                              "&.Mui-disabled": {
-                                opacity: 0.45,
-                                color: tab.accent,
-                                fontStyle: "italic",
-                              },
-                            }}
-                          />
-                        ))}
-                      </Tabs>
-                    </Box>
-                  </Box>
-                  <Box className="bg-slate-50 px-4 py-3">
-                    <Typography color="text.secondary" variant="body2" fontWeight={700}>
-                      {activeTabConfig.description}
-                    </Typography>
-                  </Box>
-                </CardContent>
-              </Card>
+              <AppViewHeader
+                activeView={activeView}
+                activeTabConfig={activeTabConfig}
+                forecastHorizon={forecastHorizon}
+                selectedMaterial={selectedMaterial}
+                visibleTabs={visibleTabs}
+                onViewChange={setActiveView}
+              />
 
               {activeView === "summary" ? (
                 <>

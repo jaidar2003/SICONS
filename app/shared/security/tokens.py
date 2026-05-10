@@ -7,7 +7,6 @@ from datetime import UTC, datetime, timedelta
 
 from app.shared.config.settings import settings
 
-
 PASSWORD_ITERATIONS = 260_000
 
 

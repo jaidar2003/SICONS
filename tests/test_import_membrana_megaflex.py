@@ -3,7 +3,13 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from app.modules.pricing.infrastructure.models import PrecioHistorico
-from app.operations.bootstrap.import_membrana_megaflex import build_prices, normalize_invoice, parse_date, parse_decimal, upsert_precio
+from app.operations.bootstrap.import_membrana_megaflex import (
+    build_prices,
+    normalize_invoice,
+    parse_date,
+    parse_decimal,
+    upsert_precio,
+)
 
 
 class FakeScalarDb:

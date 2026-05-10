@@ -7,7 +7,6 @@ from app.modules.catalog.infrastructure.models import Material, Presentacion
 from app.modules.catalog.interfaces.schemas import PresentacionCreate, PresentacionRead
 from app.shared.database.session import get_db
 
-
 router = APIRouter(prefix="/presentaciones", tags=["presentaciones"])
 
 

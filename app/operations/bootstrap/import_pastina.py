@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -233,6 +233,8 @@ def upsert_precio(
         )
         return "inserted"
 
+    origen_dato = precio.origen.upper()
+    metodo_estimacion = "IPC" if precio.origen == "estimado" else None
     changed = (
         existing.material_id != material.id
         or existing.presentacion_id != presentacion.id
@@ -240,8 +242,8 @@ def upsert_precio(
         or existing.precio_original != precio.precio_original
         or existing.precio_normalizado != precio.precio_normalizado
         or existing.moneda != "ARS"
-        or existing.origen_dato != precio.origen.upper()
-        or existing.metodo_estimacion != ("IPC" if precio.origen == "estimado" else None)
+        or getattr(existing, "origen_dato", origen_dato) != origen_dato
+        or getattr(existing, "metodo_estimacion", metodo_estimacion) != metodo_estimacion
         or existing.observaciones != observaciones(precio)
     )
     if not changed:
@@ -253,8 +255,8 @@ def upsert_precio(
     existing.precio_original = precio.precio_original
     existing.precio_normalizado = precio.precio_normalizado
     existing.moneda = "ARS"
-    existing.origen_dato = precio.origen.upper()
-    existing.metodo_estimacion = "IPC" if precio.origen == "estimado" else None
+    existing.origen_dato = origen_dato
+    existing.metodo_estimacion = metodo_estimacion
     existing.observaciones = observaciones(precio)
     return "updated"
 

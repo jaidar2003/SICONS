@@ -1,10 +1,10 @@
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
-import { Alert, Box, Button, Card, CardContent, Chip, FormControl, InputLabel, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
-import { useEffect, useMemo, useState } from "react";
+import { Alert, Box, Button, Card, CardContent, Chip, FormControl, InputLabel, MenuItem, Select, TextField, Typography } from "@mui/material";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
-import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
+import { formatNumber } from "../../shared/utils/formatters.js";
 import { createCommercialMargin, fetchCommercialMargins, updateCommercialMargin } from "./admin.api.js";
 
 const DEFAULT_FORM = {
@@ -69,7 +69,7 @@ export function CommercialMarginsAdmin({ token, materiales, presentaciones }) {
     PRODUCT: "Producto",
   };
 
-  async function loadMargins() {
+  const loadMargins = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -80,13 +80,13 @@ export function CommercialMarginsAdmin({ token, materiales, presentaciones }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [token]);
 
   useEffect(() => {
     if (token) {
       loadMargins();
     }
-  }, [token]);
+  }, [loadMargins, token]);
 
   useEffect(() => {
     if (form.scope !== "GLOBAL" && !form.materialId && materiales.length) {

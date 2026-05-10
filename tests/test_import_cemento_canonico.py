@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion
 from app.modules.pricing.infrastructure.models import PrecioHistorico
@@ -14,7 +14,6 @@ from app.operations.bootstrap.export_cemento_canonico import EXPORT_COLUMNS
 from app.operations.bootstrap.import_cemento_canonico import (
     CANONICAL_SOURCE_NAME,
     import_cemento_canonico,
-    read_canonical_csv,
 )
 
 

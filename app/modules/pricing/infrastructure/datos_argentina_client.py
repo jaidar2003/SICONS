@@ -8,7 +8,6 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-
 BASE_URL = "https://apis.datos.gob.ar/series/api/series"
 DEFAULT_TIMEOUT_SECONDS = 15
 

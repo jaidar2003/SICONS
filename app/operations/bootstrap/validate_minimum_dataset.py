@@ -21,7 +21,6 @@ from app.modules.pricing.infrastructure.regressors import (
 )
 from app.shared.database.session import SessionLocal
 
-
 EXPECTED_MATERIAL_KEYS = {
     "Cemento Portland": "cemento-portland",
     "Pastina": "pastina",

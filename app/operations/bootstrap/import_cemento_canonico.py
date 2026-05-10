@@ -11,12 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion
-from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual
 from app.modules.pricing.infrastructure.models import PrecioHistorico
 from app.operations.bootstrap.common import get_or_create_fuente, get_or_create_material, get_or_create_presentacion
 from app.operations.bootstrap.export_cemento_canonico import DEFAULT_MATERIAL_NOMBRE, EXPORT_COLUMNS
 from app.shared.database.session import SessionLocal
-
 
 DEFAULT_INPUT = Path("db/bootstrap/cemento_portland_historico.csv")
 CANONICAL_SOURCE_NAME = "Dataset canónico Cemento Portland"

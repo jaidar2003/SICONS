@@ -2,36 +2,50 @@ from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.modules.auth.infrastructure.models import Usuario
 from app.modules.auth.interfaces.dependencies import require_admin
 from app.modules.catalog.domain.repositories import MaterialRepository
 from app.modules.catalog.interfaces.dependencies import get_material_repository
-from app.modules.pricing.application.forecast_service import (
-    forecast_material,
+from app.modules.pricing.application.commercial_margins import (
+    actualizar_margen_comercial as actualizar_margen_comercial_service,
+)
+from app.modules.pricing.application.commercial_margins import (
+    crear_margen_comercial as crear_margen_comercial_service,
+)
+from app.modules.pricing.application.commercial_margins import (
+    listar_margenes_comerciales as listar_margenes_comerciales_service,
 )
 from app.modules.pricing.application.commercial_prices import (
     calcular_precio_comercial,
 )
 from app.modules.pricing.application.external_indices import list_external_indices, sync_external_index
+from app.modules.pricing.application.forecast_service import (
+    forecast_material,
+)
+from app.modules.pricing.application.historical_prices import (
+    crear_precio_historico as crear_precio_historico_service,
+)
+from app.modules.pricing.application.historical_prices import (
+    listar_precios_historicos as listar_precios_historicos_service,
+)
+from app.modules.pricing.application.historical_prices import (
+    obtener_rango_precios_historicos as obtener_rango_precios_historicos_service,
+)
 from app.modules.pricing.application.imputation import impute_monthly_prices
+from app.modules.pricing.application.priorities import priorizar_materiales_desde_forecast
 from app.modules.pricing.application.purchase_optimization import (
     PurchaseOptimizationInputItem,
     optimizar_compra_con_presupuesto,
 )
 from app.modules.pricing.application.purchase_recommendations import recomendar_momento_compra
 from app.modules.pricing.application.purchase_strategies import comparar_estrategias_compra
-from app.modules.pricing.domain.repositories import PricingRepository
-from app.modules.pricing.interfaces.dependencies import get_pricing_repository
-from app.modules.pricing.domain.exceptions import MaterialNotFoundException
-from app.modules.pricing.application.priorities import priorizar_materiales_desde_forecast
-from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion
 from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual, construir_serie_precios
-from app.modules.pricing.domain.rules import calcular_precio_normalizado
-from app.modules.pricing.infrastructure.models import CommercialMargin, ExternalIndexValue, PrecioHistorico
+from app.modules.pricing.domain.exceptions import MaterialNotFoundException
+from app.modules.pricing.domain.repositories import PricingRepository
+from app.modules.pricing.infrastructure.models import ExternalIndexValue, PrecioHistorico
+from app.modules.pricing.interfaces.dependencies import get_pricing_repository
 from app.modules.pricing.interfaces.schemas import (
     CommercialMarginCreate,
     CommercialMarginRead,
@@ -42,41 +56,28 @@ from app.modules.pricing.interfaces.schemas import (
     ExternalIndexValueRead,
     ForecastResponseRead,
     MaterialCriticidadCreate,
-    MaterialCriticidadRead,
     MaterialCriticidadResponseRead,
-    PurchaseRecommendationCreate,
-    PurchaseRecommendationRead,
-    PurchaseOptimizationCreate,
-    PurchaseOptimizationRead,
-    PurchaseStrategyComparisonCreate,
-    PurchaseStrategyComparisonRead,
-    PriceImputationRequest,
-    PriceImputationResponse,
     PrecioHistoricoCreate,
     PrecioHistoricoRangoRead,
     PrecioHistoricoRead,
+    PriceImputationRequest,
+    PriceImputationResponse,
     PuntoSeriePrecioRead,
+    PurchaseOptimizationCreate,
+    PurchaseOptimizationRead,
+    PurchaseRecommendationCreate,
+    PurchaseRecommendationRead,
+    PurchaseStrategyComparisonCreate,
+    PurchaseStrategyComparisonRead,
 )
 from app.shared.database.session import get_db
-
 
 router = APIRouter(tags=["precios historicos"])
 USAR_SELECTOR_MODELO_FORECAST = True
 
 @router.get("/precios-historicos/rango", response_model=PrecioHistoricoRangoRead)
 def obtener_rango_precios_historicos(db: Session = Depends(get_db)) -> PrecioHistoricoRangoRead:
-    hoy = date.today()
-    desde, hasta_real = db.execute(
-        select(func.min(PrecioHistorico.fecha), func.max(PrecioHistorico.fecha))
-    ).one()
-    hasta = min(hasta_real, hoy) if hasta_real is not None else None
-    return PrecioHistoricoRangoRead(
-        desde=desde,
-        hasta=hasta,
-        hoy=hoy,
-        tiene_fechas_futuras=hasta_real is not None and hasta_real > hoy,
-        hasta_real=hasta_real,
-    )
+    return PrecioHistoricoRangoRead(**obtener_rango_precios_historicos_service(db))
 
 
 @router.get("/precios-historicos", response_model=list[PrecioHistoricoRead])
@@ -86,14 +87,7 @@ def listar_precios_historicos(
     hasta: date | None = None,
     db: Session = Depends(get_db),
 ) -> list[PrecioHistorico]:
-    stmt = select(PrecioHistorico).order_by(PrecioHistorico.fecha.desc(), PrecioHistorico.id.desc())
-    if material_id is not None:
-        stmt = stmt.where(PrecioHistorico.material_id == material_id)
-    if desde is not None:
-        stmt = stmt.where(PrecioHistorico.fecha >= desde)
-    if hasta is not None:
-        stmt = stmt.where(PrecioHistorico.fecha <= hasta)
-    return list(db.scalars(stmt))
+    return listar_precios_historicos_service(db, material_id=material_id, desde=desde, hasta=hasta)
 
 
 @router.get("/indices-externos", response_model=list[ExternalIndexValueRead])
@@ -364,16 +358,7 @@ def listar_margenes_comerciales(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_admin),
 ) -> list[CommercialMarginRead]:
-    margins = list(
-        db.scalars(
-            select(CommercialMargin).order_by(
-                CommercialMargin.activo.desc(),
-                CommercialMargin.scope.asc(),
-                CommercialMargin.updated_at.desc(),
-                CommercialMargin.id.desc(),
-            )
-        )
-    )
+    margins = listar_margenes_comerciales_service(db)
     return [CommercialMarginRead.model_validate(margin) for margin in margins]
 
 
@@ -383,14 +368,7 @@ def crear_margen_comercial(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_admin),
 ) -> CommercialMarginRead:
-    margin = CommercialMargin(**payload.model_dump())
-    db.add(margin)
-    try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="No fue posible crear el margen comercial") from exc
-    db.refresh(margin)
+    margin = crear_margen_comercial_service(db, **payload.model_dump())
     return CommercialMarginRead.model_validate(margin)
 
 
@@ -401,21 +379,7 @@ def actualizar_margen_comercial(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_admin),
 ) -> CommercialMarginRead:
-    margin = db.get(CommercialMargin, margin_id)
-    if margin is None:
-        raise HTTPException(status_code=404, detail="Margen comercial no encontrado")
-
-    update_data = payload.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(margin, field, value)
-
-    db.add(margin)
-    try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="No fue posible actualizar el margen comercial") from exc
-    db.refresh(margin)
+    margin = actualizar_margen_comercial_service(db, margin_id=margin_id, update_data=payload.model_dump(exclude_unset=True))
     return CommercialMarginRead.model_validate(margin)
 
 
@@ -496,34 +460,4 @@ def crear_precio_historico(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_admin),
 ) -> PrecioHistorico:
-    if payload.fecha > date.today():
-        raise HTTPException(status_code=422, detail="La fecha no puede ser futura")
-
-    material = db.get(Material, payload.material_id)
-    if material is None:
-        raise HTTPException(status_code=404, detail="Material no encontrado")
-
-    precio_normalizado = payload.precio_original
-    if payload.presentacion_id is not None:
-        presentacion = db.get(Presentacion, payload.presentacion_id)
-        if presentacion is None:
-            raise HTTPException(status_code=404, detail="Presentacion no encontrada")
-        if presentacion.material_id != payload.material_id:
-            raise HTTPException(status_code=422, detail="La presentacion no pertenece al material")
-        precio_normalizado = calcular_precio_normalizado(payload.precio_original, Decimal(presentacion.cantidad_base))
-
-    if payload.fuente_id is not None and db.get(Fuente, payload.fuente_id) is None:
-        raise HTTPException(status_code=404, detail="Fuente no encontrada")
-
-    precio = PrecioHistorico(
-        **payload.model_dump(),
-        precio_normalizado=precio_normalizado,
-    )
-    db.add(precio)
-    try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="El precio historico ya existe") from exc
-    db.refresh(precio)
-    return precio
+    return crear_precio_historico_service(db, **payload.model_dump())

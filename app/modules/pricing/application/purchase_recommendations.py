@@ -4,13 +4,11 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
 
 from app.modules.catalog.application.utils import derive_material_key
 from app.modules.catalog.infrastructure.models import Material
 from app.modules.pricing.application.forecast_service import forecast_material
 from app.modules.pricing.domain.rules import calcular_variacion_esperada_porcentual
-
 
 UMBRAL_ALZA = Decimal("5")
 UMBRAL_BAJA = Decimal("-5")

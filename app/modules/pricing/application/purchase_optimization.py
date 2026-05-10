@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException
-from pulp import LpMaximize, LpProblem, LpStatus, LpVariable, PULP_CBC_CMD, lpSum, value
+from pulp import PULP_CBC_CMD, LpMaximize, LpProblem, LpStatus, LpVariable, lpSum, value
 
 from app.modules.catalog.application.utils import derive_material_key
 from app.modules.catalog.domain.repositories import MaterialRepository
@@ -17,7 +17,6 @@ from app.modules.pricing.application.purchase_recommendations import (
 )
 from app.modules.pricing.domain.exceptions import MaterialNotFoundException
 from app.modules.pricing.domain.repositories import PricingRepository
-
 
 PESO_CRITICIDAD = {
     "alta": Decimal("3.00"),

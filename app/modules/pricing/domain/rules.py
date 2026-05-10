@@ -1,4 +1,4 @@
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 
 def _quantize(value: Decimal, places: str = "0.0001") -> Decimal:
