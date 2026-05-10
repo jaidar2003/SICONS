@@ -81,18 +81,29 @@ def get_or_create_fuente(db: Session, *, nombre: str, tipo_fuente: str, descripc
     return fuente
 
 
-def get_or_create_usuario(db: Session, *, username: str, nombre: str, password: str, rol: str) -> Usuario:
+def get_or_create_usuario(
+    db: Session,
+    *,
+    username: str,
+    nombre: str,
+    password: str,
+    rol: str,
+    email: str | None = None,
+) -> Usuario:
     usuario = db.scalar(select(Usuario).where(Usuario.username == username))
     if usuario is not None:
         usuario.nombre = nombre
         usuario.rol = rol
         usuario.activo = True
+        if email is not None:
+            usuario.email = email
         if not verify_password(password, usuario.password_hash):
             usuario.password_hash = hash_password(password)
         return usuario
 
     usuario = Usuario(
         username=username,
+        email=email,
         nombre=nombre,
         password_hash=hash_password(password),
         rol=rol,

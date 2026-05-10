@@ -25,13 +25,13 @@ export function FiltersBar({ materiales, selectedMaterialId, desde, hasta, maxDa
               ))}
             </Select>
           </FormControl>
-          <DatePicker label="Desde" value={desde} onChange={onDesdeChange} format="DD/MM/YYYY" slotProps={{ textField: { size: "small" } }} />
+          <DatePicker label="Desde" value={desde} onChange={onDesdeChange} format="DD/MM/YY" slotProps={{ textField: { size: "small" } }} />
           <DatePicker
             label="Hasta"
             value={hasta}
             maxDate={maxDate}
             onChange={onHastaChange}
-            format="DD/MM/YYYY"
+            format="DD/MM/YY"
             slotProps={{ textField: { size: "small" } }}
           />
           <Button variant="contained" startIcon={<RefreshIcon />} onClick={onRefresh}>
@@ -39,10 +39,9 @@ export function FiltersBar({ materiales, selectedMaterialId, desde, hasta, maxDa
           </Button>
         </Box>
         {warning ? (
-          <Box className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 md:col-start-2">{warning}</Box>
+          <Box className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-900 md:col-start-2">{warning}</Box>
         ) : null}
       </CardContent>
     </Card>
   );
 }
-

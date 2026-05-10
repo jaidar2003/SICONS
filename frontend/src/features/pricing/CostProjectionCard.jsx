@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
+import { ForecastModelDetails } from "./ForecastModelDetails.jsx";
 
 export function CostProjectionCard({ forecast, selectedMaterial, showPrices }) {
   const [quantityInput, setQuantityInput] = useState("100");
@@ -11,6 +12,7 @@ export function CostProjectionCard({ forecast, selectedMaterial, showPrices }) {
   const isValidQuantity = Number.isFinite(quantity) && quantity > 0;
   const unit = forecast?.unidad_base || selectedMaterial?.unidad_base || "unidad";
   const currentUnitPrice = forecast ? Number(forecast.ultimo_precio_observado) : 0;
+  const selection = forecast?.seleccion_modelo || null;
 
   const scenarios = useMemo(() => {
     if (!forecast || !isValidQuantity) return [];
@@ -50,11 +52,10 @@ export function CostProjectionCard({ forecast, selectedMaterial, showPrices }) {
     return (
       <Card className="mt-3">
         <CardContent>
-          <SectionHeader
-            title="Proyeccion de costos de obra"
-            description="Compara el costo actual con el costo futuro estimado segun la cantidad requerida."
-            badge="HU16-HU17"
-          />
+        <SectionHeader
+          title="Proyeccion de costos de obra"
+          description="Compara el costo actual con el costo futuro estimado segun la cantidad requerida."
+        />
           <Alert severity="info">Activá la vista de precios para proyectar costos a partir del forecast unitario.</Alert>
         </CardContent>
       </Card>
@@ -67,14 +68,17 @@ export function CostProjectionCard({ forecast, selectedMaterial, showPrices }) {
         <SectionHeader
           title="Proyeccion de costos de obra"
           description="Calcula el costo actual y lo compara contra cada horizonte proyectado para el material seleccionado."
-          badge="HU16-HU17"
         />
+
+        <Box className="mt-3">
+          <ForecastModelDetails selection={selection} title="Detalles del modelo" compact />
+        </Box>
 
         {!forecast ? (
           <Alert severity="info">Necesitás un forecast disponible para proyectar costos de compra.</Alert>
         ) : (
-          <Stack spacing={2.5}>
-            <Box className="grid gap-3 md:grid-cols-[280px_1fr]">
+          <Stack spacing={3}>
+            <Box className="grid gap-4 md:grid-cols-[280px_1fr]">
               <TextField
                 label={`Cantidad requerida (${unit})`}
                 type="number"
@@ -103,7 +107,7 @@ export function CostProjectionCard({ forecast, selectedMaterial, showPrices }) {
               <Alert severity="warning">La cantidad requerida debe ser mayor a cero.</Alert>
             ) : (
               <>
-                <Box className="grid gap-3 md:grid-cols-4">
+                <Box className="grid gap-4 md:grid-cols-4">
                   <SummaryMini
                     label="Mejor escenario"
                     value={summary ? summary.cheapestScenario.fecha : "-"}
@@ -136,7 +140,7 @@ export function CostProjectionCard({ forecast, selectedMaterial, showPrices }) {
                   Esta simulacion compara escenarios temporales de compra a partir del forecast unitario. Sirve como apoyo para decisiones tacticas, no como recomendacion definitiva de compra.
                 </Alert>
 
-                <Box className="grid gap-2 md:grid-cols-3">
+                <Box className="grid gap-4 md:grid-cols-3">
                   {scenarios.map((scenario) => (
                     <Box key={scenario.fecha} className="rounded-xl border border-slate-200 p-3">
                       <Typography fontSize={12} fontWeight={800} color="text.secondary">

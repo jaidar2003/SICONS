@@ -1,8 +1,9 @@
 import LogoutIcon from "@mui/icons-material/Logout";
 import { Box, Button, Container, FormControlLabel, Switch, Typography } from "@mui/material";
 
+import { brand } from "../../app/brand.js";
 import { StatusBadge } from "../../shared/components/StatusBadge.jsx";
-import bwLogo from "../../../bwlogo.jpg";
+import bwLogo from "../../../bwlogo.png";
 
 export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowPrices }) {
   return (
@@ -10,8 +11,8 @@ export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowP
       component="header"
       className="pb-20 pt-8 text-white"
       sx={{
-        background: "linear-gradient(180deg, #07349b 0%, #002395 100%)",
-        boxShadow: "inset 0 -1px 0 rgba(255,255,255,0.10), 0 18px 42px rgba(0, 16, 84, 0.28)",
+        background: brand.gradients.hero,
+        boxShadow: brand.shadows.header,
       }}
     >
       <Container maxWidth="lg" className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
@@ -39,7 +40,14 @@ export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowP
               <Typography fontSize={14} fontWeight={700} noWrap>
                 {user.nombre} ({user.rol})
               </Typography>
-              <Button color="inherit" size="small" variant="contained" startIcon={<LogoutIcon />} sx={{ bgcolor: "white", color: "primary.main", "&:hover": { bgcolor: "#EEF2FF" } }} onClick={onLogout}>
+              <Button
+                color="inherit"
+                size="small"
+                variant="contained"
+                startIcon={<LogoutIcon />}
+                sx={{ bgcolor: "white", color: "primary.main", "&:hover": { bgcolor: brand.colors.primarySoft } }}
+                onClick={onLogout}
+              >
                 Salir
               </Button>
             </Box>

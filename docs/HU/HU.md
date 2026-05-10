@@ -19,7 +19,7 @@ HU4 Seleccionar distintos materiales para su analisis. Como comprador de materia
 
 HU5 Filtrar datos por periodo. Como comprador de materiales, quiero filtrar los datos por rango de fechas para analizar la evolucion de un material en un periodo determinado. Estado actual: Implementada.
 
-HU6 Consultar la fuente de los datos registrados. Como usuario del sistema, quiero conocer la fuente de cada precio registrado para confiar en la validez de la informacion utilizada. Estado actual: Parcial.
+HU6 Consultar la fuente de los datos registrados. Como usuario del sistema, quiero conocer la fuente de cada precio registrado para confiar en la validez de la informacion utilizada. Estado actual: Implementada.
 
 Epica 2. Análisis y visualización
 
@@ -27,7 +27,7 @@ HU7 Visualizar precios historicos en graficos. Como comprador de materiales, qui
 
 HU8 Comparar materiales entre si. Como comprador de materiales, quiero comparar la evolucion de precios de distintos materiales para identificar cuales presentan mayor variacion o riesgo de aumento. Estado actual: Implementada.
 
-HU9 Identificar variaciones porcentuales de precios. Como comprador de materiales, quiero ver el porcentaje de variacion de un material entre dos fechas para dimensionar cuanto aumento o disminuyo. Estado actual: Parcial.
+HU9 Identificar variaciones porcentuales de precios. Como comprador de materiales, quiero ver el porcentaje de variacion de un material entre dos fechas para dimensionar cuanto aumento o disminuyo. Estado actual: Implementada.
 
 HU10 Detectar cambios bruscos o anomalias. Como usuario del sistema, quiero identificar meses con aumentos o cambios atipicos para detectar comportamientos relevantes en la serie historica. Estado actual: Implementada.
 
@@ -64,6 +64,8 @@ HU22 Comparar estrategias de compra. Como comprador de materiales, quiero compar
 HU23 Optimizar la compra bajo una restriccion presupuestaria. Como comprador de materiales, quiero que el sistema considere un presupuesto disponible para sugerirme una estrategia de compra viable. Estado actual: Parcial.
 
 HU24 Priorizar materiales criticos. Como comprador de materiales, quiero identificar cuales materiales tienen mayor riesgo de aumento para priorizar su compra antes que otros. Estado actual: Implementada.
+
+HU28 Optimizar presupuesto de compra con criticidad y forecast. Como comprador de materiales, quiero ingresar un presupuesto total y una lista de materiales con cantidades y criticidad para obtener una recomendacion operativa de compra que priorice el mejor uso del presupuesto disponible. Estado actual: Parcial.
 
 Epica 6. Asistencia conversacional
 

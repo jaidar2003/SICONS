@@ -29,9 +29,11 @@ def load_env_file(env_path: Path) -> dict[str, str]:
 class MiObraCacAdapter:
     def __init__(self, api_key: str, token: str):
         self.url = BASE_URL
+        # Si el token ya viene con 'Bearer ', no lo duplicamos
+        auth_header = token if token.startswith("Bearer ") else f"Bearer {token}"
         self.headers = {
             "apikey": api_key,
-            "Authorization": f"Bearer {token}",
+            "Authorization": auth_header,
             "Content-Type": "application/json",
             "Accept": "application/json",
         }

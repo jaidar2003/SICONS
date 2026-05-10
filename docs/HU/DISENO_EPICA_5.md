@@ -238,6 +238,44 @@ Esta ultima restriccion aplica solo cuando se quiera forzar una compra minima in
 
 ---
 
+## HU28 - Optimizar presupuesto de compra con criticidad y forecast
+
+### Objetivo
+
+Ingresar un presupuesto total, un horizonte de compra y una lista de materiales con cantidades y criticidad para obtener una recomendacion operativa que asigne mejor el gasto disponible.
+
+### Datos de entrada
+
+Por cada material:
+
+- `material_id`
+- `cantidad_objetivo`
+- `criticidad`
+
+Ademas:
+
+- `presupuesto_total`
+- `horizonte_meses`
+
+### Resultado esperado
+
+- presupuesto utilizado;
+- presupuesto restante;
+- cantidad recomendada a comprar ahora por material;
+- costo estimado por material;
+- ahorro estimado por criticidad;
+- advertencias si la confiabilidad del forecast es baja.
+
+### Criterio funcional
+
+La optimizacion no reemplaza la recomendacion simple ni la comparacion de estrategias. Se apoya en ellas y las eleva a una decision mas operativa: no solo indica si conviene comprar, sino como asignar el presupuesto entre materiales segun criticidad y ahorro esperado.
+
+### Estado de implementacion esperado
+
+La capa de backend ya expone la ruta de optimizacion presupuestaria. El trabajo pendiente se concentra en integrar esa salida como flujo visible y accionable dentro de la vista de costos.
+
+---
+
 ## Ubicación sugerida en la arquitectura
 
 ### domain

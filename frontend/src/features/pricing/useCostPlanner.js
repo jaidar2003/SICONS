@@ -1,16 +1,57 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchForecast } from "./pricing.api.js";
 
+const COST_PLANNER_STORAGE_PREFIX = "sicons_cost_planner";
+
 function createEmptyRow(materialId = "") {
   return {
     id: crypto.randomUUID(),
     materialId,
     quantity: "100",
+    criticidad: "media",
   };
 }
 
 export function useCostPlanner({ materiales, selectedMaterialId, forecastHorizon, token }) {
-  const [rows, setRows] = useState(() => [createEmptyRow(selectedMaterialId || "")]);
+  const storageKey = useMemo(() => `${COST_PLANNER_STORAGE_PREFIX}:${forecastHorizon}`, [forecastHorizon]);
+  const [rows, setRows] = useState(() => {
+    if (typeof window === "undefined") {
+      return [createEmptyRow(selectedMaterialId || "")];
+    }
+
+    const stored = window.localStorage.getItem(storageKey);
+    if (!stored) {
+      return [createEmptyRow(selectedMaterialId || "")];
+    }
+
+    try {
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed.rows) || !parsed.rows.length) {
+        return [createEmptyRow(selectedMaterialId || "")];
+      }
+
+      return parsed.rows.map((row) => ({
+        id: row.id || crypto.randomUUID(),
+        materialId: row.materialId || "",
+        quantity: row.quantity || "100",
+        criticidad: row.criticidad || "media",
+      }));
+    } catch {
+      return [createEmptyRow(selectedMaterialId || "")];
+    }
+  });
+  const [storedBudgetInput, setStoredBudgetInput] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const stored = window.localStorage.getItem(storageKey);
+    if (!stored) return "";
+
+    try {
+      const parsed = JSON.parse(stored);
+      return typeof parsed.budgetInput === "string" ? parsed.budgetInput : "";
+    } catch {
+      return "";
+    }
+  });
   const [forecastsByMaterial, setForecastsByMaterial] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -21,6 +62,17 @@ export function useCostPlanner({ materiales, selectedMaterialId, forecastHorizon
       return [createEmptyRow(selectedMaterialId || "")];
     });
   }, [selectedMaterialId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        rows,
+      })
+    );
+  }, [rows, storageKey]);
 
   const activeMaterialIds = useMemo(
     () => [...new Set(rows.map((row) => row.materialId).filter(Boolean))],
@@ -67,6 +119,7 @@ export function useCostPlanner({ materiales, selectedMaterialId, forecastHorizon
         const material = materiales.find((item) => String(item.id) === String(row.materialId));
         const forecast = row.materialId ? forecastsByMaterial[row.materialId] : null;
         const quantity = Number(row.quantity);
+        const criticidad = row.criticidad || "media";
         const validQuantity = Number.isFinite(quantity) && quantity > 0;
         const currentUnitPrice = forecast ? Number(forecast.ultimo_precio_observado) : 0;
         const projectedPoint = forecast?.puntos?.[forecast.puntos.length - 1] || null;
@@ -81,6 +134,7 @@ export function useCostPlanner({ materiales, selectedMaterialId, forecastHorizon
           material,
           forecast,
           quantity,
+          criticidad,
           validQuantity,
           projectedPoint,
           currentCost,
@@ -117,6 +171,27 @@ export function useCostPlanner({ materiales, selectedMaterialId, forecastHorizon
   const updateRow = (id, field, value) => 
     setRows((current) => current.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
 
+  const setBudgetPersisted = (value) => {
+    setStoredBudgetInput(value);
+    if (typeof window === "undefined") return;
+
+    const raw = window.localStorage.getItem(storageKey);
+    let current = {};
+    try {
+      current = raw ? JSON.parse(raw) : {};
+    } catch {
+      current = {};
+    }
+
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        ...current,
+        budgetInput: value,
+      })
+    );
+  };
+
   return {
     rows,
     plannerRows,
@@ -126,5 +201,7 @@ export function useCostPlanner({ materiales, selectedMaterialId, forecastHorizon
     addRow,
     removeRow,
     updateRow,
+    storedBudgetInput,
+    setBudgetPersisted,
   };
 }

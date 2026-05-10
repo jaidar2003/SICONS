@@ -20,8 +20,8 @@ export default {
         md: "8px",
       },
       boxShadow: {
-        md1: "0 1px 2px rgba(0,0,0,.18), 0 1px 3px rgba(0,0,0,.10)",
-        md2: "0 2px 6px rgba(0,0,0,.16), 0 2px 8px rgba(0,0,0,.10)",
+        md1: "0 1px 2px rgba(2, 6, 23, .10), 0 8px 24px rgba(0, 35, 149, .08)",
+        md2: "0 2px 6px rgba(2, 6, 23, .12), 0 16px 36px rgba(0, 35, 149, .10)",
       },
     },
   },
