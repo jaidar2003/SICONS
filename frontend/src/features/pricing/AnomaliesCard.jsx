@@ -4,12 +4,12 @@ import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatPercentChange, variationTone } from "../../shared/utils/formatters.js";
 import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 
-export function AnomaliesCard({ serie, showPrices, selectedMaterial }) {
+export function AnomaliesCard({ serie, showPrices, selectedMaterial, className = "" }) {
   const anomalies = serie.filter((point) => point.es_anomalia);
   const presentation = getMaterialPresentation(selectedMaterial?.nombre, serie[0]?.unidad_base);
 
   return (
-    <Card>
+    <Card className={`h-full ${className}`}>
       <CardContent>
         <SectionHeader title="Variaciones bruscas" description="Meses donde el cambio supera el umbral definido." />
         {!anomalies.length ? (

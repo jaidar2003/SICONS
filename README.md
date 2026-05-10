@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="frontend/bwlogo.jpeg" alt="BuildWise" width="220" />
+  <img src="frontend/bwlogo.png" alt="BuildWise" width="220" />
 </p>
 
 # BuildWise

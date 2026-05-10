@@ -7,6 +7,14 @@ class Settings(BaseSettings):
     auth_token_ttl_minutes: int = 480
     forecast_cache_ttl_seconds: int = 1800
     forecast_snapshot_path: str = "tmp/forecast_snapshots.json"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_sender: str | None = None
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    smtp_timeout_seconds: int = 10
     openai_api_key: str | None = None
     openai_base_url: str | None = None
     openai_model: str | None = None

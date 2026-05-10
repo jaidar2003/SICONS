@@ -126,7 +126,7 @@ export function PriceForm({ materiales, presentaciones, fuentes, maxDate, onSave
             value={payload.fecha}
             maxDate={maxDate}
             onChange={(value) => update("fecha", value)}
-            format="DD/MM/YYYY"
+            format="DD/MM/YY"
             slotProps={{ textField: { required: true, size: "small" } }}
           />
           <TextField label="Precio original" type="number" required value={payload.precio_original} onChange={(event) => update("precio_original", event.target.value)} />

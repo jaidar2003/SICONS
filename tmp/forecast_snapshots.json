@@ -2207,5 +2207,1353 @@
     "modelo": "prophet_oficial_ipc_mayorista",
     "supuesto_regresores": "Escenario base: dolar oficial, dolar mayorista e IPC futuros proyectados con crecimiento compuesto segun la tendencia de los ultimos 12 meses.",
     "seleccion_modelo": null
+  },
+  "3:3:d68aed28aa69dda3292dccee08ff3b956cc1e8527ebd20cb9d470a03f5260cae:selector-on:prophet_ipim_icc_var_general": {
+    "dataset": [
+      {
+        "ds": "2022-01-01",
+        "y": 443.9205
+      },
+      {
+        "ds": "2022-02-01",
+        "y": 464.785
+      },
+      {
+        "ds": "2022-03-01",
+        "y": 461.2335
+      },
+      {
+        "ds": "2022-04-01",
+        "y": 461.2335
+      },
+      {
+        "ds": "2022-05-01",
+        "y": 493.519
+      },
+      {
+        "ds": "2022-06-01",
+        "y": 519.6755
+      },
+      {
+        "ds": "2022-07-01",
+        "y": 558.1315
+      },
+      {
+        "ds": "2022-08-01",
+        "y": 597.2005
+      },
+      {
+        "ds": "2022-09-01",
+        "y": 634.227
+      },
+      {
+        "ds": "2022-10-01",
+        "y": 674.1835
+      },
+      {
+        "ds": "2022-11-01",
+        "y": 707.2185
+      },
+      {
+        "ds": "2022-12-01",
+        "y": 743.2865
+      },
+      {
+        "ds": "2023-01-01",
+        "y": 787.8835
+      },
+      {
+        "ds": "2023-02-01",
+        "y": 839.884
+      },
+      {
+        "ds": "2023-03-01",
+        "y": 1040.276
+      },
+      {
+        "ds": "2023-04-01",
+        "y": 1292.0225
+      },
+      {
+        "ds": "2023-05-01",
+        "y": 1392.799
+      },
+      {
+        "ds": "2023-06-01",
+        "y": 1476.3665
+      },
+      {
+        "ds": "2023-07-01",
+        "y": 1569.3775
+      },
+      {
+        "ds": "2023-08-01",
+        "y": 1763.9805
+      },
+      {
+        "ds": "2023-09-01",
+        "y": 1987.998
+      },
+      {
+        "ds": "2023-10-01",
+        "y": 2152.9785
+      },
+      {
+        "ds": "2023-11-01",
+        "y": 2428.321
+      },
+      {
+        "ds": "2023-12-01",
+        "y": 3047.452
+      },
+      {
+        "ds": "2024-01-01",
+        "y": 3675.2205
+      },
+      {
+        "ds": "2024-02-01",
+        "y": 6409.024
+      },
+      {
+        "ds": "2024-03-01",
+        "y": 6409.024
+      },
+      {
+        "ds": "2024-04-01",
+        "y": 6973.018
+      },
+      {
+        "ds": "2024-05-01",
+        "y": 7265.885
+      },
+      {
+        "ds": "2024-06-01",
+        "y": 7599.822
+      },
+      {
+        "ds": "2024-07-01",
+        "y": 7903.815
+      },
+      {
+        "ds": "2024-08-01",
+        "y": 8235.775
+      },
+      {
+        "ds": "2024-09-01",
+        "y": 8524.0275
+      },
+      {
+        "ds": "2024-10-01",
+        "y": 8754.176
+      },
+      {
+        "ds": "2024-11-01",
+        "y": 8964.2765
+      },
+      {
+        "ds": "2024-12-01",
+        "y": 9206.312
+      },
+      {
+        "ds": "2025-01-01",
+        "y": 9408.8505
+      },
+      {
+        "ds": "2025-02-01",
+        "y": 9463.085
+      },
+      {
+        "ds": "2025-03-01",
+        "y": 9463.085
+      },
+      {
+        "ds": "2025-04-01",
+        "y": 9463.085
+      },
+      {
+        "ds": "2025-05-01",
+        "y": 9463.085
+      },
+      {
+        "ds": "2025-06-01",
+        "y": 9463.085
+      },
+      {
+        "ds": "2025-07-01",
+        "y": 9642.8835
+      },
+      {
+        "ds": "2025-08-01",
+        "y": 9826.0985
+      },
+      {
+        "ds": "2025-09-01",
+        "y": 9699.662
+      },
+      {
+        "ds": "2025-10-01",
+        "y": 9922.754
+      },
+      {
+        "ds": "2025-11-01",
+        "y": 10170.823
+      },
+      {
+        "ds": "2025-12-01",
+        "y": 10077.949
+      },
+      {
+        "ds": "2026-01-01",
+        "y": 10077.949
+      },
+      {
+        "ds": "2026-02-01",
+        "y": 10077.949
+      },
+      {
+        "ds": "2026-03-01",
+        "y": 10420.5995
+      },
+      {
+        "ds": "2026-04-01",
+        "y": 10077.949
+      }
+    ],
+    "metricas": {
+      "folds": 9,
+      "mae": "619.75",
+      "mape": "7.53",
+      "efectividad_informal": "92.47"
+    },
+    "forecast": [
+      {
+        "fecha": "2026-05-01",
+        "precio_proyectado": "11347.29",
+        "precio_equivalente_25kg": null,
+        "precio_equivalente_50kg": null
+      },
+      {
+        "fecha": "2026-06-01",
+        "precio_proyectado": "11545.77",
+        "precio_equivalente_25kg": null,
+        "precio_equivalente_50kg": null
+      },
+      {
+        "fecha": "2026-07-01",
+        "precio_proyectado": "11745.61",
+        "precio_equivalente_25kg": null,
+        "precio_equivalente_50kg": null
+      }
+    ],
+    "modelo": "prophet_ipim_icc_var_general",
+    "supuesto_regresores": "Regresores resueltos: ipim_nivel_general, icc_var_general.",
+    "seleccion_modelo": {
+      "material_key": "membrana-megaflex",
+      "modelo_resuelto": "prophet_ipim_icc_var_general",
+      "regresores_resueltos": [
+        "ipim_nivel_general",
+        "icc_var_general"
+      ],
+      "mape_referencia": "7.53",
+      "mae_referencia": "619.75",
+      "folds": 9,
+      "confiabilidad": "media-baja",
+      "origen_decision": "material_horizonte",
+      "justificacion": "Configuracion recomendada segun benchmark consolidado y seleccionada por menor MAPE dentro de las variantes ejecutables por el runtime.",
+      "no_calibrado": false,
+      "advertencia": null
+    }
+  },
+  "2:3:714592701b6de40b9e8dc07c6d457bac5829226ae4ae1aeb477691c6d25b1067:selector-on:prophet_ipim_cac_labour_force": {
+    "dataset": [
+      {
+        "ds": "2022-01-01",
+        "y": 150.64
+      },
+      {
+        "ds": "2022-02-01",
+        "y": 157.72
+      },
+      {
+        "ds": "2022-03-01",
+        "y": 170.12
+      },
+      {
+        "ds": "2022-04-01",
+        "y": 180.33
+      },
+      {
+        "ds": "2022-05-01",
+        "y": 187.48
+      },
+      {
+        "ds": "2022-06-01",
+        "y": 188.41
+      },
+      {
+        "ds": "2022-07-01",
+        "y": 205.53
+      },
+      {
+        "ds": "2022-08-01",
+        "y": 219.92
+      },
+      {
+        "ds": "2022-09-01",
+        "y": 258.37
+      },
+      {
+        "ds": "2022-10-01",
+        "y": 283.73
+      },
+      {
+        "ds": "2022-11-01",
+        "y": 297.63
+      },
+      {
+        "ds": "2022-12-01",
+        "y": 312.81
+      },
+      {
+        "ds": "2023-01-01",
+        "y": 331.58
+      },
+      {
+        "ds": "2023-02-01",
+        "y": 374.28
+      },
+      {
+        "ds": "2023-03-01",
+        "y": 413.22
+      },
+      {
+        "ds": "2023-04-01",
+        "y": 447.93
+      },
+      {
+        "ds": "2023-05-01",
+        "y": 482.87
+      },
+      {
+        "ds": "2023-06-01",
+        "y": 511.84
+      },
+      {
+        "ds": "2023-07-01",
+        "y": 544.09
+      },
+      {
+        "ds": "2023-08-01",
+        "y": 611.55
+      },
+      {
+        "ds": "2023-09-01",
+        "y": 689.22
+      },
+      {
+        "ds": "2023-10-01",
+        "y": 746.43
+      },
+      {
+        "ds": "2023-11-01",
+        "y": 785.23
+      },
+      {
+        "ds": "2023-12-01",
+        "y": 1050.47
+      },
+      {
+        "ds": "2024-01-01",
+        "y": 1266.87
+      },
+      {
+        "ds": "2024-02-01",
+        "y": 1434.1
+      },
+      {
+        "ds": "2024-03-01",
+        "y": 1586.31
+      },
+      {
+        "ds": "2024-04-01",
+        "y": 1696.55
+      },
+      {
+        "ds": "2024-05-01",
+        "y": 1760.04
+      },
+      {
+        "ds": "2024-06-01",
+        "y": 1841.01
+      },
+      {
+        "ds": "2024-07-01",
+        "y": 1914.65
+      },
+      {
+        "ds": "2024-08-01",
+        "y": 1995.06
+      },
+      {
+        "ds": "2024-09-01",
+        "y": 2064.89
+      },
+      {
+        "ds": "2024-10-01",
+        "y": 2120.64
+      },
+      {
+        "ds": "2024-11-01",
+        "y": 2279.17
+      },
+      {
+        "ds": "2024-12-01",
+        "y": 2340.71
+      },
+      {
+        "ds": "2025-01-01",
+        "y": 2392.2
+      },
+      {
+        "ds": "2025-02-01",
+        "y": 2370.21
+      },
+      {
+        "ds": "2025-03-01",
+        "y": 2380.41
+      },
+      {
+        "ds": "2025-04-01",
+        "y": 2388.44
+      },
+      {
+        "ds": "2025-05-01",
+        "y": 2392.72
+      },
+      {
+        "ds": "2025-06-01",
+        "y": 2397.13
+      },
+      {
+        "ds": "2025-07-01",
+        "y": 2402.4
+      },
+      {
+        "ds": "2025-08-01",
+        "y": 2407.72
+      },
+      {
+        "ds": "2025-09-01",
+        "y": 2417.63
+      },
+      {
+        "ds": "2025-10-01",
+        "y": 2473.24
+      },
+      {
+        "ds": "2025-11-01",
+        "y": 2535.07
+      },
+      {
+        "ds": "2025-12-01",
+        "y": 2606.05
+      },
+      {
+        "ds": "2026-01-01",
+        "y": 2681.62
+      },
+      {
+        "ds": "2026-02-01",
+        "y": 2678.11
+      },
+      {
+        "ds": "2026-03-01",
+        "y": 2769.17
+      }
+    ],
+    "metricas": {
+      "folds": 9,
+      "mae": "97.97",
+      "mape": "4.27",
+      "efectividad_informal": "95.73"
+    },
+    "forecast": [
+      {
+        "fecha": "2026-04-01",
+        "precio_proyectado": "2944.34",
+        "precio_equivalente_25kg": null,
+        "precio_equivalente_50kg": null
+      },
+      {
+        "fecha": "2026-05-01",
+        "precio_proyectado": "3006.03",
+        "precio_equivalente_25kg": null,
+        "precio_equivalente_50kg": null
+      },
+      {
+        "fecha": "2026-06-01",
+        "precio_proyectado": "3068.95",
+        "precio_equivalente_25kg": null,
+        "precio_equivalente_50kg": null
+      }
+    ],
+    "modelo": "prophet_ipim_cac_labour_force",
+    "supuesto_regresores": "Regresores resueltos: ipim_nivel_general, cac_labour_force.",
+    "seleccion_modelo": {
+      "material_key": "pastina",
+      "modelo_resuelto": "prophet_ipim_cac_labour_force",
+      "regresores_resueltos": [
+        "ipim_nivel_general",
+        "cac_labour_force"
+      ],
+      "mape_referencia": "4.27",
+      "mae_referencia": "97.97",
+      "folds": 9,
+      "confiabilidad": "media",
+      "origen_decision": "material_horizonte",
+      "justificacion": "Configuracion recomendada segun benchmark consolidado y seleccionada por menor MAPE dentro de las variantes ejecutables por el runtime.",
+      "no_calibrado": false,
+      "advertencia": null
+    }
+  },
+  "1:3:c3a018f784d99e98e3161fba8bc51a9ca76bbed2f30bf6bdca9d2c8f4a100656:selector-on:prophet_ipim_icc_var_materials": {
+    "dataset": [
+      {
+        "ds": "2022-01-01",
+        "y": 12.1501
+      },
+      {
+        "ds": "2022-02-01",
+        "y": 12.5548
+      },
+      {
+        "ds": "2022-03-01",
+        "y": 13.2865
+      },
+      {
+        "ds": "2022-04-01",
+        "y": 13.9203
+      },
+      {
+        "ds": "2022-05-01",
+        "y": 14.8011
+      },
+      {
+        "ds": "2022-06-01",
+        "y": 14.9396
+      },
+      {
+        "ds": "2022-07-01",
+        "y": 16.1439
+      },
+      {
+        "ds": "2022-08-01",
+        "y": 17.3182
+      },
+      {
+        "ds": "2022-09-01",
+        "y": 18.9181
+      },
+      {
+        "ds": "2022-10-01",
+        "y": 20.2993
+      },
+      {
+        "ds": "2022-11-01",
+        "y": 21.7609
+      },
+      {
+        "ds": "2022-12-01",
+        "y": 23.6927
+      },
+      {
+        "ds": "2023-01-01",
+        "y": 24.66
+      },
+      {
+        "ds": "2023-02-01",
+        "y": 25.9149
+      },
+      {
+        "ds": "2023-03-01",
+        "y": 27.5216
+      },
+      {
+        "ds": "2023-04-01",
+        "y": 29.338
+      },
+      {
+        "ds": "2023-05-01",
+        "y": 32.2259
+      },
+      {
+        "ds": "2023-06-01",
+        "y": 34.6012
+      },
+      {
+        "ds": "2023-07-01",
+        "y": 36.435
+      },
+      {
+        "ds": "2023-08-01",
+        "y": 40.8963
+      },
+      {
+        "ds": "2023-09-01",
+        "y": 46.6828
+      },
+      {
+        "ds": "2023-10-01",
+        "y": 52.2754
+      },
+      {
+        "ds": "2023-11-01",
+        "y": 57.3589
+      },
+      {
+        "ds": "2023-12-01",
+        "y": 70.9061
+      },
+      {
+        "ds": "2024-01-01",
+        "y": 89.8788
+      },
+      {
+        "ds": "2024-02-01",
+        "y": 112.259
+      },
+      {
+        "ds": "2024-03-01",
+        "y": 129.2336
+      },
+      {
+        "ds": "2024-04-01",
+        "y": 134.4426
+      },
+      {
+        "ds": "2024-05-01",
+        "y": 135.4348
+      },
+      {
+        "ds": "2024-06-01",
+        "y": 141.6648
+      },
+      {
+        "ds": "2024-07-01",
+        "y": 132.9553
+      },
+      {
+        "ds": "2024-08-01",
+        "y": 137.0038
+      },
+      {
+        "ds": "2024-09-01",
+        "y": 137.0038
+      },
+      {
+        "ds": "2024-10-01",
+        "y": 139.445
+      },
+      {
+        "ds": "2024-11-01",
+        "y": 138.2005
+      },
+      {
+        "ds": "2024-12-01",
+        "y": 141.9286
+      },
+      {
+        "ds": "2025-01-01",
+        "y": 141.7318
+      },
+      {
+        "ds": "2025-02-01",
+        "y": 144.6363
+      },
+      {
+        "ds": "2025-03-01",
+        "y": 144.6434
+      },
+      {
+        "ds": "2025-04-01",
+        "y": 146.343
+      },
+      {
+        "ds": "2025-05-01",
+        "y": 151.2149
+      },
+      {
+        "ds": "2025-06-01",
+        "y": 155.4489
+      },
+      {
+        "ds": "2025-07-01",
+        "y": 161.9968
+      },
+      {
+        "ds": "2025-08-01",
+        "y": 164.616
+      },
+      {
+        "ds": "2025-09-01",
+        "y": 166.5168
+      },
+      {
+        "ds": "2025-10-01",
+        "y": 171.5127
+      },
+      {
+        "ds": "2025-11-01",
+        "y": 178.4027
+      },
+      {
+        "ds": "2025-12-01",
+        "y": 178.3729
+      },
+      {
+        "ds": "2026-01-01",
+        "y": 185.3053
+      },
+      {
+        "ds": "2026-02-01",
+        "y": 185.3296
+      },
+      {
+        "ds": "2026-03-01",
+        "y": 193.4146
+      },
+      {
+        "ds": "2026-11-01",
+        "y": 178.4213
+      }
+    ],
+    "metricas": {
+      "folds": 9,
+      "mae": "5.82",
+      "mape": "4.22",
+      "efectividad_informal": "95.78"
+    },
+    "forecast": [
+      {
+        "fecha": "2026-12-01",
+        "precio_proyectado": "191.61",
+        "precio_equivalente_25kg": "4790.20",
+        "precio_equivalente_50kg": "9580.40"
+      },
+      {
+        "fecha": "2027-01-01",
+        "precio_proyectado": "195.45",
+        "precio_equivalente_25kg": "4886.13",
+        "precio_equivalente_50kg": "9772.25"
+      },
+      {
+        "fecha": "2027-02-01",
+        "precio_proyectado": "199.36",
+        "precio_equivalente_25kg": "4984.08",
+        "precio_equivalente_50kg": "9968.16"
+      }
+    ],
+    "modelo": "prophet_ipim_icc_var_materials",
+    "supuesto_regresores": "Regresores resueltos: ipim_nivel_general, icc_var_materials.",
+    "seleccion_modelo": {
+      "material_key": "cemento-portland",
+      "modelo_resuelto": "prophet_ipim_icc_var_materials",
+      "regresores_resueltos": [
+        "ipim_nivel_general",
+        "icc_var_materials"
+      ],
+      "mape_referencia": "4.22",
+      "mae_referencia": "5.82",
+      "folds": 9,
+      "confiabilidad": "alta",
+      "origen_decision": "material_horizonte",
+      "justificacion": "Configuracion recomendada segun benchmark consolidado y seleccionada por menor MAPE dentro de las variantes ejecutables por el runtime.",
+      "no_calibrado": false,
+      "advertencia": null
+    }
+  },
+  "1:6:c3a018f784d99e98e3161fba8bc51a9ca76bbed2f30bf6bdca9d2c8f4a100656:selector-on:prophet_ipim_icc_var_materials": {
+    "dataset": [
+      {
+        "ds": "2022-01-01",
+        "y": 12.1501
+      },
+      {
+        "ds": "2022-02-01",
+        "y": 12.5548
+      },
+      {
+        "ds": "2022-03-01",
+        "y": 13.2865
+      },
+      {
+        "ds": "2022-04-01",
+        "y": 13.9203
+      },
+      {
+        "ds": "2022-05-01",
+        "y": 14.8011
+      },
+      {
+        "ds": "2022-06-01",
+        "y": 14.9396
+      },
+      {
+        "ds": "2022-07-01",
+        "y": 16.1439
+      },
+      {
+        "ds": "2022-08-01",
+        "y": 17.3182
+      },
+      {
+        "ds": "2022-09-01",
+        "y": 18.9181
+      },
+      {
+        "ds": "2022-10-01",
+        "y": 20.2993
+      },
+      {
+        "ds": "2022-11-01",
+        "y": 21.7609
+      },
+      {
+        "ds": "2022-12-01",
+        "y": 23.6927
+      },
+      {
+        "ds": "2023-01-01",
+        "y": 24.66
+      },
+      {
+        "ds": "2023-02-01",
+        "y": 25.9149
+      },
+      {
+        "ds": "2023-03-01",
+        "y": 27.5216
+      },
+      {
+        "ds": "2023-04-01",
+        "y": 29.338
+      },
+      {
+        "ds": "2023-05-01",
+        "y": 32.2259
+      },
+      {
+        "ds": "2023-06-01",
+        "y": 34.6012
+      },
+      {
+        "ds": "2023-07-01",
+        "y": 36.435
+      },
+      {
+        "ds": "2023-08-01",
+        "y": 40.8963
+      },
+      {
+        "ds": "2023-09-01",
+        "y": 46.6828
+      },
+      {
+        "ds": "2023-10-01",
+        "y": 52.2754
+      },
+      {
+        "ds": "2023-11-01",
+        "y": 57.3589
+      },
+      {
+        "ds": "2023-12-01",
+        "y": 70.9061
+      },
+      {
+        "ds": "2024-01-01",
+        "y": 89.8788
+      },
+      {
+        "ds": "2024-02-01",
+        "y": 112.259
+      },
+      {
+        "ds": "2024-03-01",
+        "y": 129.2336
+      },
+      {
+        "ds": "2024-04-01",
+        "y": 134.4426
+      },
+      {
+        "ds": "2024-05-01",
+        "y": 135.4348
+      },
+      {
+        "ds": "2024-06-01",
+        "y": 141.6648
+      },
+      {
+        "ds": "2024-07-01",
+        "y": 132.9553
+      },
+      {
+        "ds": "2024-08-01",
+        "y": 137.0038
+      },
+      {
+        "ds": "2024-09-01",
+        "y": 137.0038
+      },
+      {
+        "ds": "2024-10-01",
+        "y": 139.445
+      },
+      {
+        "ds": "2024-11-01",
+        "y": 138.2005
+      },
+      {
+        "ds": "2024-12-01",
+        "y": 141.9286
+      },
+      {
+        "ds": "2025-01-01",
+        "y": 141.7318
+      },
+      {
+        "ds": "2025-02-01",
+        "y": 144.6363
+      },
+      {
+        "ds": "2025-03-01",
+        "y": 144.6434
+      },
+      {
+        "ds": "2025-04-01",
+        "y": 146.343
+      },
+      {
+        "ds": "2025-05-01",
+        "y": 151.2149
+      },
+      {
+        "ds": "2025-06-01",
+        "y": 155.4489
+      },
+      {
+        "ds": "2025-07-01",
+        "y": 161.9968
+      },
+      {
+        "ds": "2025-08-01",
+        "y": 164.616
+      },
+      {
+        "ds": "2025-09-01",
+        "y": 166.5168
+      },
+      {
+        "ds": "2025-10-01",
+        "y": 171.5127
+      },
+      {
+        "ds": "2025-11-01",
+        "y": 178.4027
+      },
+      {
+        "ds": "2025-12-01",
+        "y": 178.3729
+      },
+      {
+        "ds": "2026-01-01",
+        "y": 185.3053
+      },
+      {
+        "ds": "2026-02-01",
+        "y": 185.3296
+      },
+      {
+        "ds": "2026-03-01",
+        "y": 193.4146
+      },
+      {
+        "ds": "2026-11-01",
+        "y": 178.4213
+      }
+    ],
+    "metricas": {
+      "folds": 4,
+      "mae": "7.58",
+      "mape": "5.52",
+      "efectividad_informal": "94.48"
+    },
+    "forecast": [
+      {
+        "fecha": "2026-12-01",
+        "precio_proyectado": "191.61",
+        "precio_equivalente_25kg": "4790.20",
+        "precio_equivalente_50kg": "9580.40"
+      },
+      {
+        "fecha": "2027-01-01",
+        "precio_proyectado": "195.45",
+        "precio_equivalente_25kg": "4886.13",
+        "precio_equivalente_50kg": "9772.25"
+      },
+      {
+        "fecha": "2027-02-01",
+        "precio_proyectado": "199.36",
+        "precio_equivalente_25kg": "4984.08",
+        "precio_equivalente_50kg": "9968.16"
+      },
+      {
+        "fecha": "2027-03-01",
+        "precio_proyectado": "203.39",
+        "precio_equivalente_25kg": "5084.76",
+        "precio_equivalente_50kg": "10169.52"
+      },
+      {
+        "fecha": "2027-04-01",
+        "precio_proyectado": "207.48",
+        "precio_equivalente_25kg": "5186.90",
+        "precio_equivalente_50kg": "10373.79"
+      },
+      {
+        "fecha": "2027-05-01",
+        "precio_proyectado": "211.66",
+        "precio_equivalente_25kg": "5291.41",
+        "precio_equivalente_50kg": "10582.81"
+      }
+    ],
+    "modelo": "prophet_ipim_icc_var_materials",
+    "supuesto_regresores": "Regresores resueltos: ipim_nivel_general, icc_var_materials.",
+    "seleccion_modelo": {
+      "material_key": "cemento-portland",
+      "modelo_resuelto": "prophet_ipim_icc_var_materials",
+      "regresores_resueltos": [
+        "ipim_nivel_general",
+        "icc_var_materials"
+      ],
+      "mape_referencia": "5.52",
+      "mae_referencia": "7.58",
+      "folds": 4,
+      "confiabilidad": "alta",
+      "origen_decision": "material_horizonte",
+      "justificacion": "Configuracion recomendada segun benchmark consolidado y seleccionada por menor MAPE dentro de las variantes ejecutables por el runtime.",
+      "no_calibrado": false,
+      "advertencia": null
+    }
+  },
+  "1:12:c3a018f784d99e98e3161fba8bc51a9ca76bbed2f30bf6bdca9d2c8f4a100656:selector-on:prophet_ipim_icc_var_materials": {
+    "dataset": [
+      {
+        "ds": "2022-01-01",
+        "y": 12.1501
+      },
+      {
+        "ds": "2022-02-01",
+        "y": 12.5548
+      },
+      {
+        "ds": "2022-03-01",
+        "y": 13.2865
+      },
+      {
+        "ds": "2022-04-01",
+        "y": 13.9203
+      },
+      {
+        "ds": "2022-05-01",
+        "y": 14.8011
+      },
+      {
+        "ds": "2022-06-01",
+        "y": 14.9396
+      },
+      {
+        "ds": "2022-07-01",
+        "y": 16.1439
+      },
+      {
+        "ds": "2022-08-01",
+        "y": 17.3182
+      },
+      {
+        "ds": "2022-09-01",
+        "y": 18.9181
+      },
+      {
+        "ds": "2022-10-01",
+        "y": 20.2993
+      },
+      {
+        "ds": "2022-11-01",
+        "y": 21.7609
+      },
+      {
+        "ds": "2022-12-01",
+        "y": 23.6927
+      },
+      {
+        "ds": "2023-01-01",
+        "y": 24.66
+      },
+      {
+        "ds": "2023-02-01",
+        "y": 25.9149
+      },
+      {
+        "ds": "2023-03-01",
+        "y": 27.5216
+      },
+      {
+        "ds": "2023-04-01",
+        "y": 29.338
+      },
+      {
+        "ds": "2023-05-01",
+        "y": 32.2259
+      },
+      {
+        "ds": "2023-06-01",
+        "y": 34.6012
+      },
+      {
+        "ds": "2023-07-01",
+        "y": 36.435
+      },
+      {
+        "ds": "2023-08-01",
+        "y": 40.8963
+      },
+      {
+        "ds": "2023-09-01",
+        "y": 46.6828
+      },
+      {
+        "ds": "2023-10-01",
+        "y": 52.2754
+      },
+      {
+        "ds": "2023-11-01",
+        "y": 57.3589
+      },
+      {
+        "ds": "2023-12-01",
+        "y": 70.9061
+      },
+      {
+        "ds": "2024-01-01",
+        "y": 89.8788
+      },
+      {
+        "ds": "2024-02-01",
+        "y": 112.259
+      },
+      {
+        "ds": "2024-03-01",
+        "y": 129.2336
+      },
+      {
+        "ds": "2024-04-01",
+        "y": 134.4426
+      },
+      {
+        "ds": "2024-05-01",
+        "y": 135.4348
+      },
+      {
+        "ds": "2024-06-01",
+        "y": 141.6648
+      },
+      {
+        "ds": "2024-07-01",
+        "y": 132.9553
+      },
+      {
+        "ds": "2024-08-01",
+        "y": 137.0038
+      },
+      {
+        "ds": "2024-09-01",
+        "y": 137.0038
+      },
+      {
+        "ds": "2024-10-01",
+        "y": 139.445
+      },
+      {
+        "ds": "2024-11-01",
+        "y": 138.2005
+      },
+      {
+        "ds": "2024-12-01",
+        "y": 141.9286
+      },
+      {
+        "ds": "2025-01-01",
+        "y": 141.7318
+      },
+      {
+        "ds": "2025-02-01",
+        "y": 144.6363
+      },
+      {
+        "ds": "2025-03-01",
+        "y": 144.6434
+      },
+      {
+        "ds": "2025-04-01",
+        "y": 146.343
+      },
+      {
+        "ds": "2025-05-01",
+        "y": 151.2149
+      },
+      {
+        "ds": "2025-06-01",
+        "y": 155.4489
+      },
+      {
+        "ds": "2025-07-01",
+        "y": 161.9968
+      },
+      {
+        "ds": "2025-08-01",
+        "y": 164.616
+      },
+      {
+        "ds": "2025-09-01",
+        "y": 166.5168
+      },
+      {
+        "ds": "2025-10-01",
+        "y": 171.5127
+      },
+      {
+        "ds": "2025-11-01",
+        "y": 178.4027
+      },
+      {
+        "ds": "2025-12-01",
+        "y": 178.3729
+      },
+      {
+        "ds": "2026-01-01",
+        "y": 185.3053
+      },
+      {
+        "ds": "2026-02-01",
+        "y": 185.3296
+      },
+      {
+        "ds": "2026-03-01",
+        "y": 193.4146
+      },
+      {
+        "ds": "2026-11-01",
+        "y": 178.4213
+      }
+    ],
+    "metricas": {
+      "folds": 2,
+      "mae": "6.36",
+      "mape": "4.51",
+      "efectividad_informal": "95.49"
+    },
+    "forecast": [
+      {
+        "fecha": "2026-12-01",
+        "precio_proyectado": "191.61",
+        "precio_equivalente_25kg": "4790.20",
+        "precio_equivalente_50kg": "9580.40"
+      },
+      {
+        "fecha": "2027-01-01",
+        "precio_proyectado": "195.45",
+        "precio_equivalente_25kg": "4886.13",
+        "precio_equivalente_50kg": "9772.25"
+      },
+      {
+        "fecha": "2027-02-01",
+        "precio_proyectado": "199.36",
+        "precio_equivalente_25kg": "4984.08",
+        "precio_equivalente_50kg": "9968.16"
+      },
+      {
+        "fecha": "2027-03-01",
+        "precio_proyectado": "203.39",
+        "precio_equivalente_25kg": "5084.76",
+        "precio_equivalente_50kg": "10169.52"
+      },
+      {
+        "fecha": "2027-04-01",
+        "precio_proyectado": "207.48",
+        "precio_equivalente_25kg": "5186.90",
+        "precio_equivalente_50kg": "10373.79"
+      },
+      {
+        "fecha": "2027-05-01",
+        "precio_proyectado": "211.66",
+        "precio_equivalente_25kg": "5291.41",
+        "precio_equivalente_50kg": "10582.81"
+      },
+      {
+        "fecha": "2027-06-01",
+        "precio_proyectado": "215.92",
+        "precio_equivalente_25kg": "5397.90",
+        "precio_equivalente_50kg": "10795.80"
+      },
+      {
+        "fecha": "2027-07-01",
+        "precio_proyectado": "220.27",
+        "precio_equivalente_25kg": "5506.85",
+        "precio_equivalente_50kg": "11013.71"
+      },
+      {
+        "fecha": "2027-08-01",
+        "precio_proyectado": "224.72",
+        "precio_equivalente_25kg": "5617.88",
+        "precio_equivalente_50kg": "11235.77"
+      },
+      {
+        "fecha": "2027-09-01",
+        "precio_proyectado": "229.25",
+        "precio_equivalente_25kg": "5731.25",
+        "precio_equivalente_50kg": "11462.50"
+      },
+      {
+        "fecha": "2027-10-01",
+        "precio_proyectado": "233.89",
+        "precio_equivalente_25kg": "5847.22",
+        "precio_equivalente_50kg": "11694.45"
+      },
+      {
+        "fecha": "2027-11-01",
+        "precio_proyectado": "238.62",
+        "precio_equivalente_25kg": "5965.41",
+        "precio_equivalente_50kg": "11930.83"
+      }
+    ],
+    "modelo": "prophet_ipim_icc_var_materials",
+    "supuesto_regresores": "Regresores resueltos: ipim_nivel_general, icc_var_materials.",
+    "seleccion_modelo": {
+      "material_key": "cemento-portland",
+      "modelo_resuelto": "prophet_ipim_icc_var_materials",
+      "regresores_resueltos": [
+        "ipim_nivel_general",
+        "icc_var_materials"
+      ],
+      "mape_referencia": "4.51",
+      "mae_referencia": "6.36",
+      "folds": 2,
+      "confiabilidad": "alta",
+      "origen_decision": "material_horizonte",
+      "justificacion": "Configuracion recomendada segun benchmark consolidado y seleccionada por menor MAPE dentro de las variantes ejecutables por el runtime.",
+      "no_calibrado": false,
+      "advertencia": null
+    }
   }
 }

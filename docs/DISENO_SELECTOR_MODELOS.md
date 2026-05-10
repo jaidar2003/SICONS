@@ -98,20 +98,21 @@ Importante: este documento describe la calibracion actual del selector en runtim
 
 ### Configuracion inicial conocida
 
-Con la evidencia actualmente documentada, solo corresponde fijar de manera explicita estas recomendaciones:
+El selector runtime ya no usa una tabla hardcodeada. Lee el benchmark consolidado de los tres materiales y elige la variante ejecutable con menor `MAPE` para cada `material_key + horizonte_meses`.
 
 | Material key | Material visible | Horizonte | Modelo recomendado | Regresores | MAPE | MAE | Folds | Confiabilidad |
-|---|---:|---|---|---:|---:|---:|---|
-| `cemento-portland` | `Cemento Portland` | `3` | `prophet_ipim_nivel_general` | `["ipim_nivel_general"]` | `4.98%` | `6.76` | `9` | alta |
-| `pastina` | `Pastina` | `3` | `prophet_blue_ipc` | `["dolar_blue", "ipc"]` | `5.00%` | `120.90` | `9` | media |
-| `membrana-megaflex` | `Membrana Megaflex` | `3` | `prophet_ipc` | `["ipc"]` | `8.31%` | `734.37` | `9` | media-baja |
+|---|---|---:|---|---|---:|---:|---:|---|
+| `cemento-portland` | `Cemento Portland` | `3` | `prophet_ipim_icc_var_materials` | `["ipim_nivel_general", "icc_var_materials"]` | `4.22%` | `5.82` | `9` | alta |
+| `cemento-portland` | `Cemento Portland` | `6` | `prophet_ipim_icc_var_materials` | `["ipim_nivel_general", "icc_var_materials"]` | `5.52%` | `7.58` | `9` | alta |
+| `cemento-portland` | `Cemento Portland` | `12` | `prophet_ipim_icc_var_materials` | `["ipim_nivel_general", "icc_var_materials"]` | `4.51%` | `6.36` | `9` | alta |
+| `pastina` | `Pastina` | `3` | `prophet_ipim_cac_labour_force` | `["ipim_nivel_general", "cac_labour_force"]` | `4.27%` | `97.97` | `9` | media |
+| `pastina` | `Pastina` | `6` | `prophet_ipim_cac_labour_force` | `["ipim_nivel_general", "cac_labour_force"]` | `5.26%` | `115.97` | `9` | media |
+| `pastina` | `Pastina` | `12` | `prophet_ipim_cac_var_materials` | `["ipim_nivel_general", "cac_var_materials"]` | `4.94%` | `105.88` | `9` | media |
+| `membrana-megaflex` | `Membrana Megaflex` | `3` | `prophet_ipim_icc_var_general` | `["ipim_nivel_general", "icc_var_general"]` | `7.53%` | `619.75` | `9` | media-baja |
+| `membrana-megaflex` | `Membrana Megaflex` | `6` | `prophet_ipim_icc_var_general` | `["ipim_nivel_general", "icc_var_general"]` | `9.73%` | `759.85` | `9` | media-baja |
+| `membrana-megaflex` | `Membrana Megaflex` | `12` | `prophet_ipim_icc_var_materials` | `["ipim_nivel_general", "icc_var_materials"]` | `13.57%` | `1080.42` | `9` | media-baja |
 
-No corresponde completar artificialmente otros horizontes con resultados no medidos. Para horizontes no calibrados, el selector debe caer en reglas de fallback y dejar esa condicion explicitada.
-
-Nota de contexto:
-
-- `Pastina` ya tiene mejores resultados experimentales posteriores, por ejemplo `prophet_ipim_nivel_general_lags` en `3m`, pero esa mejora todavia no fue promovida al selector runtime.
-- `Membrana Megaflex` tambien tiene mejoras experimentales en `3m` y `6m`, especialmente con lags, pero el selector runtime sigue documentando la calibracion formal previa.
+Las variantes con lags, medias moviles, variaciones y ensemble siguen siendo las mejores en varios experimentos de investigacion, pero todavia no se usan en el selector runtime porque el pipeline operativo no las ejecuta de forma nativa.
 
 ## 5. Reglas de fallback
 

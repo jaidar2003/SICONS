@@ -8,11 +8,31 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=200)
 
 
+class RegisterRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=80)
+    nombre: str = Field(min_length=1, max_length=120)
+    email: str = Field(min_length=3, max_length=160)
+    password: str = Field(min_length=8, max_length=200)
+
+
 class UsuarioRead(BaseModel):
     id: int
     username: str
+    email: str | None = None
     nombre: str
     rol: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UsuarioAdminRead(BaseModel):
+    id: int
+    username: str
+    email: str | None = None
+    nombre: str
+    rol: str
+    activo: bool
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -23,3 +43,7 @@ class LoginResponse(BaseModel):
     expires_at: datetime
     usuario: UsuarioRead
 
+
+class RegisterResponse(BaseModel):
+    message: str
+    usuario: UsuarioRead

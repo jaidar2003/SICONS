@@ -36,14 +36,14 @@ export function getMaterialPresentation(name, unitBase = "unidad") {
     return {
       type: "fixed",
       displayMultiplier: 1,
-      displayUnitLabel: "envase 1 kg",
-      primaryPriceLabel: "Precio comercial",
-      primaryPriceHelper: "Presentacion fija de 1 kg",
-      tablePriceLabel: "Precio 1 kg",
-      chartAxisLabel: "ARS por envase 1 kg",
-      tooltipPriceLabel: "Precio 1 kg",
-      summaryUnitText: "por envase de 1 kg",
-      fixedPresentationLabel: "1 kg",
+      displayUnitLabel: "caja 1 kg",
+      primaryPriceLabel: "Caja 1 kg",
+      primaryPriceHelper: "Presentacion comercial de 1 kg",
+      tablePriceLabel: "Caja 1 kg",
+      chartAxisLabel: "ARS por caja 1 kg",
+      tooltipPriceLabel: "Caja 1 kg",
+      summaryUnitText: "por caja de 1 kg",
+      fixedPresentationLabel: "Caja 1 kg",
     };
   }
 
@@ -52,13 +52,13 @@ export function getMaterialPresentation(name, unitBase = "unidad") {
       type: "fixed",
       displayMultiplier: 20,
       displayUnitLabel: "balde 20 kg",
-      primaryPriceLabel: "Precio comercial",
+      primaryPriceLabel: "Balde 20 kg",
       primaryPriceHelper: "Presentacion fija de 20 kg",
-      tablePriceLabel: "Precio 20 kg",
+      tablePriceLabel: "Balde 20 kg",
       chartAxisLabel: "ARS por balde 20 kg",
-      tooltipPriceLabel: "Precio 20 kg",
+      tooltipPriceLabel: "Balde 20 kg",
       summaryUnitText: "por balde de 20 kg",
-      fixedPresentationLabel: "20 kg",
+      fixedPresentationLabel: "Balde 20 kg",
     };
   }
 

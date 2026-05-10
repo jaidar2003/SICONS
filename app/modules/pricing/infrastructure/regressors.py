@@ -15,6 +15,18 @@ MAYORISTA_CSV = PROJECT_ROOT / "tmp" / "dolares_2022" / "dolar_mayorista_histori
 BLUE_CSV = PROJECT_ROOT / "tmp" / "dolares_2022" / "dolar_blue_historico.csv"
 IPC_CSV = PROJECT_ROOT / "tmp" / "ipc_2022" / "ipc_nacional.csv"
 IPIM_NIVEL_GENERAL_SERIES_ID = "448.1_NIVEL_GENERAL_0_0_13_46"
+ICC_GENERAL_SERIES_ID = "ICC_NIVEL_GENERAL"
+ICC_MATERIALS_SERIES_ID = "ICC_MATERIALES"
+ICC_LABOUR_FORCE_SERIES_ID = "ICC_MANO_DE_OBRA"
+ICC_VAR_GENERAL_SERIES_ID = "ICC_VAR_GENERAL"
+ICC_VAR_MATERIALS_SERIES_ID = "ICC_VAR_MATERIALES"
+ICC_VAR_LABOUR_SERIES_ID = "ICC_VAR_MANO_DE_OBRA"
+CAC_GENERAL_SERIES_ID = "CAC_GENERAL"
+CAC_MATERIALS_SERIES_ID = "CAC_MATERIALES"
+CAC_LABOUR_FORCE_SERIES_ID = "CAC_MANO_DE_OBRA"
+CAC_VAR_GENERAL_SERIES_ID = "CAC_VAR_GENERAL"
+CAC_VAR_MATERIALS_SERIES_ID = "CAC_VAR_MATERIALES"
+CAC_VAR_LABOUR_SERIES_ID = "CAC_VAR_MANO_DE_OBRA"
 REGRESSOR_TREND_WINDOW_MONTHS = 12
 
 
@@ -77,6 +89,18 @@ def cargar_regresores_mensuales(pd, columnas: tuple[str, ...] = ("dolar_oficial"
         "dolar_blue": lambda: _cargar_dolar_mensual(pd, BLUE_CSV, "dolar_blue"),
         "ipc": lambda: _cargar_ipc_mensual(pd, IPC_CSV),
         "ipim_nivel_general": lambda: _cargar_indice_externo_mensual(pd, IPIM_NIVEL_GENERAL_SERIES_ID, "ipim_nivel_general"),
+        "icc_nivel_general": lambda: _cargar_indice_externo_mensual(pd, ICC_GENERAL_SERIES_ID, "icc_nivel_general"),
+        "icc_materials": lambda: _cargar_indice_externo_mensual(pd, ICC_MATERIALS_SERIES_ID, "icc_materials"),
+        "icc_labour_force": lambda: _cargar_indice_externo_mensual(pd, ICC_LABOUR_FORCE_SERIES_ID, "icc_labour_force"),
+        "icc_var_general": lambda: _cargar_indice_externo_mensual(pd, ICC_VAR_GENERAL_SERIES_ID, "icc_var_general"),
+        "icc_var_materials": lambda: _cargar_indice_externo_mensual(pd, ICC_VAR_MATERIALS_SERIES_ID, "icc_var_materials"),
+        "icc_var_labour": lambda: _cargar_indice_externo_mensual(pd, ICC_VAR_LABOUR_SERIES_ID, "icc_var_labour"),
+        "cac_general": lambda: _cargar_indice_externo_mensual(pd, CAC_GENERAL_SERIES_ID, "cac_general"),
+        "cac_materials": lambda: _cargar_indice_externo_mensual(pd, CAC_MATERIALS_SERIES_ID, "cac_materials"),
+        "cac_labour_force": lambda: _cargar_indice_externo_mensual(pd, CAC_LABOUR_FORCE_SERIES_ID, "cac_labour_force"),
+        "cac_var_general": lambda: _cargar_indice_externo_mensual(pd, CAC_VAR_GENERAL_SERIES_ID, "cac_var_general"),
+        "cac_var_materials": lambda: _cargar_indice_externo_mensual(pd, CAC_VAR_MATERIALS_SERIES_ID, "cac_var_materials"),
+        "cac_var_labour": lambda: _cargar_indice_externo_mensual(pd, CAC_VAR_LABOUR_SERIES_ID, "cac_var_labour"),
     }
 
     faltantes = [columna for columna in columnas if columna not in loaders]
