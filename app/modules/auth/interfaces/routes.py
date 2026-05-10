@@ -13,7 +13,7 @@ from app.modules.auth.interfaces.schemas import (
     UsuarioRead,
 )
 from app.shared.database.session import get_db
-from app.shared.notifications.email import send_welcome_email
+from app.shared.notifications.email import send_account_deleted_email, send_welcome_email
 from app.shared.security.tokens import create_access_token, hash_password, verify_password
 
 
@@ -102,3 +102,28 @@ def habilitar_usuario(
         send_welcome_email(to_email=user.email, nombre=user.nombre, username=user.username)
 
     return user
+
+
+@router.delete("/usuarios/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_usuario(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_admin),
+) -> None:
+    if current_user.id == user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No te puedes eliminar a vos mismo")
+
+    user = db.get(Usuario, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+    if user.rol == "admin":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se puede eliminar un usuario admin")
+
+    user_email = user.email
+    user_nombre = user.nombre
+    user_username = user.username
+    db.delete(user)
+    db.commit()
+
+    if user_email:
+        send_account_deleted_email(to_email=user_email, nombre=user_nombre, username=user_username)
