@@ -3,6 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.modules.auth.infrastructure.models import Usuario
+from app.modules.auth.interfaces.dependencies import require_admin
 from app.modules.catalog.infrastructure.models import Fuente
 from app.modules.catalog.interfaces.schemas import FuenteCreate, FuenteRead
 from app.shared.database.session import get_db
@@ -16,7 +18,11 @@ def listar_fuentes(db: Session = Depends(get_db)) -> list[Fuente]:
 
 
 @router.post("", response_model=FuenteRead, status_code=status.HTTP_201_CREATED)
-def crear_fuente(payload: FuenteCreate, db: Session = Depends(get_db)) -> Fuente:
+def crear_fuente(
+    payload: FuenteCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_admin),
+) -> Fuente:
     fuente = Fuente(**payload.model_dump())
     db.add(fuente)
     try:

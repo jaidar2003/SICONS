@@ -3,6 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.modules.auth.infrastructure.models import Usuario
+from app.modules.auth.interfaces.dependencies import require_admin
 from app.modules.catalog.infrastructure.models import Material
 from app.modules.catalog.interfaces.schemas import MaterialCreate, MaterialRead
 from app.shared.database.session import get_db
@@ -19,7 +21,11 @@ def listar_materiales(db: Session = Depends(get_db), activos: bool | None = None
 
 
 @router.post("", response_model=MaterialRead, status_code=status.HTTP_201_CREATED)
-def crear_material(payload: MaterialCreate, db: Session = Depends(get_db)) -> Material:
+def crear_material(
+    payload: MaterialCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_admin),
+) -> Material:
     material = Material(**payload.model_dump())
     db.add(material)
     try:

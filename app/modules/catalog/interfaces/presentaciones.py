@@ -3,6 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.modules.auth.infrastructure.models import Usuario
+from app.modules.auth.interfaces.dependencies import require_admin
 from app.modules.catalog.infrastructure.models import Material, Presentacion
 from app.modules.catalog.interfaces.schemas import PresentacionCreate, PresentacionRead
 from app.shared.database.session import get_db
@@ -22,7 +24,11 @@ def listar_presentaciones(
 
 
 @router.post("", response_model=PresentacionRead, status_code=status.HTTP_201_CREATED)
-def crear_presentacion(payload: PresentacionCreate, db: Session = Depends(get_db)) -> Presentacion:
+def crear_presentacion(
+    payload: PresentacionCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_admin),
+) -> Presentacion:
     material = db.get(Material, payload.material_id)
     if material is None:
         raise HTTPException(status_code=404, detail="Material no encontrado")

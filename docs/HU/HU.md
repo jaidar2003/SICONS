@@ -9,16 +9,28 @@ Este documento resume el alcance funcional de `BuildWise` y deja visible dos niv
 
 | Grupo | Cantidad |
 | --- | ---: |
-| Historias totales | 28 |
+| Historias totales | 34 |
 | Implementadas | 21 |
 | Parciales | 4 |
-| Pendientes | 3 |
+| Pendientes | 9 |
 
 | Cumplimiento literal | Cantidad |
 | --- | ---: |
 | Si | 18 |
 | Parcial | 7 |
-| No | 3 |
+| No | 9 |
+
+## Alcance MVP vigente
+
+Para esta etapa, el alcance funcional y de validacion de historias se concentra en **3 productos clave**:
+
+- `Cemento Portland`
+- `Pastina`
+- `Membrana Megaflex`
+
+Las historias nuevas o pendientes deben considerarse prioritariamente sobre estos tres productos. La extension a otros materiales queda fuera del MVP actual.
+
+- `HU33` queda diferida a post-MVP por insuficiencia de universo de sustitucion en el catalogo actual.
 
 ## Criterios
 
@@ -88,3 +100,14 @@ Este documento resume el alcance funcional de `BuildWise` y deja visible dos niv
 | HU25 | Consultar precios y proyecciones en lenguaje natural. | Pendiente | No | La capa conversacional esta disenada, pero no implementada. |
 | HU26 | Preguntar por un material especifico en lenguaje natural. | Pendiente | No | No existe endpoint ni vista conversacional activa. |
 | HU27 | Solicitar explicaciones sobre la proyeccion. | Pendiente | No | Las explicaciones existen en vistas tecnicas, no mediante asistente conversacional. |
+| HU34 | Conversar con el asistente y recibir una recomendacion accionable de compra. | Pendiente | No | Falta la capa conversacional con salida operativa (accion + ahorro esperado + riesgo). |
+
+## Epica 7. Decision asistida y operacion proactiva
+
+| HU | Historia | Estado | Literal | Observacion |
+| --- | --- | --- | --- | --- |
+| HU29 | Recomendar estrategia segun fase de obra y fecha objetivo. | Pendiente | No | Falta integrar fase, horizonte operativo y tolerancia al riesgo en la recomendacion final. |
+| HU30 | Explicar por que se recomienda una estrategia. | Pendiente | No | No existe una capa unificada de explicabilidad con drivers, impacto y confianza en una salida unica. |
+| HU31 | Simular escenarios comparables (optimista/base/pesimista) en una vista unica. | Pendiente | No | Hoy hay simulaciones parciales por estrategia/horizonte, pero no consolidacion multi-escenario integral. |
+| HU32 | Emitir alertas proactivas de decision ante cambios relevantes. | Pendiente | No | No hay motor de alertas que dispare acciones por umbrales, deterioro de forecast o cambios de fuente/proveedor. |
+| HU33 | Sugerir materiales sustitutos con impacto tecnico-economico. | Pendiente | No | Post-MVP: con el catalogo actual de 3 productos no hay base suficiente para sustitucion entre materiales. Se retoma al ampliar catalogo por familias equivalentes. |

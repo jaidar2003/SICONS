@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion
 from app.modules.pricing.domain.rules import calcular_precio_normalizado
 from app.modules.pricing.infrastructure.models import PrecioHistorico
+from app.shared.database.audit_service import register_audit_log
 
 
 def obtener_rango_precios_historicos(db: Session) -> dict:
@@ -56,6 +57,7 @@ def crear_precio_historico(
     origen_dato: str,
     metodo_estimacion: str | None,
     observaciones: str | None,
+    usuario_id: int | None = None,
 ) -> PrecioHistorico:
     if fecha > date.today():
         raise HTTPException(status_code=422, detail="La fecha no puede ser futura")
@@ -90,6 +92,21 @@ def crear_precio_historico(
         observaciones=observaciones,
     )
     db.add(precio)
+
+    register_audit_log(
+        db,
+        usuario_id=usuario_id,
+        accion="CREATED",
+        recurso="PrecioHistorico",
+        recurso_id=None,
+        cambios={
+            "material_id": material_id,
+            "fecha": str(fecha),
+            "precio": str(precio_original),
+            "moneda": moneda,
+        },
+    )
+
     try:
         db.commit()
     except IntegrityError as exc:

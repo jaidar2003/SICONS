@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.modules.auth.infrastructure.models import Usuario
-from app.modules.auth.interfaces.dependencies import require_admin
+from app.modules.auth.interfaces.dependencies import get_current_user, require_admin
 from app.modules.catalog.domain.repositories import MaterialRepository
 from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.pricing.application.commercial_margins import (
@@ -76,7 +76,10 @@ router = APIRouter(tags=["precios historicos"])
 USAR_SELECTOR_MODELO_FORECAST = True
 
 @router.get("/precios-historicos/rango", response_model=PrecioHistoricoRangoRead)
-def obtener_rango_precios_historicos(db: Session = Depends(get_db)) -> PrecioHistoricoRangoRead:
+def obtener_rango_precios_historicos(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+) -> PrecioHistoricoRangoRead:
     return PrecioHistoricoRangoRead(**obtener_rango_precios_historicos_service(db))
 
 
@@ -86,6 +89,7 @@ def listar_precios_historicos(
     desde: date | None = None,
     hasta: date | None = None,
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ) -> list[PrecioHistorico]:
     return listar_precios_historicos_service(db, material_id=material_id, desde=desde, hasta=hasta)
 
@@ -97,6 +101,7 @@ def listar_indices_externos(
     desde: date | None = None,
     hasta: date | None = None,
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ) -> list[ExternalIndexValue]:
     return list_external_indices(
         db,
@@ -134,6 +139,7 @@ def listar_precios_por_material(
     material_id: int,
     material_repo: MaterialRepository = Depends(get_material_repository),
     pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    current_user: Usuario = Depends(get_current_user),
 ) -> list[PrecioHistorico]:
     if material_repo.get_by_id(material_id) is None:
         raise MaterialNotFoundException(material_id)
@@ -148,6 +154,7 @@ def obtener_serie_precios_material(
     agrupacion: str = "dia",
     material_repo: MaterialRepository = Depends(get_material_repository),
     pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    current_user: Usuario = Depends(get_current_user),
 ):
     material = material_repo.get_by_id(material_id)
     if material is None:
@@ -180,6 +187,7 @@ def obtener_forecast_material(
     horizonte_meses: int = 3,
     material_repo: MaterialRepository = Depends(get_material_repository),
     pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    current_user: Usuario = Depends(get_current_user),
 ) -> ForecastResponseRead:
     if horizonte_meses < 1 or horizonte_meses > 12:
         raise HTTPException(status_code=422, detail="El horizonte_meses debe estar entre 1 y 12")
@@ -216,6 +224,7 @@ def recomendar_momento_compra_material(
     payload: PurchaseRecommendationCreate,
     material_repo: MaterialRepository = Depends(get_material_repository),
     pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    current_user: Usuario = Depends(get_current_user),
 ) -> PurchaseRecommendationRead:
     material = material_repo.get_by_id(material_id)
     if material is None:
@@ -251,6 +260,7 @@ def comparar_estrategias_compra_material(
     payload: PurchaseStrategyComparisonCreate,
     material_repo: MaterialRepository = Depends(get_material_repository),
     pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    current_user: Usuario = Depends(get_current_user),
 ) -> PurchaseStrategyComparisonRead:
     material = material_repo.get_by_id(material_id)
     if material is None:
@@ -296,6 +306,7 @@ def optimizar_presupuesto_compra(
     payload: PurchaseOptimizationCreate,
     material_repo: MaterialRepository = Depends(get_material_repository),
     pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    current_user: Usuario = Depends(get_current_user),
 ) -> PurchaseOptimizationRead:
     result = optimizar_compra_con_presupuesto(
         presupuesto_total=payload.presupuesto_total,
@@ -347,6 +358,7 @@ def priorizar_materiales_por_criticidad(
     payload: MaterialCriticidadCreate,
     material_repo: MaterialRepository = Depends(get_material_repository),
     pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    current_user: Usuario = Depends(get_current_user),
 ) -> MaterialCriticidadResponseRead:
     if payload.alpha == 0 and payload.beta == 0:
         raise HTTPException(status_code=422, detail="alpha y beta no pueden ser ambos cero")
@@ -392,6 +404,7 @@ def obtener_precio_comercial_material(
     material_repo: MaterialRepository = Depends(get_material_repository),
     pricing_repo: PricingRepository = Depends(get_pricing_repository),
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ) -> CommercialPriceRead:
     if horizonte_meses < 1 or horizonte_meses > 12:
         raise HTTPException(status_code=422, detail="El horizonte_meses debe estar entre 1 y 12")
@@ -460,4 +473,4 @@ def crear_precio_historico(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_admin),
 ) -> PrecioHistorico:
-    return crear_precio_historico_service(db, **payload.model_dump())
+    return crear_precio_historico_service(db, **payload.model_dump(), usuario_id=current_user.id)

@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.auth.infrastructure.models import Usuario
+from app.shared.database.audit_service import register_audit_log
 from app.shared.notifications.email import send_account_deleted_email, send_welcome_email
 from app.shared.security.tokens import create_access_token, hash_password, verify_password
 
@@ -29,6 +30,16 @@ def autenticar_usuario(db: Session, *, username: str, password: str) -> LoginRes
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario o clave incorrectos")
 
     token, expires_at = create_access_token(user_id=user.id, username=user.username, rol=user.rol)
+
+    register_audit_log(
+        db,
+        usuario_id=user.id,
+        accion="LOGIN",
+        recurso="Usuario",
+        recurso_id=str(user.id),
+    )
+    db.commit()
+
     return LoginResult(access_token=token, expires_at=expires_at, usuario=user)
 
 
@@ -64,6 +75,16 @@ def registrar_cliente(db: Session, *, username: str, nombre: str, email: str, pa
     db.commit()
     db.refresh(user)
 
+    register_audit_log(
+        db,
+        usuario_id=None,
+        accion="REGISTER",
+        recurso="Usuario",
+        recurso_id=str(user.id),
+        cambios={"username": user.username, "email": user.email},
+    )
+    db.commit()
+
     return RegisterResult(
         message="Cuenta creada. Queda pendiente de habilitacion por un administrador.",
         usuario=user,
@@ -85,6 +106,15 @@ def habilitar_usuario(db: Session, *, user_id: int) -> Usuario:
 
     was_active = user.activo
     user.activo = True
+
+    register_audit_log(
+        db,
+        usuario_id=None,  # El que lo habilita es un admin, pero no lo pasamos a esta funcion todavia
+        accion="ACTIVATE",
+        recurso="Usuario",
+        recurso_id=str(user.id),
+    )
+
     db.commit()
     db.refresh(user)
 
@@ -107,6 +137,16 @@ def eliminar_usuario(db: Session, *, user_id: int, current_user: Usuario) -> Non
     user_email = user.email
     user_nombre = user.nombre
     user_username = user.username
+
+    register_audit_log(
+        db,
+        usuario_id=current_user.id,
+        accion="DELETE",
+        recurso="Usuario",
+        recurso_id=str(user.id),
+        cambios={"username": user_username, "email": user_email},
+    )
+
     db.delete(user)
     db.commit()
 
