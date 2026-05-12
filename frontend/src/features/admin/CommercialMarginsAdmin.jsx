@@ -1,11 +1,15 @@
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
+import EditOutlinedIconModule from "@mui/icons-material/EditOutlined";
+import SwapHorizIconModule from "@mui/icons-material/SwapHoriz";
 import { Alert, Box, Button, Card, CardContent, Chip, FormControl, InputLabel, MenuItem, Select, TextField, Typography } from "@mui/material";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
+import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
 import { formatNumber } from "../../shared/utils/formatters.js";
 import { createCommercialMargin, fetchCommercialMargins, updateCommercialMargin } from "./admin.api.js";
+
+const EditOutlinedIcon = resolveMuiIcon(EditOutlinedIconModule);
+const SwapHorizIcon = resolveMuiIcon(SwapHorizIconModule);
 
 const DEFAULT_FORM = {
   scope: "GLOBAL",

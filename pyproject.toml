@@ -17,3 +17,18 @@ ignore = ["B008", "E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "app/experiments/*",
+    "app/experiment_*.py",
+    "app/train_prophet_cemento.py",
+    "app/operations/*",
+    "app/modules/pricing/application/precompute_forecasts.py",
+    "app/modules/pricing/infrastructure/forecast_runtime.py",
+]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true

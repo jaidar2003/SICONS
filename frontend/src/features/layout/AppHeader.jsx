@@ -1,9 +1,12 @@
-import LogoutIcon from "@mui/icons-material/Logout";
+import LogoutIconModule from "@mui/icons-material/Logout";
 import { Box, Button, Container, FormControlLabel, Switch, Typography } from "@mui/material";
 
 import { brand } from "../../app/brand.js";
+import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
 import { StatusBadge } from "../../shared/components/StatusBadge.jsx";
 import bwLogo from "../../../bwlogo.png";
+
+const LogoutIcon = resolveMuiIcon(LogoutIconModule);
 
 export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowPrices }) {
   return (

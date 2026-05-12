@@ -1,10 +1,13 @@
-import SaveIcon from "@mui/icons-material/Save";
+import SaveIconModule from "@mui/icons-material/Save";
 import { Alert, Box, Button, Card, CardContent, FormControl, InputLabel, MenuItem, Select, TextField } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers";
 import { useEffect, useMemo, useState } from "react";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
+import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
 import { toApiDate } from "../../shared/utils/formatters.js";
+
+const SaveIcon = resolveMuiIcon(SaveIconModule);
 
 export function PriceForm({ materiales, presentaciones, fuentes, maxDate, onSave }) {
   const [payload, setPayload] = useState({

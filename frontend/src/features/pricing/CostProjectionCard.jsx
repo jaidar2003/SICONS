@@ -70,7 +70,7 @@ export function CostProjectionCard({ forecast, selectedMaterial, showPrices }) {
           description="Calcula el costo actual y lo compara contra cada horizonte proyectado para el material seleccionado."
         />
 
-        <Box className="mt-3">
+        <Box className="mb-5">
           <ForecastModelDetails selection={selection} title="Detalles del modelo" compact />
         </Box>
 

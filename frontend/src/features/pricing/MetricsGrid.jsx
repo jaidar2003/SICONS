@@ -1,10 +1,13 @@
 import { Box } from "@mui/material";
+import { useState } from "react";
 
 import { MetricCard } from "../../shared/components/MetricCard.jsx";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
 import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 
 export function MetricsGrid({ serie, showPrices, selectedMaterial }) {
+  const [bagEquivalent, setBagEquivalent] = useState("25");
+
   if (!serie.length) {
     return (
       <Box className="mt-3 grid gap-3 md:grid-cols-4">
@@ -29,6 +32,7 @@ export function MetricsGrid({ serie, showPrices, selectedMaterial }) {
   const presentation = getMaterialPresentation(selectedMaterial?.nombre, last.unidad_base);
   const showBagEquivalents = presentation.type === "cement" && serie.some((point) => point.precio_equivalente_25kg !== null);
   const displayLastPrice = getDisplayPrice(last.precio_promedio_normalizado, selectedMaterial?.nombre, last.unidad_base);
+  const selectedBagPrice = bagEquivalent === "25" ? last.precio_equivalente_25kg : last.precio_equivalente_50kg;
 
   if (!showPrices) {
     return (
@@ -46,9 +50,27 @@ export function MetricsGrid({ serie, showPrices, selectedMaterial }) {
       <MetricCard label={presentation.primaryPriceLabel} value={`${formatCurrency(displayLastPrice)}`} helper={`${presentation.displayUnitLabel} · ${last.fecha}`} />
       {showBagEquivalents ? (
         <MetricCard
-          label="Equivalente 25 kg / 50 kg"
-          value={`${formatCurrency(last.precio_equivalente_25kg)} / ${formatCurrency(last.precio_equivalente_50kg)}`}
-          helper="ARS por bolsa"
+          label="Equivalente bolsa"
+          value={formatCurrency(selectedBagPrice)}
+          helper={`ARS por bolsa de ${bagEquivalent} kg`}
+          control={
+            <Box className="inline-flex rounded-full border border-md-primary/30 bg-white p-0.5">
+              <button
+                type="button"
+                className={`h-5 rounded-full px-2 text-[10px] font-extrabold leading-none ${bagEquivalent === "25" ? "bg-md-primary text-white" : "text-md-primary"}`}
+                onClick={() => setBagEquivalent("25")}
+              >
+                25
+              </button>
+              <button
+                type="button"
+                className={`h-5 rounded-full px-2 text-[10px] font-extrabold leading-none ${bagEquivalent === "50" ? "bg-md-primary text-white" : "text-md-primary"}`}
+                onClick={() => setBagEquivalent("50")}
+              >
+                50
+              </button>
+            </Box>
+          }
         />
       ) : null}
       {!showBagEquivalents ? <MetricCard label="Presentacion" value={presentation.fixedPresentationLabel || presentation.displayUnitLabel} helper={presentation.primaryPriceHelper} /> : null}

@@ -1,9 +1,12 @@
 import { Accordion, AccordionDetails, AccordionSummary, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandMoreIconModule from "@mui/icons-material/ExpandMore";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
+import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
 import { formatCurrency, formatNumber, monthLabel, variationTone } from "../../shared/utils/formatters.js";
 import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
+
+const ExpandMoreIcon = resolveMuiIcon(ExpandMoreIconModule);
 
 export function HistoryTable({ serie, showPrices, selectedMaterial, className = "" }) {
   const presentation = getMaterialPresentation(selectedMaterial?.nombre, serie[0]?.unidad_base);

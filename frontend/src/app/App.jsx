@@ -1,10 +1,10 @@
-import AddIcon from "@mui/icons-material/Add";
-import AutoGraphIcon from "@mui/icons-material/AutoGraph";
-import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
-import SavingsOutlinedIcon from "@mui/icons-material/SavingsOutlined";
-import TimelineOutlinedIcon from "@mui/icons-material/TimelineOutlined";
+import AddIconModule from "@mui/icons-material/Add";
+import AutoGraphIconModule from "@mui/icons-material/AutoGraph";
+import AdminPanelSettingsOutlinedIconModule from "@mui/icons-material/AdminPanelSettingsOutlined";
+import ExpandLessIconModule from "@mui/icons-material/ExpandLess";
+import Inventory2OutlinedIconModule from "@mui/icons-material/Inventory2Outlined";
+import SavingsOutlinedIconModule from "@mui/icons-material/SavingsOutlined";
+import TimelineOutlinedIconModule from "@mui/icons-material/TimelineOutlined";
 import {
   Alert,
   Box,
@@ -40,12 +40,20 @@ import { UsersAdmin } from "../features/admin/UsersAdmin.jsx";
 import { createPrecioHistorico } from "../features/pricing/pricing.api.js";
 import { getDisplayPrice, getMaterialPresentation } from "../features/pricing/materialPresentation.js";
 import { apiGet } from "../shared/api/http.js";
+import { resolveMuiIcon } from "../shared/components/resolveMuiIcon.js";
 import { formatCurrency, formatNumber } from "../shared/utils/formatters.js";
 import { loadInitialAppData, loadMaterialAnalysis } from "./appData.js";
 import { AppViewHeader } from "./AppViewHeader.jsx";
 import { brand } from "./brand.js";
 
 const SHOW_PRICES_KEY = "sicons_show_prices";
+const AddIcon = resolveMuiIcon(AddIconModule);
+const AutoGraphIcon = resolveMuiIcon(AutoGraphIconModule);
+const AdminPanelSettingsOutlinedIcon = resolveMuiIcon(AdminPanelSettingsOutlinedIconModule);
+const ExpandLessIcon = resolveMuiIcon(ExpandLessIconModule);
+const Inventory2OutlinedIcon = resolveMuiIcon(Inventory2OutlinedIconModule);
+const SavingsOutlinedIcon = resolveMuiIcon(SavingsOutlinedIconModule);
+const TimelineOutlinedIcon = resolveMuiIcon(TimelineOutlinedIconModule);
 const VIEW_TABS = [
   {
     value: "summary",

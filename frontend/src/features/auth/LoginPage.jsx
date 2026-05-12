@@ -1,13 +1,16 @@
-import LoginIcon from "@mui/icons-material/Login";
-import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
+import LoginIconModule from "@mui/icons-material/Login";
+import PersonAddAlt1IconModule from "@mui/icons-material/PersonAddAlt1";
 import { Alert, Box, Button, ButtonGroup, Card, CardContent, Stack, TextField, Typography } from "@mui/material";
 import { useMemo, useState } from "react";
 
 import bwLogo from "../../../bwlogo.png";
+import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
 
 const LOGIN_MODE = "login";
 const REGISTER_MODE = "register";
 const MIN_PASSWORD_LENGTH = 8;
+const LoginIcon = resolveMuiIcon(LoginIconModule);
+const PersonAddAlt1Icon = resolveMuiIcon(PersonAddAlt1IconModule);
 
 export function LoginPage({ onLogin, onRegister }) {
   const [mode, setMode] = useState(LOGIN_MODE);

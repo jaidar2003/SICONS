@@ -1,8 +1,11 @@
 import { Alert, Box, Card, CardContent, Chip, Stack, Typography, Accordion, AccordionDetails, AccordionSummary } from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandMoreIconModule from "@mui/icons-material/ExpandMore";
 
+import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
 import { formatNumber } from "../../shared/utils/formatters.js";
 import { getModelDisplayName, getRegressorDisplayName } from "./forecastModelLabels.js";
+
+const ExpandMoreIcon = resolveMuiIcon(ExpandMoreIconModule);
 
 function confidenceColor(value) {
   const normalized = String(value || "").toLowerCase();
@@ -16,7 +19,7 @@ export function ForecastModelDetails({ selection, title = "Detalles del modelo",
   if (!selection) return null;
 
   return (
-    <Card className={compact ? "" : "my-3"}>
+    <Card className={compact ? "mt-5" : "my-4"}>
       <CardContent className="p-4">
         <Stack spacing={compact ? 1.5 : 2}>
           <Box>

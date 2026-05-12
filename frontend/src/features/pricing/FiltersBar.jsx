@@ -1,6 +1,10 @@
-import RefreshIcon from "@mui/icons-material/Refresh";
+import RefreshIconModule from "@mui/icons-material/Refresh";
 import { Box, Button, Card, CardContent, FormControl, InputLabel, MenuItem, Select, Typography } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers";
+
+import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
+
+const RefreshIcon = resolveMuiIcon(RefreshIconModule);
 
 export function FiltersBar({ materiales, selectedMaterialId, desde, hasta, maxDate, warning, onMaterialChange, onDesdeChange, onHastaChange, onRefresh }) {
   return (

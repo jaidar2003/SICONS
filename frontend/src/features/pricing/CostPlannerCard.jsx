@@ -1,14 +1,20 @@
-import AddIcon from "@mui/icons-material/Add";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import AddIconModule from "@mui/icons-material/Add";
+import DeleteOutlineIconModule from "@mui/icons-material/DeleteOutline";
+import ExpandMoreIconModule from "@mui/icons-material/ExpandMore";
+import ContentCopyIconModule from "@mui/icons-material/ContentCopy";
 import { Alert, Box, Button, ButtonGroup, Card, CardContent, CircularProgress, FormControl, IconButton, InputLabel, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 
 import { useCostPlanner } from "./useCostPlanner.js";
 import { optimizePurchaseBudget, prioritizeMaterials } from "./pricing.api.js";
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
+import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
+
+const AddIcon = resolveMuiIcon(AddIconModule);
+const DeleteOutlineIcon = resolveMuiIcon(DeleteOutlineIconModule);
+const ExpandMoreIcon = resolveMuiIcon(ExpandMoreIconModule);
+const ContentCopyIcon = resolveMuiIcon(ContentCopyIconModule);
 
 export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizon, token, showPrices }) {
   const {

@@ -57,7 +57,7 @@ export function ForecastCard({ forecast, serie, horizonteMeses, onChangeHorizon,
             <ForecastModelDetails selection={selection} title="Detalles del modelo" compact />
 
             {showPrices && nextForecastPoint ? (
-              <Box className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+              <Box className="grid gap-3 md:grid-cols-2">
               <MetricMini
                 label="Precio proyectado"
                 value={formatCurrency(getDisplayPrice(nextForecastPoint.precio_proyectado, forecast.material_nombre, forecast.unidad_base))}
