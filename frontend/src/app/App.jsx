@@ -28,6 +28,7 @@ import { AnomaliesCard } from "../features/pricing/AnomaliesCard.jsx";
 import { ComparisonCard } from "../features/pricing/ComparisonCard.jsx";
 import { CostPlannerCard } from "../features/pricing/CostPlannerCard.jsx";
 import { CostProjectionCard } from "../features/pricing/CostProjectionCard.jsx";
+import { FinalDecisionCard } from "../features/pricing/FinalDecisionCard.jsx";
 import { FiltersBar } from "../features/pricing/FiltersBar.jsx";
 import { ForecastCard } from "../features/pricing/ForecastCard.jsx";
 import { ForecastModelDetails } from "../features/pricing/ForecastModelDetails.jsx";
@@ -58,6 +59,14 @@ const Inventory2OutlinedIcon = resolveMuiIcon(Inventory2OutlinedIconModule);
 const SavingsOutlinedIcon = resolveMuiIcon(SavingsOutlinedIconModule);
 const TimelineOutlinedIcon = resolveMuiIcon(TimelineOutlinedIconModule);
 const VIEW_TABS = [
+  {
+    value: "decision",
+    label: "Decisión final",
+    description: "Recomendación operativa con presupuesto, cantidades, impacto y confianza.",
+    accent: brand.sections.costs.accent,
+    eyebrow: "DSS de compra",
+    icon: SavingsOutlinedIcon,
+  },
   {
     value: "summary",
     label: "Resumen",
@@ -131,7 +140,7 @@ export function App() {
   const [forecastPriceView, setForecastPriceView] = useState("comparative");
   const [comparisonRows, setComparisonRows] = useState([]);
   const [showPriceForm, setShowPriceForm] = useState(false);
-  const [activeView, setActiveView] = useState("summary");
+  const [activeView, setActiveView] = useState("decision");
   const forecastRequestRef = useRef(0);
   const clientDefaultStart = useMemo(() => dayjs("2026-01-01"), []);
 
@@ -380,6 +389,15 @@ export function App() {
                 visibleTabs={visibleTabs}
                 onViewChange={setActiveView}
               />
+
+              {activeView === "decision" ? (
+                <FinalDecisionCard
+                  materiales={materiales}
+                  forecastHorizon={forecastHorizon}
+                  token={token}
+                  showPrices={showPrices}
+                />
+              ) : null}
 
               {activeView === "summary" ? (
                 <>

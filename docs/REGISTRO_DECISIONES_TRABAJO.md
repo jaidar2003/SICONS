@@ -94,3 +94,19 @@ La visualizacion es la interfaz; el nucleo metodologico es la decision trazable 
 ```
 
 - Motivo: separar claramente el sistema de un dashboard descriptivo.
+
+## RD-08 - Priorizar una pantalla de decision final
+
+- Fecha: mayo de 2026
+- Decision: agregar una vista principal `Decisión final` como primera pantalla operativa del frontend.
+- Motivo: reducir el tiempo hasta la primera decision y evitar que el usuario tenga que navegar por graficos o modulos tecnicos para entender que comprar ahora y que postergar.
+- Alcance: no agrega nuevas reglas de negocio; consume la salida DSS ya implementada en `/compras/recomendacion-operativa`.
+- Criterio UX:
+  - decision visible antes que analisis;
+  - lenguaje simple por defecto;
+  - tarjetas por accion (`COMPRAR_AHORA`, `COMPRA_PARCIAL`, `POSTERGAR`);
+  - confianza y supuestos visibles sin obligar a interpretar metricas tecnicas.
+- Evidencia tecnica:
+  - componente `frontend/src/features/pricing/FinalDecisionCard.jsx`;
+  - nueva pestaña inicial `Decisión final`;
+  - build frontend verificado con `npm run build`.

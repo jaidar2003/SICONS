@@ -29,6 +29,10 @@ export function optimizePurchaseBudget(payload, token) {
   return apiPost("/compras/optimizar-presupuesto", payload, token);
 }
 
+export function generateOperationalRecommendation(payload, token) {
+  return apiPost("/compras/recomendacion-operativa", payload, token);
+}
+
 export function prioritizeMaterials(payload, token) {
   return apiPost("/materiales/criticidad", payload, token);
 }
