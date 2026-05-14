@@ -14,10 +14,11 @@ import {
   CardContent,
   CircularProgress,
   Container,
+  Divider,
   Typography,
 } from "@mui/material";
 import dayjs from "dayjs";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PriceForm } from "../features/admin/PriceForm.jsx";
 import { LoginPage } from "../features/auth/LoginPage.jsx";
@@ -37,12 +38,14 @@ import { PurchaseDecisionCard } from "../features/pricing/PurchaseDecisionCard.j
 import { PriceChart } from "../features/pricing/PriceChart.jsx";
 import { CommercialMarginsAdmin } from "../features/admin/CommercialMarginsAdmin.jsx";
 import { UsersAdmin } from "../features/admin/UsersAdmin.jsx";
+import { PriceVariationBetweenDatesCard } from "../features/pricing/PriceVariationBetweenDatesCard.jsx";
+import { PurchaseScenarioSimulationCard } from "../features/pricing/PurchaseScenarioSimulationCard.jsx";
 import { createPrecioHistorico } from "../features/pricing/pricing.api.js";
-import { getDisplayPrice, getMaterialPresentation } from "../features/pricing/materialPresentation.js";
+import { getDisplayPrice } from "../features/pricing/materialPresentation.js";
 import { apiGet } from "../shared/api/http.js";
 import { resolveMuiIcon } from "../shared/components/resolveMuiIcon.js";
 import { formatCurrency, formatNumber } from "../shared/utils/formatters.js";
-import { loadInitialAppData, loadMaterialAnalysis } from "./appData.js";
+import { loadForecastExtras, loadInitialAppData, loadMaterialAnalysis } from "./appData.js";
 import { AppViewHeader } from "./AppViewHeader.jsx";
 import { brand } from "./brand.js";
 
@@ -123,20 +126,18 @@ export function App() {
   const [serie, setSerie] = useState([]);
   const [forecast, setForecast] = useState(null);
   const [commercialPrice, setCommercialPrice] = useState(null);
+  const [forecastLoading, setForecastLoading] = useState(false);
   const [forecastHorizon, setForecastHorizon] = useState(3);
   const [forecastPriceView, setForecastPriceView] = useState("comparative");
   const [comparisonRows, setComparisonRows] = useState([]);
   const [showPriceForm, setShowPriceForm] = useState(false);
   const [activeView, setActiveView] = useState("summary");
+  const forecastRequestRef = useRef(0);
   const clientDefaultStart = useMemo(() => dayjs("2026-01-01"), []);
 
   const selectedMaterial = useMemo(
     () => materiales.find((material) => String(material.id) === String(selectedMaterialId)),
     [materiales, selectedMaterialId]
-  );
-  const selectedPresentation = useMemo(
-    () => getMaterialPresentation(selectedMaterial?.nombre, selectedMaterial?.unidad_base),
-    [selectedMaterial?.nombre, selectedMaterial?.unidad_base]
   );
   const isAdmin = user?.rol === "admin";
   const visibleTabs = useMemo(() => VIEW_TABS.filter((tab) => tab.value !== "admin" || isAdmin), [isAdmin]);
@@ -144,6 +145,7 @@ export function App() {
     () => visibleTabs.find((tab) => tab.value === activeView) ?? visibleTabs[0],
     [activeView, visibleTabs]
   );
+  const forecastChartMode = isAdmin ? forecastPriceView : "commercial";
   const summaryNextForecastPoint = forecast?.puntos?.[0] || null;
   const summaryLastForecastPoint = forecast?.puntos?.[forecast?.puntos?.length - 1] || null;
   const summaryForecastSelection = forecast?.seleccion_modelo || null;
@@ -153,7 +155,9 @@ export function App() {
       : null;
   const summaryForecastConfidence = String(summaryForecastSelection?.confiabilidad || "").toLowerCase();
   const summaryForecastRecommendation =
-    summaryForecastDeltaPct === null
+    forecastLoading
+      ? "Preparando forecast sin bloquear la navegacion."
+      : summaryForecastDeltaPct === null
       ? "Sin forecast disponible."
       : summaryForecastDeltaPct > 0
         ? summaryForecastConfidence === "baja"
@@ -163,32 +167,69 @@ export function App() {
           ? "El precio tiende a bajar. Conviene esperar si la urgencia lo permite."
           : "El precio luce estable. La decisión depende más de la urgencia y del presupuesto.";
   const summaryForecastDirection =
-    summaryForecastDeltaPct === null
+    forecastLoading
+      ? "Calculando forecast"
+      : summaryForecastDeltaPct === null
       ? "Sin proyeccion"
       : summaryForecastDeltaPct > 0
         ? "Tendencia alcista"
         : summaryForecastDeltaPct < 0
           ? "Tendencia bajista"
           : "Tendencia estable";
-  const summaryShowBagEquivalents =
-    selectedPresentation.type === "cement" &&
-    summaryNextForecastPoint?.precio_equivalente_25kg !== null &&
-    summaryNextForecastPoint?.precio_equivalente_25kg !== undefined;
+  const loadForecastData = useCallback(
+    async ({ materialId, horizon, activeToken }) => {
+      if (!materialId || !activeToken) return;
+
+      const requestId = forecastRequestRef.current + 1;
+      forecastRequestRef.current = requestId;
+      setForecastLoading(true);
+
+      try {
+        const result = await loadForecastExtras({ materialId, horizon, token: activeToken });
+        if (forecastRequestRef.current !== requestId) return;
+        setForecast(result.forecast);
+        setCommercialPrice(result.commercialPrice);
+      } catch {
+        if (forecastRequestRef.current !== requestId) return;
+        setForecast(null);
+        setCommercialPrice(null);
+      } finally {
+        if (forecastRequestRef.current === requestId) {
+          setForecastLoading(false);
+        }
+      }
+    },
+    []
+  );
 
   const loadSerieData = useCallback(
     async ({ materialId = selectedMaterialId, from = desde, to = hasta, horizon = forecastHorizon } = {}) => {
-      const result = await loadMaterialAnalysis({ materialId, from, to, horizon, materials: materiales, token });
+      const result = await loadMaterialAnalysis({
+        materialId,
+        from,
+        to,
+        horizon,
+        materials: materiales,
+        token,
+        includeForecast: false,
+        includeCommercial: false,
+        includeComparison: true,
+      });
       setSerie(result.serie);
-      setForecast(result.forecast);
-      setCommercialPrice(result.commercialPrice);
+      setForecast(null);
+      setCommercialPrice(null);
       setComparisonRows(result.comparisonRows);
+      loadForecastData({ materialId, horizon, activeToken: token }).catch(() => {});
     },
-    [desde, forecastHorizon, hasta, materiales, selectedMaterialId, token]
+    [desde, forecastHorizon, hasta, loadForecastData, materiales, selectedMaterialId, token]
   );
 
   const resetWorkspaceState = useCallback(() => {
+    forecastRequestRef.current += 1;
     setSerie([]);
     setForecast(null);
+    setCommercialPrice(null);
+    setForecastLoading(false);
     setComparisonRows([]);
     setShowPriceForm(false);
   }, []);
@@ -208,16 +249,21 @@ export function App() {
         setMaxDate(data.maxDate);
         setDateWarning(data.dateWarning);
         setSerie(data.serie);
-        setForecast(data.forecast);
-        setCommercialPrice(data.commercialPrice);
+        setForecast(null);
+        setCommercialPrice(null);
         setComparisonRows(data.comparisonRows);
+        loadForecastData({
+          materialId: data.selectedMaterialId,
+          horizon: forecastHorizon,
+          activeToken,
+        }).catch(() => {});
       } catch (bootstrapError) {
         setError(bootstrapError.message);
       } finally {
         setLoading(false);
       }
     },
-    [clientDefaultStart, forecastHorizon]
+    [clientDefaultStart, forecastHorizon, loadForecastData]
   );
 
   useEffect(() => {
@@ -343,122 +389,58 @@ export function App() {
                     <Card
                       className="mt-3 overflow-hidden border border-slate-200"
                       sx={{
-                        boxShadow: "0 18px 40px rgba(177, 18, 38, 0.22), 0 4px 14px rgba(15, 23, 42, 0.08)",
+                        boxShadow: "0 10px 24px rgba(15, 23, 42, 0.08)",
                       }}
                     >
                       <CardContent className="p-0">
-                        <Box className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                          <Typography variant="overline" color="text.secondary">
-                            Lectura rápida
-                          </Typography>
-                          <Typography mt={0.5} variant="h3">
-                            ¿Qué está mostrando el material?
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Una síntesis simple para decidir sin leer todo el panel.
-                          </Typography>
-                        </Box>
-                        <Box className="grid gap-3 p-4 md:grid-cols-3">
-                    <Box className="rounded-xl border border-slate-200 bg-white p-3">
-                      <Typography color="text.secondary" variant="body2" fontWeight={800}>
-                        Tendencia esperada
-                      </Typography>
-                            <Typography component="strong" display="block" mt={0.75} variant="h2" lineHeight={1.1}>
-                              {summaryForecastDirection}
+                        <Box className="grid gap-0 md:grid-cols-[minmax(0,1fr)_320px]">
+                          <Box className="p-4 md:p-5">
+                            <Typography variant="overline" color="text.secondary">
+                              Recomendación
                             </Typography>
-                            <Typography color="text.secondary" variant="body2" mt={0.5}>
-                        {summaryForecastDeltaPct === null ? "Sin forecast disponible" : `Variación próxima: ${formatNumber(summaryForecastDeltaPct)}%`}
-                      </Typography>
-                    </Box>
-                    <Box className="rounded-xl border border-slate-200 bg-white p-3">
-                      <Typography color="text.secondary" variant="body2" fontWeight={800}>
-                        Recomendación operativa
-                      </Typography>
-                      <Typography component="strong" display="block" mt={0.75} variant="h3" lineHeight={1.15}>
-                        {summaryForecastDeltaPct === null
-                          ? "Sin decisión"
-                          : summaryForecastDeltaPct > 0
-                            ? "Anticipar compra"
-                            : summaryForecastDeltaPct < 0
-                              ? "Pedir esperar"
-                              : "Revisar urgencia"}
-                      </Typography>
-                      <Typography color="text.secondary" variant="body2" mt={0.5}>
-                        {summaryForecastRecommendation}
-                      </Typography>
-                    </Box>
-                    <Box className="rounded-xl border border-slate-200 bg-white p-3">
-                      <Typography color="text.secondary" variant="body2" fontWeight={800}>
-                        Próximo precio proyectado
+                            <Typography mt={0.75} variant="h2" lineHeight={1.1}>
+                              {summaryForecastDeltaPct === null
+                                ? "Sin decisión"
+                                : summaryForecastDeltaPct > 0
+                                  ? "Anticipar compra"
+                                  : summaryForecastDeltaPct < 0
+                                    ? "Esperar si no es urgente"
+                                    : "Revisar urgencia"}
                             </Typography>
-                            <Typography component="strong" display="block" mt={0.75} variant="h2" lineHeight={1.1}>
-                              {summaryNextForecastPoint ? formatCurrency(getDisplayPrice(summaryNextForecastPoint.precio_proyectado, forecast.material_nombre, forecast.unidad_base)) : "-"}
-                            </Typography>
-                            <Typography color="text.secondary" variant="body2" mt={0.5}>
-                              {summaryNextForecastPoint
-                                ? `Primer mes proyectado: ${dayjs(summaryNextForecastPoint.fecha).format("DD/MM/YY")}`
-                                : "No hay horizonte calculado"}
+                            <Typography mt={1} color="text.secondary">
+                              {summaryForecastRecommendation}
                             </Typography>
                           </Box>
-                          <Box className="rounded-xl border border-slate-200 bg-white p-3">
-                            <Typography color="text.secondary" variant="body2" fontWeight={800}>
-                              Horizonte completo
-                            </Typography>
-                            <Typography component="strong" display="block" mt={0.75} variant="h2" lineHeight={1.1}>
-                              {summaryLastForecastPoint ? formatCurrency(getDisplayPrice(summaryLastForecastPoint.precio_proyectado, forecast.material_nombre, forecast.unidad_base)) : "-"}
-                            </Typography>
-                            <Typography color="text.secondary" variant="body2" mt={0.5}>
-                              {summaryLastForecastPoint
-                                ? `Último mes proyectado: ${dayjs(summaryLastForecastPoint.fecha).format("DD/MM/YY")}`
-                                : "No hay horizonte calculado"}
-                            </Typography>
+                          <Box className="grid gap-3 border-t border-slate-200 bg-slate-50 p-4 md:border-l md:border-t-0">
+                            <Box>
+                              <Typography color="text.secondary" variant="body2" fontWeight={800}>
+                                Tendencia
+                              </Typography>
+                              <Typography mt={0.25} fontWeight={900}>
+                                {summaryForecastDirection}
+                              </Typography>
+                              <Typography color="text.secondary" variant="body2">
+                                {summaryForecastDeltaPct === null ? "Sin forecast disponible" : `${formatNumber(summaryForecastDeltaPct)}% próximo mes`}
+                              </Typography>
+                            </Box>
+                            <Divider />
+                            <Box>
+                              <Typography color="text.secondary" variant="body2" fontWeight={800}>
+                                Próximo precio
+                              </Typography>
+                              <Typography mt={0.25} fontWeight={900}>
+                                {summaryNextForecastPoint ? formatCurrency(getDisplayPrice(summaryNextForecastPoint.precio_proyectado, forecast.material_nombre, forecast.unidad_base)) : "-"}
+                              </Typography>
+                              <Typography color="text.secondary" variant="body2">
+                                {summaryNextForecastPoint ? dayjs(summaryNextForecastPoint.fecha).format("DD/MM/YY") : "Sin horizonte"}
+                              </Typography>
+                            </Box>
                           </Box>
                         </Box>
                       </CardContent>
                     </Card>
                   ) : null}
-                  <ForecastModelDetails selection={summaryForecastSelection} title="Detalles del modelo" compact />
-                  {showPrices && forecast && summaryNextForecastPoint && summaryShowBagEquivalents ? (
-                    <Card className="mt-3 overflow-hidden border border-slate-200 shadow-md1">
-                      <CardContent className="p-0">
-                        <Box className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                          <Typography variant="overline" color="text.secondary">
-                            Resumen de cemento
-                          </Typography>
-                          <Typography mt={0.5} variant="h3">
-                            Bolsa 25 kg / 50 kg
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Equivalente comercial para el primer mes proyectado.
-                          </Typography>
-                        </Box>
-                        <Box className="p-4">
-                          <Typography variant="body2" fontWeight={700} color="text.secondary">
-                            {dayjs(summaryNextForecastPoint.fecha).format("DD/MM/YY")}
-                          </Typography>
-                          <Typography mt={0.75} variant="h2" lineHeight={1.1}>
-                            {`${formatCurrency(summaryNextForecastPoint.precio_equivalente_25kg)} / ${formatCurrency(summaryNextForecastPoint.precio_equivalente_50kg)}`}
-                          </Typography>
-                          <Typography mt={0.5} variant="body2" color="text.secondary">
-                            Primer punto proyectado: {formatCurrency(getDisplayPrice(summaryNextForecastPoint.precio_proyectado, forecast.material_nombre, forecast.unidad_base))}
-                          </Typography>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  ) : null}
-                  <Box className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] lg:items-stretch">
-                    <Box className="min-w-0 lg:flex">
-                      <PriceChart
-                        serie={serie}
-                        forecast={forecast}
-                        selectedMaterial={selectedMaterial}
-                        showPrices={showPrices}
-                      />
-                    </Box>
-                    <Box className="min-w-0 lg:flex">
-                      <ComparisonCard rows={comparisonRows} selectedMaterialId={selectedMaterialId} showPrices={showPrices} compact />
-                    </Box>
-                  </Box>
+                  <ComparisonCard rows={comparisonRows} selectedMaterialId={selectedMaterialId} showPrices={showPrices} compact className="mt-3" />
                 </>
               ) : null}
 
@@ -474,34 +456,6 @@ export function App() {
                       loadSerieData({ materialId: selectedMaterialId, horizon: value }).catch((loadError) => setError(loadError.message));
                     }}
                   />
-                  {showPrices ? (
-                    <Box
-                      className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
-                      sx={{
-                        boxShadow: "0 14px 34px rgba(177, 18, 38, 0.12), 0 4px 14px rgba(15, 23, 42, 0.06)",
-                      }}
-                    >
-                      <Box>
-                        <Typography variant="body2" fontWeight={800} color="text.secondary">
-                          Cómo ver la curva
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Elegí si querés ver el costo, la venta minorista o ambas curvas superpuestas.
-                        </Typography>
-                      </Box>
-                      <ButtonGroup size="small" variant="outlined">
-                        <Button variant={forecastPriceView === "base" ? "contained" : "outlined"} onClick={() => setForecastPriceView("base")}>
-                          Solo costo
-                        </Button>
-                        <Button variant={forecastPriceView === "commercial" ? "contained" : "outlined"} onClick={() => setForecastPriceView("commercial")}>
-                          Solo venta minorista
-                        </Button>
-                        <Button variant={forecastPriceView === "comparative" ? "contained" : "outlined"} onClick={() => setForecastPriceView("comparative")}>
-                          Comparar ambas
-                        </Button>
-                      </ButtonGroup>
-                    </Box>
-                  ) : null}
                   {forecast ? (
                     <Card className="mt-3 overflow-hidden border border-slate-200 shadow-md1">
                       <CardContent className="p-0">
@@ -557,14 +511,43 @@ export function App() {
                     </Card>
                   ) : null}
                   <ForecastModelDetails selection={summaryForecastSelection} title="Detalles del modelo" compact />
+                  {showPrices && isAdmin ? (
+                    <Box
+                      className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-4 py-3"
+                      sx={{
+                        boxShadow: "0 8px 20px rgba(15, 23, 42, 0.06)",
+                      }}
+                    >
+                      <Box>
+                        <Typography variant="body2" fontWeight={800} color="text.secondary">
+                          Cómo ver la curva
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Elegí el precio que querés ver en el gráfico.
+                        </Typography>
+                      </Box>
+                      <ButtonGroup size="small" variant="outlined">
+                        <Button variant={forecastPriceView === "base" ? "contained" : "outlined"} onClick={() => setForecastPriceView("base")}>
+                          Solo costo
+                        </Button>
+                        <Button variant={forecastPriceView === "commercial" ? "contained" : "outlined"} onClick={() => setForecastPriceView("commercial")}>
+                          Solo venta mayorista
+                        </Button>
+                        <Button variant={forecastPriceView === "comparative" ? "contained" : "outlined"} onClick={() => setForecastPriceView("comparative")}>
+                          Comparar ambas
+                        </Button>
+                      </ButtonGroup>
+                    </Box>
+                  ) : null}
                   <PriceChart
                     className="mt-3"
                     serie={serie}
                     forecast={forecast}
                     selectedMaterial={selectedMaterial}
                     showPrices={showPrices}
-                    chartMode={forecastPriceView}
+                    chartMode={forecastChartMode}
                     commercialMarginPct={commercialPrice?.margen_ganancia_pct ?? null}
+                    canShowCostDetails={isAdmin}
                   />
                 </>
               ) : null}
@@ -575,6 +558,12 @@ export function App() {
                     materiales={materiales}
                     selectedMaterialId={selectedMaterialId}
                     forecastHorizon={forecastHorizon}
+                    token={token}
+                    showPrices={showPrices}
+                  />
+                  <PurchaseScenarioSimulationCard
+                    materiales={materiales}
+                    selectedMaterialId={selectedMaterialId}
                     token={token}
                     showPrices={showPrices}
                   />
@@ -591,12 +580,22 @@ export function App() {
 
               {activeView === "history" ? (
                 <>
+                  <PriceVariationBetweenDatesCard
+                    selectedMaterial={selectedMaterial}
+                    serie={serie}
+                    token={token}
+                    showPrices={showPrices}
+                  />
+
                   <PriceChart
                     className="mt-3"
                     serie={serie}
                     forecast={forecast}
                     selectedMaterial={selectedMaterial}
                     showPrices={showPrices}
+                    chartMode={forecastChartMode}
+                    commercialMarginPct={commercialPrice?.margen_ganancia_pct ?? null}
+                    canShowCostDetails={isAdmin}
                     action={
                       isAdmin ? (
                         <Button

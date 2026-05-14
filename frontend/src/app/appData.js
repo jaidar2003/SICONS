@@ -19,7 +19,33 @@ export function buildComparisonRows(results) {
     .sort((left, right) => left.variation - right.variation);
 }
 
-export async function loadMaterialAnalysis({ materialId, from, to, horizon, materials, token }) {
+export async function loadForecastExtras({ materialId, horizon, token }) {
+  if (!materialId) {
+    return {
+      forecast: null,
+      commercialPrice: null,
+    };
+  }
+
+  const [forecast, commercialPrice] = await Promise.all([
+    fetchForecast({ materialId, horizonteMeses: horizon, token }).catch(() => null),
+    fetchCommercialPrice({ materialId, horizonteMeses: horizon, token }).catch(() => null),
+  ]);
+
+  return { forecast, commercialPrice };
+}
+
+export async function loadMaterialAnalysis({
+  materialId,
+  from,
+  to,
+  horizon,
+  materials,
+  token,
+  includeForecast = true,
+  includeCommercial = true,
+  includeComparison = true,
+}) {
   if (!materialId) {
     return {
       serie: [],
@@ -33,14 +59,16 @@ export async function loadMaterialAnalysis({ materialId, from, to, horizon, mate
   const hasta = toApiDate(to);
   const [serie, forecast, commercialPrice, comparisonResults] = await Promise.all([
     fetchSerie({ materialId, desde, hasta, token }),
-    fetchForecast({ materialId, horizonteMeses: horizon, token }).catch(() => null),
-    fetchCommercialPrice({ materialId, horizonteMeses: horizon, token }).catch(() => null),
-    Promise.all(
-      materials.map(async (material) => ({
-        material,
-        serie: await fetchSerie({ materialId: material.id, desde, hasta, token }),
-      }))
-    ),
+    includeForecast ? fetchForecast({ materialId, horizonteMeses: horizon, token }).catch(() => null) : Promise.resolve(null),
+    includeCommercial ? fetchCommercialPrice({ materialId, horizonteMeses: horizon, token }).catch(() => null) : Promise.resolve(null),
+    includeComparison
+      ? Promise.all(
+          materials.map(async (material) => ({
+            material,
+            serie: await fetchSerie({ materialId: material.id, desde, hasta, token }),
+          }))
+        )
+      : Promise.resolve([]),
   ]);
 
   return {
@@ -75,6 +103,9 @@ export async function loadInitialAppData({ token, forecastHorizon, clientDefault
     horizon: forecastHorizon,
     materials: materiales,
     token,
+    includeForecast: false,
+    includeCommercial: false,
+    includeComparison: true,
   });
 
   return {

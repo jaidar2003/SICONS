@@ -40,3 +40,15 @@ export function recommendPurchase(payload, token, materialId) {
 export function comparePurchaseStrategies(payload, token, materialId) {
   return apiPost(`/materiales/${materialId}/comparacion-estrategias-compra`, payload, token);
 }
+
+export function fetchPriceVariationBetweenDates({ materialId, fechaDesde, fechaHasta, token }) {
+  const params = new URLSearchParams({
+    fecha_desde: fechaDesde,
+    fecha_hasta: fechaHasta,
+  });
+  return apiGet(`/materiales/${materialId}/variacion-entre-fechas?${params.toString()}`, token);
+}
+
+export function simulatePurchaseScenarios(payload, token, materialId) {
+  return apiPost(`/materiales/${materialId}/simulacion-escenarios-compra`, payload, token);
+}

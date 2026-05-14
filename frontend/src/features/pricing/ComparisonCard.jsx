@@ -18,10 +18,16 @@ export function ComparisonCard({ rows, selectedMaterialId, showPrices, compact =
   return (
     <Card className={`h-full ${className}`}>
       <CardContent>
-        <SectionHeader title="Comparacion entre materiales" description="Precio inicial, precio final y cambio total del periodo." badge="Resumen" />
-        <Typography className="rounded-md border border-blue-100 bg-md-container px-3 py-2" color="text.secondary" fontWeight={600} mb={1.5}>
-          {summary}
-        </Typography>
+        <SectionHeader
+          title={compact ? "Comparacion rapida" : "Comparacion entre materiales"}
+          description={compact ? "Orden simple por variacion del periodo." : "Precio inicial, precio final y cambio total del periodo."}
+          badge={compact ? null : "Resumen"}
+        />
+        {!compact ? (
+          <Typography className="rounded-md border border-blue-100 bg-md-container px-3 py-2" color="text.secondary" fontWeight={600} mb={1.5}>
+            {summary}
+          </Typography>
+        ) : null}
         {compact ? (
           <Box className="flex flex-col overflow-hidden rounded-md border border-slate-200 bg-white">
             {rows.map((row, index) => {
@@ -29,8 +35,8 @@ export function ComparisonCard({ rows, selectedMaterialId, showPrices, compact =
               const presentation = getMaterialPresentation(row.material.nombre, row.last.unidad_base);
               return (
                 <Box key={row.material.id} className={isSelected ? "bg-md-container" : "bg-white"}>
-                  <Box className="grid gap-3 p-3">
-                    <Box>
+                  <Box className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                    <Box className="min-w-0">
                       <Typography fontWeight={900} lineHeight={1.2}>
                         {row.material.nombre}
                       </Typography>
@@ -38,41 +44,15 @@ export function ComparisonCard({ rows, selectedMaterialId, showPrices, compact =
                         {monthLabel(row.first.fecha)} a {monthLabel(row.last.fecha)} - {presentation.displayUnitLabel}
                       </Typography>
                     </Box>
-                    <Box className="grid grid-cols-2 gap-2">
-                      {showPrices ? (
-                        <>
-                          <Box>
-                            <Typography color="text.secondary" fontSize={11} fontWeight={800} textTransform="uppercase">
-                              Inicio
-                            </Typography>
-                            <Typography fontSize={14} fontWeight={800}>
-                              {formatCurrency(getDisplayPrice(row.firstValue, row.material.nombre, row.last.unidad_base))}
-                            </Typography>
-                          </Box>
-                          <Box>
-                            <Typography color="text.secondary" fontSize={11} fontWeight={800} textTransform="uppercase">
-                              Final
-                            </Typography>
-                            <Typography fontSize={14} fontWeight={800}>
-                              {formatCurrency(getDisplayPrice(row.lastValue, row.material.nombre, row.last.unidad_base))}
-                            </Typography>
-                          </Box>
-                        </>
-                      ) : null}
-                      <Box>
-                        <Typography color="text.secondary" fontSize={11} fontWeight={800} textTransform="uppercase">
-                          Cambio
-                        </Typography>
-                        <Typography fontSize={14} fontWeight={900} sx={{ color: variationTone(row.variation) }}>
+                    <Box className="flex items-center justify-between gap-3 sm:justify-end">
+                      <Box className="text-right">
+                        <Typography fontSize={18} fontWeight={950} lineHeight={1.1} sx={{ color: variationTone(row.variation) }}>
                           {formatPercentChange(row.variation)}
                         </Typography>
-                      </Box>
-                      <Box>
-                        <Typography color="text.secondary" fontSize={11} fontWeight={800} textTransform="uppercase">
-                          Muestra
-                        </Typography>
-                        <Typography fontSize={14} fontWeight={800}>
-                          {row.sampleSize}
+                        <Typography color="text.secondary" fontSize={12}>
+                          {showPrices
+                            ? `${formatCurrency(getDisplayPrice(row.lastValue, row.material.nombre, row.last.unidad_base))} final`
+                            : `${row.sampleSize} registros`}
                         </Typography>
                       </Box>
                     </Box>

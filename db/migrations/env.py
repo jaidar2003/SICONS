@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.shared.config.settings import settings
 from app.shared.database.base import Base
+from app.shared.database.audit_models import AuditLog  # noqa: F401
 from app.modules.auth.infrastructure.models import Usuario  # noqa: F401
 from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion  # noqa: F401
 from app.modules.pricing.infrastructure.models import CommercialMargin, ExternalIndexValue, PrecioHistorico  # noqa: F401

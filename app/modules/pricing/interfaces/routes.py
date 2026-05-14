@@ -37,11 +37,17 @@ from app.modules.pricing.application.imputation import impute_monthly_prices
 from app.modules.pricing.application.priorities import priorizar_materiales_desde_forecast
 from app.modules.pricing.application.purchase_optimization import (
     PurchaseOptimizationInputItem,
+    generar_recomendacion_operativa_compra,
     optimizar_compra_con_presupuesto,
 )
 from app.modules.pricing.application.purchase_recommendations import recomendar_momento_compra
 from app.modules.pricing.application.purchase_strategies import comparar_estrategias_compra
-from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual, construir_serie_precios
+from app.modules.pricing.application.series import (
+    PrecioSerieInput,
+    calcular_variacion_entre_fechas,
+    construir_serie_mensual,
+    construir_serie_precios,
+)
 from app.modules.pricing.domain.exceptions import MaterialNotFoundException
 from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.infrastructure.models import ExternalIndexValue, PrecioHistorico
@@ -57,11 +63,14 @@ from app.modules.pricing.interfaces.schemas import (
     ForecastResponseRead,
     MaterialCriticidadCreate,
     MaterialCriticidadResponseRead,
+    OperationalPurchaseRecommendationCreate,
+    OperationalPurchaseRecommendationRead,
     PrecioHistoricoCreate,
     PrecioHistoricoRangoRead,
     PrecioHistoricoRead,
     PriceImputationRequest,
     PriceImputationResponse,
+    PriceVariationBetweenDatesRead,
     PuntoSeriePrecioRead,
     PurchaseOptimizationCreate,
     PurchaseOptimizationRead,
@@ -69,6 +78,8 @@ from app.modules.pricing.interfaces.schemas import (
     PurchaseRecommendationRead,
     PurchaseStrategyComparisonCreate,
     PurchaseStrategyComparisonRead,
+    PurchaseTemporalSimulationCreate,
+    PurchaseTemporalSimulationRead,
 )
 from app.shared.database.session import get_db
 
@@ -181,6 +192,50 @@ def obtener_serie_precios_material(
     return construir_serie_precios(registros)
 
 
+@router.get("/materiales/{material_id}/variacion-entre-fechas", response_model=PriceVariationBetweenDatesRead)
+def obtener_variacion_entre_fechas_material(
+    material_id: int,
+    fecha_desde: date,
+    fecha_hasta: date,
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    current_user: Usuario = Depends(get_current_user),
+) -> PriceVariationBetweenDatesRead:
+    material = material_repo.get_by_id(material_id)
+    if material is None:
+        raise MaterialNotFoundException(material_id)
+
+    precios = pricing_repo.get_historical_prices(material_id, date(2000, 1, 1))
+    registros = [
+        PrecioSerieInput(
+            fecha=precio.fecha,
+            precio_normalizado=precio.precio_normalizado,
+            unidad_base=material.unidad_base,
+            fuente=precio.fuente.nombre if precio.fuente else None,
+            numero_comprobante=precio.numero_comprobante,
+        )
+        for precio in precios
+    ]
+
+    try:
+        result = calcular_variacion_entre_fechas(registros, fecha_desde, fecha_hasta)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return PriceVariationBetweenDatesRead(
+        material_id=material.id,
+        material_nombre=material.nombre,
+        unidad_base=material.unidad_base,
+        fecha_desde_solicitada=fecha_desde,
+        fecha_hasta_solicitada=fecha_hasta,
+        fecha_desde_usada=result.fecha_desde,
+        fecha_hasta_usada=result.fecha_hasta,
+        precio_desde=result.precio_desde,
+        precio_hasta=result.precio_hasta,
+        variacion_porcentual=result.variacion_porcentual,
+    )
+
+
 @router.get("/materiales/{material_id}/forecast", response_model=ForecastResponseRead, response_model_exclude_none=True)
 def obtener_forecast_material(
     material_id: int,
@@ -244,6 +299,13 @@ def recomendar_momento_compra_material(
         horizonte_meses=result.horizonte_meses,
         decision=result.decision,
         variacion_esperada_pct=result.variacion_esperada_pct,
+        precio_actual=result.precio_actual,
+        precio_proyectado_horizonte=result.precio_proyectado_horizonte,
+        cantidad_objetivo=result.cantidad_objetivo,
+        impacto_economico_estimado=result.impacto_economico_estimado,
+        mape=result.mape,
+        umbral_decision_pct=result.umbral_decision_pct,
+        supera_umbral_decision=result.supera_umbral_decision,
         confiabilidad=result.confiabilidad,
         criticidad=result.criticidad,
         justificacion=result.justificacion,
@@ -289,6 +351,8 @@ def comparar_estrategias_compra_material(
             {
                 "nombre": estrategia.nombre,
                 "costo_estimado": estrategia.costo_estimado,
+                "diferencia_vs_mejor_ars": estrategia.diferencia_vs_mejor_ars,
+                "diferencia_vs_mejor_pct": estrategia.diferencia_vs_mejor_pct,
                 "riesgo": estrategia.riesgo,
                 "descripcion": estrategia.descripcion,
             }
@@ -296,8 +360,67 @@ def comparar_estrategias_compra_material(
         ],
         mejor_estrategia=result.mejor_estrategia,
         ahorro_estimado=result.ahorro_estimado,
+        umbral_decision_pct=result.umbral_decision_pct,
+        ventaja_significativa=result.ventaja_significativa,
         justificacion=result.justificacion,
         advertencias=list(result.advertencias),
+    )
+
+
+@router.post(
+    "/materiales/{material_id}/simulacion-escenarios-compra",
+    response_model=PurchaseTemporalSimulationRead,
+)
+def simular_escenarios_temporales_compra_material(
+    material_id: int,
+    payload: PurchaseTemporalSimulationCreate,
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    current_user: Usuario = Depends(get_current_user),
+) -> PurchaseTemporalSimulationRead:
+    material = material_repo.get_by_id(material_id)
+    if material is None:
+        raise MaterialNotFoundException(material_id)
+
+    simulaciones = []
+    for horizonte in payload.horizontes_meses:
+        result = comparar_estrategias_compra(
+            material,
+            horizonte,
+            payload.cantidad_objetivo,
+            pricing_repo,
+            porcentaje_compra_inmediata=payload.porcentaje_compra_inmediata,
+            usar_selector_modelo=USAR_SELECTOR_MODELO_FORECAST,
+        )
+        simulaciones.append(
+            PurchaseStrategyComparisonRead(
+                material_id=result.material_id,
+                material_key=result.material_key,
+                horizonte_meses=result.horizonte_meses,
+                cantidad_objetivo=result.cantidad_objetivo,
+                porcentaje_compra_inmediata=result.porcentaje_compra_inmediata,
+                precio_actual=result.precio_actual,
+                precio_proyectado_horizonte=result.precio_proyectado_horizonte,
+                variacion_esperada_pct=result.variacion_esperada_pct,
+                confiabilidad=result.confiabilidad,
+                estrategias=result.estrategias,
+                mejor_estrategia=result.mejor_estrategia,
+                ahorro_estimado=result.ahorro_estimado,
+                umbral_decision_pct=result.umbral_decision_pct,
+                ventaja_significativa=result.ventaja_significativa,
+                justificacion=result.justificacion,
+                advertencias=list(result.advertencias),
+            )
+        )
+
+    simulaciones.sort(key=lambda s: s.horizonte_meses)
+
+    return PurchaseTemporalSimulationRead(
+        material_id=material.id,
+        material_key=simulaciones[0].material_key,
+        cantidad_objetivo=payload.cantidad_objetivo,
+        porcentaje_compra_inmediata=payload.porcentaje_compra_inmediata,
+        simulaciones=simulaciones,
     )
 
 
@@ -336,11 +459,15 @@ def optimizar_presupuesto_compra(
                 "material_key": item.material_key,
                 "cantidad_objetivo": item.cantidad_objetivo,
                 "cantidad_recomendada_comprar_ahora": item.cantidad_recomendada_comprar_ahora,
+                "cantidad_recomendada_postergar": item.cantidad_recomendada_postergar,
                 "precio_actual": item.precio_actual,
                 "precio_proyectado_horizonte": item.precio_proyectado_horizonte,
                 "costo_compra_ahora": item.costo_compra_ahora,
+                "costo_futuro_estimado": item.costo_futuro_estimado,
                 "ahorro_unitario_estimado": item.ahorro_unitario_estimado,
                 "ahorro_total_estimado": item.ahorro_total_estimado,
+                "impacto_economico_pct": item.impacto_economico_pct,
+                "accion_recomendada": item.accion_recomendada,
                 "criticidad": item.criticidad,
                 "peso_criticidad": item.peso_criticidad,
                 "confiabilidad": item.confiabilidad,
@@ -349,6 +476,57 @@ def optimizar_presupuesto_compra(
         ],
         ahorro_total_estimado=result.ahorro_total_estimado,
         justificacion=result.justificacion,
+        advertencias=list(result.advertencias),
+    )
+
+
+@router.post("/compras/recomendacion-operativa", response_model=OperationalPurchaseRecommendationRead)
+def generar_recomendacion_operativa(
+    payload: OperationalPurchaseRecommendationCreate,
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    current_user: Usuario = Depends(get_current_user),
+) -> OperationalPurchaseRecommendationRead:
+    result = generar_recomendacion_operativa_compra(
+        presupuesto_total=payload.presupuesto_total,
+        horizonte_meses=payload.horizonte_meses,
+        materiales=[
+            PurchaseOptimizationInputItem(
+                material_id=item.material_id,
+                cantidad_objetivo=item.cantidad_objetivo,
+                criticidad=item.criticidad,
+            )
+            for item in payload.materiales
+        ],
+        material_repo=material_repo,
+        pricing_repo=pricing_repo,
+        usar_selector_modelo=USAR_SELECTOR_MODELO_FORECAST,
+    )
+
+    return OperationalPurchaseRecommendationRead(
+        fecha_calculo=result.fecha_calculo,
+        horizonte_meses=result.horizonte_meses,
+        presupuesto_total=result.presupuesto_total,
+        presupuesto_utilizado=result.presupuesto_utilizado,
+        presupuesto_restante=result.presupuesto_restante,
+        ahorro_total_estimado=result.ahorro_total_estimado,
+        decision_resumen=result.decision_resumen,
+        items=[
+            {
+                "material_id": item.material_id,
+                "material_key": item.material_key,
+                "accion_recomendada": item.accion_recomendada,
+                "cantidad_comprar_ahora": item.cantidad_comprar_ahora,
+                "cantidad_postergar": item.cantidad_postergar,
+                "impacto_economico_estimado": item.impacto_economico_estimado,
+                "impacto_economico_pct": item.impacto_economico_pct,
+                "confianza": item.confianza,
+                "criticidad": item.criticidad,
+                "explicacion": item.explicacion,
+            }
+            for item in result.items
+        ],
+        supuestos=list(result.supuestos),
         advertencias=list(result.advertencias),
     )
 

@@ -1,5 +1,5 @@
 import LogoutIconModule from "@mui/icons-material/Logout";
-import { Box, Button, Container, FormControlLabel, Switch, Typography } from "@mui/material";
+import { Box, Button, ButtonGroup, Container, Typography } from "@mui/material";
 
 import { brand } from "../../app/brand.js";
 import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
@@ -35,11 +35,42 @@ export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowP
           </Box>
           {user ? (
             <Box className="flex flex-wrap items-center justify-between gap-2">
-              <FormControlLabel
-                control={<Switch checked={showPrices} onChange={onToggleShowPrices} color="default" />}
-                label={showPrices ? "Mostrar precios" : "Solo porcentajes"}
-                sx={{ mr: 0, "& .MuiFormControlLabel-label": { fontSize: 13, fontWeight: 700, color: "white" } }}
-              />
+              <ButtonGroup
+                size="small"
+                variant="outlined"
+                disableElevation
+                sx={{
+                  borderRadius: 999,
+                  bgcolor: "rgba(255,255,255,0.10)",
+                  "& .MuiButton-root": {
+                    borderColor: "rgba(255,255,255,0.85)",
+                    bgcolor: "white",
+                    color: "primary.main",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    minWidth: 92,
+                    px: 1.5,
+                    textTransform: "none",
+                    "&:hover": {
+                      borderColor: "white",
+                      bgcolor: brand.colors.primarySoft,
+                    },
+                  },
+                  "& .MuiButton-contained": {
+                    bgcolor: brand.colors.primary,
+                    color: "white",
+                    boxShadow: "none",
+                    "&:hover": { bgcolor: brand.colors.primaryHover, boxShadow: "none" },
+                  },
+                }}
+              >
+                <Button variant={showPrices ? "contained" : "outlined"} onClick={() => onToggleShowPrices({ target: { checked: true } })}>
+                  Precios
+                </Button>
+                <Button variant={!showPrices ? "contained" : "outlined"} onClick={() => onToggleShowPrices({ target: { checked: false } })}>
+                  Variacion %
+                </Button>
+              </ButtonGroup>
               <Typography fontSize={14} fontWeight={700} noWrap>
                 {user.nombre} ({user.rol})
               </Typography>

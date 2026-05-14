@@ -14,6 +14,8 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-buildwise}:${POSTGRES_PASSWORD:-buildwise}@postgres:5432/${POSTGRES_DB:-buildwise}
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-buildwise-dev-secret-change-me}
+      AUTH_TOKEN_TTL_MINUTES: ${AUTH_TOKEN_TTL_MINUTES:-480}
     ports:
       - "8000:8000"
     volumes:
@@ -22,7 +24,8 @@ services:
       postgres:
         condition: service_healthy
     command: >
-      sh -c "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+      sh -c "alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
   bootstrap:
     build: .
@@ -30,6 +33,8 @@ services:
     profiles: ["ops"]
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-buildwise}:${POSTGRES_PASSWORD:-buildwise}@postgres:5432/${POSTGRES_DB:-buildwise}
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-buildwise-dev-secret-change-me}
+      AUTH_TOKEN_TTL_MINUTES: ${AUTH_TOKEN_TTL_MINUTES:-480}
     volumes:
       - .:/app
     depends_on:

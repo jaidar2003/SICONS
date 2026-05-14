@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.modules.auth.interfaces.dependencies import get_current_user
 from app.modules.catalog.application.utils import derive_material_key
 from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.pricing.application import purchase_recommendations as purchase_recommendations_module
@@ -204,6 +205,10 @@ def test_recomendar_momento_compra_deriva_material_key_y_retorna_contrato(monkey
     assert result.material_key == derive_material_key("Cemento Portland")
     assert result.decision == DECISION_COMPRAR_AHORA
     assert result.variacion_esperada_pct == Decimal("8.4000")
+    assert result.impacto_economico_estimado == Decimal("840.00")
+    assert result.mape == Decimal("4.98")
+    assert result.umbral_decision_pct == Decimal("5")
+    assert result.supera_umbral_decision is True
 
 
 def test_recomendar_momento_compra_monitorea_si_no_hay_forecast(monkeypatch) -> None:
@@ -248,6 +253,7 @@ def test_endpoint_responde_con_contrato_esperado(monkeypatch) -> None:
 
     app.dependency_overrides[get_material_repository] = lambda: FakeMaterialRepo()
     app.dependency_overrides[get_pricing_repository] = lambda: FakePricingRepo()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
 
     try:
         client = TestClient(app)
@@ -266,4 +272,10 @@ def test_endpoint_responde_con_contrato_esperado(monkeypatch) -> None:
     assert body["criticidad"] == "alta"
     assert body["horizonte_meses"] == 3
     assert body["variacion_esperada_pct"] is not None
+    assert body["precio_actual"] == "100.00"
+    assert body["precio_proyectado_horizonte"] == "108.40"
+    assert body["impacto_economico_estimado"] == "840.00"
+    assert body["mape"] == "4.98"
+    assert body["umbral_decision_pct"] == "5"
+    assert body["supera_umbral_decision"] is True
     assert body["advertencias"] == []

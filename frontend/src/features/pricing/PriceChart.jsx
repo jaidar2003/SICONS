@@ -26,6 +26,7 @@ export function PriceChart({
   className = "",
   chartMode = "base",
   commercialMarginPct = null,
+  canShowCostDetails = true,
 }) {
   const presentation = getMaterialPresentation(selectedMaterial?.nombre, selectedMaterial?.unidad_base);
   const showBagEquivalents = presentation.type === "cement" && serie.some((point) => point.precio_equivalente_25kg !== null);
@@ -72,18 +73,20 @@ export function PriceChart({
 
   const chartTitle =
     showPrices && chartMode === "commercial"
-      ? "Evolucion historica del precio de venta minorista"
+      ? "Evolucion historica del precio de venta mayorista"
       : showPrices && chartMode === "comparative"
-        ? "Costo y venta minorista superpuestos"
+        ? "Costo y venta mayorista superpuestos"
         : showPrices
           ? "Evolucion historica del precio normalizado"
           : "Evolucion historica porcentual";
   const forecastBoundaryNote = forecastPoints.length ? " La franja naranja marca el tramo estimado." : "";
   const chartDescription =
     showPrices && chartMode === "commercial"
-      ? `Precio de venta minorista derivado del forecast de costo${hasCommercialMargin ? ` con margen ${formatNumber(commercialMarginNumber)}%` : ""}.${forecastBoundaryNote}`
+      ? canShowCostDetails
+        ? `Precio de venta mayorista derivado del forecast de costo${hasCommercialMargin ? ` con margen ${formatNumber(commercialMarginNumber)}%` : ""}.${forecastBoundaryNote}`
+        : `Precio de venta mayorista proyectado para el material seleccionado.${forecastBoundaryNote}`
       : showPrices && chartMode === "comparative"
-        ? `La curva azul es el precio de costo y la verde el precio de venta minorista.${forecastBoundaryNote}`
+        ? `La curva azul es el precio de costo y la verde el precio de venta mayorista.${forecastBoundaryNote}`
         : selectedMaterial
           ? showPrices
             ? `${selectedMaterial.nombre}: ${presentation.primaryPriceLabel.toLowerCase()} en ${presentation.displayUnitLabel}${forecastPoints.length ? " con proyeccion mensual" : ""}.${forecastBoundaryNote}`
@@ -92,9 +95,9 @@ export function PriceChart({
             ? `Precio de referencia del material.${forecastBoundaryNote}`
             : `Variacion acumulada del periodo.${forecastBoundaryNote}`;
   const chartBadge =
-    showPrices && chartMode === "commercial" && hasCommercialMargin
+    canShowCostDetails && showPrices && chartMode === "commercial" && hasCommercialMargin
       ? `Margen ${formatNumber(commercialMarginNumber)}%`
-      : showPrices && chartMode === "comparative" && hasCommercialMargin
+      : canShowCostDetails && showPrices && chartMode === "comparative" && hasCommercialMargin
         ? "Dos curvas"
         : forecastPoints.length
           ? "Historico + forecast"
@@ -142,45 +145,19 @@ export function PriceChart({
       };
     }
 
-    if (chartMode === "commercial" && hasCommercialMargin) {
+    if (chartMode === "commercial" && !hasCommercialMargin && !canShowCostDetails) {
+      return {
+        labels,
+        datasets: [],
+      };
+    }
+
+    if (chartMode === "commercial") {
       return {
         labels,
         datasets: [
           {
-            label: "Precio de costo",
-            data: [...historicalDataset, ...Array(forecastPoints.length).fill(null)],
-            borderColor: "#002395",
-            backgroundColor: "rgba(0, 35, 149, 0.12)",
-            fill: true,
-            borderWidth: 2.5,
-            tension: 0.26,
-            pointRadius: 3,
-            pointHoverRadius: 6,
-            pointBackgroundColor: "#FEFBFF",
-            pointBorderColor: "#002395",
-            pointBorderWidth: 2,
-          },
-          ...(forecastPoints.length
-            ? [
-                {
-                  label: "Forecast de costo",
-                  data: forecastLine,
-                  borderColor: "#ED2939",
-                  backgroundColor: "rgba(237, 41, 57, 0.18)",
-                  fill: true,
-                  borderWidth: 2.5,
-                  tension: 0.2,
-                  pointRadius: 3,
-                  pointHoverRadius: 6,
-                  pointBackgroundColor: "#fff7ed",
-                  pointBorderColor: "#ED2939",
-                  pointBorderWidth: 2,
-                  borderDash: [8, 6],
-                },
-              ]
-            : []),
-          {
-            label: "Precio de venta minorista",
+            label: "Precio de venta mayorista",
             data: [...commercialHistoricalDataset, ...Array(forecastPoints.length).fill(null)],
             borderColor: "#0f766e",
             backgroundColor: "rgba(15, 118, 110, 0.12)",
@@ -196,7 +173,7 @@ export function PriceChart({
           ...(forecastPoints.length
             ? [
                 {
-                  label: "Forecast de venta minorista",
+                  label: "Forecast de venta mayorista",
                   data: commercialForecastLine,
                   borderColor: "#16a34a",
                   backgroundColor: "rgba(22, 163, 74, 0.18)",
@@ -235,7 +212,7 @@ export function PriceChart({
             pointBorderWidth: 2,
           },
           {
-            label: "Precio de venta minorista",
+            label: "Precio de venta mayorista",
             data: commercialCombinedLine,
             borderColor: "#0f766e",
             backgroundColor: "rgba(15, 118, 110, 0.10)",
@@ -365,19 +342,12 @@ export function PriceChart({
             if (context.datasetIndex === 1 && forecastPoints.length) {
               const forecastIndex = context.dataIndex - serie.length;
               if (forecastIndex < 0) {
-                const lastHistoricalPoint = serie[serie.length - 1];
                 return showPrices
-                  ? [`Ultimo observado: ${formatCurrency(lastHistoricalPoint.precio_promedio_normalizado)}`]
+                  ? [`Ultimo observado: ${formatCurrency(context.parsed.y)}`]
                   : [`Ultimo observado: ${formatNumber(variationSeries[variationSeries.length - 1])}%`];
               }
-              const point = forecastPoints[forecastIndex];
               if (showPrices) {
-                return [
-                  `${presentation.tooltipPriceLabel}: ${formatCurrency(getDisplayPrice(point.precio_proyectado, selectedMaterial?.nombre, forecast?.unidad_base))}`,
-                  showBagEquivalents && point.precio_equivalente_25kg !== null
-                    ? `25 kg / 50 kg: ${formatCurrency(point.precio_equivalente_25kg)} / ${formatCurrency(point.precio_equivalente_50kg)}`
-                    : null,
-                ].filter(Boolean);
+                return [`${context.dataset.label}: ${formatCurrency(context.parsed.y)}`];
               }
               return [
                 `Variacion acumulada: ${formatNumber(projectedVariationSeries[forecastIndex])}%`,
@@ -387,11 +357,16 @@ export function PriceChart({
 
             const point = serie[context.dataIndex];
             if (showPrices) {
-              return [
-                `${presentation.tooltipPriceLabel}: ${formatCurrency(getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))}`,
-                showBagEquivalents ? `25 kg / 50 kg: ${formatCurrency(point.precio_equivalente_25kg)} / ${formatCurrency(point.precio_equivalente_50kg)}` : null,
-                `Muestra: ${point.cantidad_registros} ${point.cantidad_registros === 1 ? "precio" : "precios"}`,
+              const publicLines = [
+                `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`,
                 `Variacion mensual: ${point.variacion_porcentual_anterior === null ? "-" : `${formatNumber(point.variacion_porcentual_anterior)}%`}`,
+              ];
+              if (!canShowCostDetails) return publicLines;
+              return [
+                publicLines[0],
+                chartMode === "base" && showBagEquivalents ? `25 kg / 50 kg: ${formatCurrency(point.precio_equivalente_25kg)} / ${formatCurrency(point.precio_equivalente_50kg)}` : null,
+                `Muestra: ${point.cantidad_registros} ${point.cantidad_registros === 1 ? "precio" : "precios"}`,
+                publicLines[1],
                 `Fuentes: ${point.fuentes.join(", ") || "-"}`,
               ];
             }
@@ -412,7 +387,7 @@ export function PriceChart({
           display: true,
           text: showPrices
             ? chartMode === "commercial" && hasCommercialMargin
-              ? `${presentation.chartAxisLabel} de venta minorista`
+              ? `${presentation.chartAxisLabel} de venta mayorista`
               : chartMode === "comparative" && hasCommercialMargin
                 ? presentation.chartAxisLabel
                 : presentation.chartAxisLabel
@@ -439,7 +414,9 @@ export function PriceChart({
         />
         {showPrices && chartMode !== "base" && !hasCommercialMargin ? (
           <Alert severity="warning" className="mb-3">
-            Sin precio de venta minorista configurado. Se muestra solo el precio de costo.
+            {canShowCostDetails
+              ? "Sin precio de venta mayorista configurado. Se muestra solo el precio de costo."
+              : "Sin precio de venta mayorista configurado para este material."}
           </Alert>
         ) : null}
         <div className="chart-shell h-[360px]">

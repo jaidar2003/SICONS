@@ -26,6 +26,8 @@ PORCENTAJE_COMPRA_INMEDIATA_DEFAULT = Decimal("0.50")
 class PurchaseStrategy:
     nombre: str
     costo_estimado: Decimal
+    diferencia_vs_mejor_ars: Decimal
+    diferencia_vs_mejor_pct: Decimal
     riesgo: str
     descripcion: str
 
@@ -44,6 +46,8 @@ class PurchaseStrategiesResult:
     estrategias: tuple[PurchaseStrategy, ...]
     mejor_estrategia: str
     ahorro_estimado: Decimal
+    umbral_decision_pct: Decimal
+    ventaja_significativa: bool
     justificacion: str
     advertencias: tuple[str, ...]
 
@@ -62,6 +66,18 @@ def _es_confiabilidad_baja(confiabilidad: str, no_calibrado: bool) -> bool:
 
 def _calcular_costo(precio: Decimal, cantidad: Decimal) -> Decimal:
     return _quantize_amount(precio * cantidad)
+
+
+def _calcular_diferencia_pct(base: Decimal, diferencia: Decimal) -> Decimal:
+    if base == 0:
+        return Decimal("0.0000")
+    return ((diferencia / base) * Decimal("100")).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
+def _resolver_umbral_decision_pct(confiabilidad: str, no_calibrado: bool) -> Decimal:
+    if _es_confiabilidad_baja(confiabilidad, no_calibrado):
+        return Decimal("8.0000")
+    return Decimal("5.0000")
 
 
 def _riesgo_estrategia(nombre: str, variacion_esperada_pct: Decimal) -> str:
@@ -129,29 +145,52 @@ def evaluar_estrategias_compra(
         precio_proyectado_horizonte, cantidad_diferida
     )
 
-    estrategias = (
+    estrategias_base = (
         PurchaseStrategy(
             nombre=ESTRATEGIA_COMPRAR_AHORA,
             costo_estimado=costo_ahora,
+            diferencia_vs_mejor_ars=Decimal("0.00"),
+            diferencia_vs_mejor_pct=Decimal("0.0000"),
             riesgo=_riesgo_estrategia(ESTRATEGIA_COMPRAR_AHORA, variacion_esperada_pct),
             descripcion="Compra completa al precio actual.",
         ),
         PurchaseStrategy(
             nombre=ESTRATEGIA_ESPERAR_AL_HORIZONTE,
             costo_estimado=costo_esperar,
+            diferencia_vs_mejor_ars=Decimal("0.00"),
+            diferencia_vs_mejor_pct=Decimal("0.0000"),
             riesgo=_riesgo_estrategia(ESTRATEGIA_ESPERAR_AL_HORIZONTE, variacion_esperada_pct),
             descripcion="Compra completa al precio proyectado.",
         ),
         PurchaseStrategy(
             nombre=ESTRATEGIA_COMPRA_PARCIAL,
             costo_estimado=_quantize_amount(costo_parcial),
+            diferencia_vs_mejor_ars=Decimal("0.00"),
+            diferencia_vs_mejor_pct=Decimal("0.0000"),
             riesgo=_riesgo_estrategia(ESTRATEGIA_COMPRA_PARCIAL, variacion_esperada_pct),
             descripcion="Compra parcial actual y parcial al precio proyectado.",
         ),
     )
 
-    mejor = min(estrategias, key=lambda estrategia: estrategia.costo_estimado)
+    mejor = min(estrategias_base, key=lambda estrategia: estrategia.costo_estimado)
+    estrategias = tuple(
+        PurchaseStrategy(
+            nombre=estrategia.nombre,
+            costo_estimado=estrategia.costo_estimado,
+            diferencia_vs_mejor_ars=_quantize_amount(estrategia.costo_estimado - mejor.costo_estimado),
+            diferencia_vs_mejor_pct=_calcular_diferencia_pct(
+                mejor.costo_estimado,
+                estrategia.costo_estimado - mejor.costo_estimado,
+            ),
+            riesgo=estrategia.riesgo,
+            descripcion=estrategia.descripcion,
+        )
+        for estrategia in estrategias_base
+    )
     ahorro_estimado = _quantize_amount(max(estrategia.costo_estimado for estrategia in estrategias) - mejor.costo_estimado)
+    umbral_decision_pct = _resolver_umbral_decision_pct(confiabilidad, no_calibrado)
+    peor_diferencia_pct = max(estrategia.diferencia_vs_mejor_pct for estrategia in estrategias)
+    ventaja_significativa = peor_diferencia_pct >= umbral_decision_pct
 
     if _es_confiabilidad_baja(confiabilidad, no_calibrado):
         advertencias_resultado.append(
@@ -171,6 +210,8 @@ def evaluar_estrategias_compra(
         estrategias=estrategias,
         mejor_estrategia=mejor.nombre,
         ahorro_estimado=ahorro_estimado,
+        umbral_decision_pct=umbral_decision_pct,
+        ventaja_significativa=ventaja_significativa,
         justificacion=_construir_justificacion(
             mejor_estrategia=mejor.nombre,
             variacion_esperada_pct=variacion_esperada_pct,

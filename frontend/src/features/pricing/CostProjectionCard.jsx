@@ -1,9 +1,18 @@
+import CalendarMonthIconModule from "@mui/icons-material/CalendarMonth";
+import SavingsOutlinedIconModule from "@mui/icons-material/SavingsOutlined";
+import TrendingUpIconModule from "@mui/icons-material/TrendingUp";
 import { Alert, Box, Card, CardContent, Stack, TextField, Typography } from "@mui/material";
+import dayjs from "dayjs";
 import { useMemo, useState } from "react";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
+import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
 import { ForecastModelDetails } from "./ForecastModelDetails.jsx";
+
+const CalendarMonthIcon = resolveMuiIcon(CalendarMonthIconModule);
+const SavingsOutlinedIcon = resolveMuiIcon(SavingsOutlinedIconModule);
+const TrendingUpIcon = resolveMuiIcon(TrendingUpIconModule);
 
 export function CostProjectionCard({ forecast, selectedMaterial, showPrices }) {
   const [quantityInput, setQuantityInput] = useState("100");
@@ -39,12 +48,21 @@ export function CostProjectionCard({ forecast, selectedMaterial, showPrices }) {
     const cheapestScenario = scenarios.reduce((best, current) => (current.projectedCost < best.projectedCost ? current : best), scenarios[0]);
     const mostExpensiveScenario = scenarios.reduce((worst, current) => (current.projectedCost > worst.projectedCost ? current : worst), scenarios[0]);
     const averageProjectedCost = scenarios.reduce((total, current) => total + current.projectedCost, 0) / scenarios.length;
+    const decision = cheapestScenario.delta > 0 ? "Comprar ahora" : "Podés esperar";
+    const decisionTone = cheapestScenario.delta > 0 ? "error.main" : "success.main";
+    const decisionDetail =
+      cheapestScenario.delta > 0
+        ? `Anticipar la compra evita al menos ${formatCurrency(cheapestScenario.delta)} frente al mejor horizonte proyectado.`
+        : `El mejor horizonte proyectado ahorra ${formatCurrency(Math.abs(cheapestScenario.delta))} frente a comprar hoy.`;
 
     return {
       currentCost: currentUnitPrice * quantity,
       cheapestScenario,
       mostExpensiveScenario,
       averageProjectedCost,
+      decision,
+      decisionTone,
+      decisionDetail,
     };
   }, [currentUnitPrice, quantity, scenarios]);
 
@@ -67,84 +85,110 @@ export function CostProjectionCard({ forecast, selectedMaterial, showPrices }) {
       <CardContent>
         <SectionHeader
           title="Proyeccion de costos de obra"
-          description="Calcula el costo actual y lo compara contra cada horizonte proyectado para el material seleccionado."
+          description="Convertí la cantidad que necesitás en una decisión simple: comprar ahora o esperar."
         />
-
-        <Box className="mb-5">
-          <ForecastModelDetails selection={selection} title="Detalles del modelo" compact />
-        </Box>
 
         {!forecast ? (
           <Alert severity="info">Necesitás un forecast disponible para proyectar costos de compra.</Alert>
         ) : (
           <Stack spacing={3}>
-            <Box className="grid gap-4 md:grid-cols-[280px_1fr]">
-              <TextField
-                label={`Cantidad requerida (${unit})`}
-                type="number"
-                value={quantityInput}
-                onChange={(event) => setQuantityInput(event.target.value)}
-                inputProps={{ min: 0, step: "any" }}
-                helperText="Ingresá la cantidad necesaria para estimar el impacto economico futuro."
-              />
-
-              <Box className="rounded-xl border border-slate-200 p-3">
-                <Typography color="text.secondary" fontSize={12} fontWeight={800}>
-                  Costo actual estimado
-                </Typography>
-                <Typography component="strong" display="block" mt={0.75} fontSize={28} fontWeight={800}>
-                  {isValidQuantity ? formatCurrency(currentUnitPrice * quantity) : "-"}
-                </Typography>
-                <Typography color="text.secondary" fontSize={13} mt={0.5}>
-                  {isValidQuantity
-                    ? `${formatNumber(quantity, 0)} ${unit} x ${formatCurrency(currentUnitPrice)} por ${unit}`
-                    : "Ingresá una cantidad mayor a cero para habilitar la comparacion."}
-                </Typography>
-              </Box>
-            </Box>
-
             {!isValidQuantity ? (
-              <Alert severity="warning">La cantidad requerida debe ser mayor a cero.</Alert>
+              <>
+                <Box className="grid gap-4 md:grid-cols-[280px_1fr]">
+                  <TextField
+                    label={`Cantidad requerida (${unit})`}
+                    type="number"
+                    value={quantityInput}
+                    onChange={(event) => setQuantityInput(event.target.value)}
+                    inputProps={{ min: 0, step: "any" }}
+                    helperText="Ingresá una cantidad mayor a cero."
+                  />
+                  <Alert severity="warning">La cantidad requerida debe ser mayor a cero.</Alert>
+                </Box>
+              </>
             ) : (
               <>
-                <Box className="grid gap-4 md:grid-cols-4">
+                <Box className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[minmax(240px,.75fr)_minmax(0,1.25fr)] lg:items-stretch">
+                  <Box className="rounded-xl border border-slate-200 bg-white p-4 md:p-5">
+                    <Typography color="text.secondary" fontSize={12} fontWeight={900} letterSpacing={0} lineHeight={1.2}>
+                      Cantidad para esta compra
+                    </Typography>
+                    <TextField
+                      className="mt-4"
+                      fullWidth
+                      aria-label={`Cantidad (${unit})`}
+                      placeholder={`Cantidad (${unit})`}
+                      type="number"
+                      value={quantityInput}
+                      onChange={(event) => setQuantityInput(event.target.value)}
+                      inputProps={{ min: 0, step: "any" }}
+                      sx={{
+                        "& .MuiInputBase-root": {
+                          minHeight: 48,
+                        },
+                      }}
+                    />
+                    <Typography color="text.secondary" fontSize={13} mt={2} lineHeight={1.5}>
+                      Precio actual: {formatCurrency(currentUnitPrice)} por {unit}.
+                    </Typography>
+                  </Box>
+
+                  <Box className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-[1fr_auto] md:items-center">
+                    <Box>
+                      <Typography color="text.secondary" fontSize={12} fontWeight={800}>
+                        Lectura rápida
+                      </Typography>
+                      <Typography component="strong" display="block" mt={0.75} fontSize={34} fontWeight={900} lineHeight={1.05} color={summary.decisionTone}>
+                        {summary.decision}
+                      </Typography>
+                      <Typography color="text.secondary" fontSize={14} mt={1}>
+                        {summary.decisionDetail}
+                      </Typography>
+                    </Box>
+                    <Box className="rounded-xl bg-slate-50 p-3 md:min-w-[220px]">
+                      <Typography color="text.secondary" fontSize={12} fontWeight={800}>
+                        Comprar hoy
+                      </Typography>
+                      <Typography component="strong" display="block" mt={0.75} fontSize={26} fontWeight={900}>
+                        {formatCurrency(summary.currentCost)}
+                      </Typography>
+                      <Typography color="text.secondary" fontSize={13} mt={0.5}>
+                        {formatNumber(quantity, 0)} {unit} para {selectedMaterial?.nombre || "el material seleccionado"}.
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Box className="grid gap-4 md:grid-cols-3">
                   <SummaryMini
-                    label="Mejor escenario"
-                    value={summary ? summary.cheapestScenario.fecha : "-"}
-                    helper={summary ? formatCurrency(summary.cheapestScenario.projectedCost) : "-"}
+                    icon={<SavingsOutlinedIcon fontSize="small" />}
+                    label="Mejor momento para esperar"
+                    value={dayjs(summary.cheapestScenario.fecha).format("MMM YY")}
+                    helper={formatCurrency(summary.cheapestScenario.projectedCost)}
                   />
                   <SummaryMini
-                    label="Peor escenario"
-                    value={summary ? summary.mostExpensiveScenario.fecha : "-"}
-                    helper={summary ? formatCurrency(summary.mostExpensiveScenario.projectedCost) : "-"}
+                    icon={<TrendingUpIcon fontSize="small" />}
+                    label="Mayor costo proyectado"
+                    value={dayjs(summary.mostExpensiveScenario.fecha).format("MMM YY")}
+                    helper={formatCurrency(summary.mostExpensiveScenario.projectedCost)}
                   />
                   <SummaryMini
-                    label="Promedio proyectado"
-                    value={summary ? formatCurrency(summary.averageProjectedCost) : "-"}
-                    helper="Costo medio entre escenarios"
-                  />
-                  <SummaryMini
-                    label="Decision base"
-                    value={summary && summary.cheapestScenario.delta > 0 ? "Comprar ahora" : "Esperar"}
-                    helper={
-                      summary
-                        ? summary.cheapestScenario.delta > 0
-                          ? `Se evitarian ${formatCurrency(summary.cheapestScenario.delta)} frente al mejor escenario futuro`
-                          : `El mejor escenario futuro ahorraria ${formatCurrency(Math.abs(summary.cheapestScenario.delta))}`
-                        : "-"
-                    }
+                    icon={<CalendarMonthIcon fontSize="small" />}
+                    label="Promedio si esperás"
+                    value={formatCurrency(summary.averageProjectedCost)}
+                    helper="Entre los horizontes disponibles"
                   />
                 </Box>
 
                 <Alert severity="info">
-                  Esta simulacion compara escenarios temporales de compra a partir del forecast unitario. Sirve como apoyo para decisiones tacticas, no como recomendacion definitiva de compra.
+                  Usá esta lectura como apoyo táctico: compara el costo de comprar hoy contra los horizontes del forecast para esta cantidad.
                 </Alert>
 
                 <Box className="grid gap-4 md:grid-cols-3">
                   {scenarios.map((scenario) => (
                     <Box key={scenario.fecha} className="rounded-xl border border-slate-200 p-3">
                       <Typography fontSize={12} fontWeight={800} color="text.secondary">
-                        Horizonte {scenario.fecha}
+                        Si comprás en {dayjs(scenario.fecha).format("MMM YY")}
                       </Typography>
                       <Typography component="strong" display="block" mt={1} fontSize={22} fontWeight={800}>
                         {formatCurrency(scenario.projectedCost)}
@@ -161,6 +205,8 @@ export function CostProjectionCard({ forecast, selectedMaterial, showPrices }) {
                     </Box>
                   ))}
                 </Box>
+
+                <ForecastModelDetails selection={selection} title="Modelo usado para estimar" compact />
               </>
             )}
           </Stack>
@@ -170,12 +216,15 @@ export function CostProjectionCard({ forecast, selectedMaterial, showPrices }) {
   );
 }
 
-function SummaryMini({ label, value, helper }) {
+function SummaryMini({ icon, label, value, helper }) {
   return (
     <Box className="rounded-xl border border-slate-200 p-3">
-      <Typography color="text.secondary" fontSize={12} fontWeight={800}>
-        {label}
-      </Typography>
+      <Box className="flex items-center gap-2">
+        {icon ? <Box className="text-primary">{icon}</Box> : null}
+        <Typography color="text.secondary" fontSize={12} fontWeight={800}>
+          {label}
+        </Typography>
+      </Box>
       <Typography component="strong" display="block" mt={0.75} fontSize={22} fontWeight={800} lineHeight={1.1}>
         {value}
       </Typography>

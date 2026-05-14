@@ -37,6 +37,21 @@ def make_session():
             )
             """
         )
+        conn.exec_driver_sql(
+            """
+            CREATE TABLE audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario_id INTEGER,
+                accion VARCHAR(50) NOT NULL,
+                recurso VARCHAR(50) NOT NULL,
+                recurso_id VARCHAR(100),
+                cambios JSON,
+                ip_address VARCHAR(45),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
+            )
+            """
+        )
     SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     return SessionLocal(), engine
 

@@ -122,6 +122,10 @@ Ejemplo conceptual:
 - explicacion resumida del criterio aplicado;
 - indicacion de si la recomendacion supera o no el umbral minimo de decision.
 
+### Criterio de aceptacion literal
+
+`HU21` se considera completa cuando, para `Cemento Portland`, `Pastina` y `Membrana Megaflex`, la salida indica una accion concreta (`comprar ahora`, `postergar` o `sin ventaja clara`) junto con impacto en ARS, impacto porcentual, horizonte, `MAPE` y umbral de decision aplicado.
+
 ---
 
 ## HU22 - Comparar estrategias de compra
@@ -165,6 +169,10 @@ Si mas adelante se agregan proporciones distintas, la expresion puede generaliza
 ### Criterio para seleccionar la estrategia más barata
 
 La estrategia recomendada sera inicialmente aquella con menor costo esperado, siempre que la diferencia frente a las restantes supere el umbral minimo de decision definido para evitar recomendaciones basadas en ruido o diferencias metodologicamente irrelevantes.
+
+### Criterio de aceptacion literal
+
+`HU22` se considera completa cuando, para cada producto MVP y un horizonte elegido, se expone una tabla o payload con las tres estrategias minimas, costo esperado, diferencia ARS/%, estrategia ganadora y lectura de si la ventaja es significativa o marginal.
 
 ---
 
@@ -236,6 +244,19 @@ x_ahora_i >= porcentaje_minimo_i * cantidad_requerida_i
 
 Esta ultima restriccion aplica solo cuando se quiera forzar una compra minima inmediata para materiales considerados criticos.
 
+### Salida esperada
+
+- presupuesto utilizado y presupuesto restante;
+- cantidad a comprar ahora y cantidad postergada por material;
+- costo inmediato por material;
+- costo futuro estimado por material;
+- estado de factibilidad de la solucion;
+- explicacion breve de la asignacion.
+
+### Criterio de aceptacion literal
+
+`HU23` se considera completa cuando la optimizacion respeta presupuesto, cantidades requeridas, no negatividad y, si aplica, minimos por criticidad. La evidencia minima debe incluir al menos un caso donde el presupuesto sea restrictivo y el resultado no exceda el limite disponible.
+
 ---
 
 ## HU28 - Optimizar presupuesto de compra con criticidad y forecast
@@ -270,9 +291,62 @@ Ademas:
 
 La optimizacion no reemplaza la recomendacion simple ni la comparacion de estrategias. Se apoya en ellas y las eleva a una decision mas operativa: no solo indica si conviene comprar, sino como asignar el presupuesto entre materiales segun criticidad y ahorro esperado.
 
-### Estado de implementacion esperado
+### Estado de implementacion
 
-La capa de backend ya expone la ruta de optimizacion presupuestaria. El trabajo pendiente se concentra en integrar esa salida como flujo visible y accionable dentro de la vista de costos.
+La capa de backend expone la ruta `/compras/optimizar-presupuesto`. La salida incluye asignacion por material, cantidad recomendada a comprar ahora, cantidad a postergar, presupuesto utilizado/restante, impacto economico estimado, criticidad, confianza y advertencias.
+
+### Criterio de aceptacion literal
+
+`HU28` se considera completa cuando la decision presupuestaria integra criticidad, forecast y restriccion de presupuesto en una unica salida accionable. Para los tres productos MVP, debe indicar que comprar ahora, que postergar, cuanto presupuesto consume, que impacto economico espera y que advertencias de confianza aplican.
+
+---
+
+## HU28b - Generar recomendacion operativa trazable
+
+### Objetivo
+
+Consolidar en una unica salida la decision de compra recomendada para una obra o seleccion de materiales, integrando forecast, comparacion economica, criticidad, presupuesto disponible, confianza del modelo y supuestos usados.
+
+Esta HU funciona como cierre del DSS. No reemplaza `HU21`, `HU22`, `HU23` ni `HU28`: las consume y ordena en una respuesta final orientada a decision.
+
+### Historia de usuario
+
+Como responsable de compras, quiero recibir una recomendacion operativa trazable basada en forecast, impacto economico, criticidad y presupuesto, para saber que materiales comprar ahora, cuales postergar y por que.
+
+### Datos de entrada
+
+- materiales seleccionados;
+- cantidades requeridas por material;
+- presupuesto disponible;
+- horizonte de decision;
+- criticidad o prioridad operativa por material;
+- tolerancia minima para emitir recomendacion, si aplica.
+
+### Resultado esperado
+
+- accion recomendada por material: `COMPRAR_AHORA`, `POSTERGAR` o `COMPRA_PARCIAL`;
+- cantidad recomendada a comprar ahora;
+- cantidad recomendada a postergar;
+- presupuesto utilizado y presupuesto restante;
+- impacto economico estimado en ARS y porcentaje;
+- fecha de calculo;
+- nivel de confianza o advertencia asociada al forecast;
+- supuestos usados para la decision;
+- explicacion breve de por que se recomienda esa accion.
+
+### Criterio funcional
+
+La salida debe permitir tomar una decision sin obligar al usuario a reconstruir manualmente el razonamiento desde multiples graficos o tablas. El sistema puede seguir mostrando analisis historico, forecast y comparaciones, pero esta HU exige una conclusion operativa consolidada.
+
+### Criterio de aceptacion literal
+
+`HU28b` se considera completa cuando, para `Cemento Portland`, `Pastina` y `Membrana Megaflex`, el sistema entrega una recomendacion unica y trazable que indique que comprar ahora, que postergar, cuanto presupuesto consume, que ahorro o sobrecosto estima, que confianza tiene la recomendacion y que supuestos se aplicaron.
+
+### Evidencia de implementacion
+
+- Endpoint: `/compras/recomendacion-operativa`.
+- Test: `test_endpoint_recomendacion_operativa_consolida_decision_trazable`.
+- Salida: `fecha_calculo`, `decision_resumen`, detalle por material, `supuestos` y `advertencias`.
 
 ---
 
@@ -290,7 +364,7 @@ La capa de backend ya expone la ruta de optimizacion presupuestaria. El trabajo 
 - casos de uso para priorizar materiales;
 - recomendar momento de compra;
 - comparar estrategias;
-- orquestar la optimizacion presupuestaria cuando se incorpore `PuLP`.
+- orquestar la optimizacion presupuestaria con `PuLP`.
 
 ### interfaces
 

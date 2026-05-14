@@ -54,6 +54,21 @@ Permitir que el sistema explique de manera comprensible en que se basa una estim
 
 ---
 
+## HU27b - Conversar con el asistente y recibir una recomendacion accionable de compra
+
+### Objetivo
+
+Permitir que el usuario consulte en lenguaje natural una decision de compra y reciba una respuesta accionable basada en servicios internos de forecast, comparacion economica, recomendacion y optimizacion.
+
+### Salida esperada
+
+- accion sugerida: comprar ahora, postergar o compra parcial;
+- ahorro o sobrecosto estimado;
+- nivel de confianza o advertencia;
+- referencia a los supuestos usados.
+
+---
+
 ## Criterio de integracion
 
 La implementacion minima de esta epica deberia:

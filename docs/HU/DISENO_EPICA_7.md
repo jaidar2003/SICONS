@@ -164,7 +164,7 @@ Si se requiere una version acotada antes de ampliar catalogo, solo podria evalua
 - `HU24` para criticidad de materiales;
 - datos de forecast y error de Epica 3;
 - vistas de costo y planificacion de Epica 4;
-- la interfaz conversacional de Epica 6 puede consumir salidas de Epica 7 para respuesta accionable (`HU34`).
+- la interfaz conversacional de Epica 6 puede consumir salidas de Epica 7 para respuesta accionable (`HU27b`).
 
 ---
 

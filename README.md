@@ -169,18 +169,22 @@ Detalle completo:
 
 ## Optimizacion de compras
 
-La epica de optimizacion ya tiene backend implementado para:
+La epica de optimizacion ya tiene backend implementado como cierre DSS de compra trazable para el MVP. La salida no se limita a graficos: transforma forecast, criticidad y presupuesto en una recomendacion operativa.
+
+Capacidades disponibles:
 
 - recomendacion de momento de compra;
 - comparacion de estrategias;
 - optimizacion con restriccion presupuestaria;
-- priorizacion de materiales criticos.
+- priorizacion de materiales criticos;
+- recomendacion operativa trazable por presupuesto (`/compras/recomendacion-operativa`).
 
 La optimizacion bajo presupuesto usa `PuLP`.
 
 Detalle metodologico:
 
 - [docs/HU/DISENO_EPICA_5.md](docs/HU/DISENO_EPICA_5.md)
+- [docs/DEMO_DSS.md](docs/DEMO_DSS.md)
 
 ## Bootstrap y reproducibilidad
 
@@ -249,10 +253,18 @@ Tests:
 .venv/bin/python -m pytest -q
 ```
 
+Verificacion enfocada del DSS:
+
+```bash
+.venv/bin/python -m pytest --no-cov tests/test_purchase_recommendations.py tests/test_purchase_strategies.py tests/test_purchase_optimization.py
+```
+
 ## Documentacion
 
 - [docs/MEDICIONES_FORECASTING.md](docs/MEDICIONES_FORECASTING.md): metricas, backtesting y comparativas
 - [docs/DECISIONES_TESIS.md](docs/DECISIONES_TESIS.md): decisiones metodologicas
+- [docs/REGISTRO_DECISIONES_TRABAJO.md](docs/REGISTRO_DECISIONES_TRABAJO.md): decisiones operativas de cierre MVP
+- [docs/DEMO_DSS.md](docs/DEMO_DSS.md): guion de demo reproducible del DSS
 - [docs/HU/HU.md](docs/HU/HU.md): historias de usuario y estado funcional
 - [docs/HU/DISENO_EPICA_1.md](docs/HU/DISENO_EPICA_1.md): gestion y preparacion de datos
 - [docs/HU/DISENO_EPICA_2.md](docs/HU/DISENO_EPICA_2.md): analisis y visualizacion

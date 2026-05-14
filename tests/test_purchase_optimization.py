@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.modules.auth.interfaces.dependencies import get_current_user
 from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.pricing.application import purchase_optimization as purchase_optimization_module
 from app.modules.pricing.application.purchase_optimization import (
@@ -127,6 +128,7 @@ def test_no_compra_mas_que_la_cantidad_objetivo() -> None:
     )
 
     assert result.items[0].cantidad_recomendada_comprar_ahora <= Decimal("5.0000")
+    assert result.items[0].cantidad_recomendada_postergar >= Decimal("0.0000")
 
 
 def test_prioriza_material_con_mayor_ahorro_ajustado_por_criticidad() -> None:
@@ -344,6 +346,7 @@ def test_endpoint_responde_con_contrato_esperado(monkeypatch) -> None:
 
     app.dependency_overrides[get_material_repository] = lambda: FakeMaterialRepo()
     app.dependency_overrides[get_pricing_repository] = lambda: FakePricingRepo()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
 
     try:
         client = TestClient(app)
@@ -367,7 +370,71 @@ def test_endpoint_responde_con_contrato_esperado(monkeypatch) -> None:
     assert body["estado_optimizacion"] == "OPTIMAL"
     assert body["items"][0]["material_id"] == 1
     assert body["items"][0]["cantidad_recomendada_comprar_ahora"] == "100.0000"
+    assert body["items"][0]["cantidad_recomendada_postergar"] == "0.0000"
+    assert body["items"][0]["accion_recomendada"] == "COMPRAR_AHORA"
+    assert body["items"][0]["impacto_economico_pct"] == "8.4000"
     assert body["items"][1]["cantidad_recomendada_comprar_ahora"] == "0.0000"
+    assert body["items"][1]["cantidad_recomendada_postergar"] == "40.0000"
+    assert body["items"][1]["accion_recomendada"] == "POSTERGAR"
+
+
+def test_endpoint_recomendacion_operativa_consolida_decision_trazable(monkeypatch) -> None:
+    materiales = {
+        1: SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg"),
+        2: SimpleNamespace(id=2, nombre="Pastina", unidad_base="kg"),
+        3: SimpleNamespace(id=3, nombre="Membrana Megaflex", unidad_base="m2"),
+    }
+
+    def fake_forecast(material, *_args, **_kwargs):
+        proyectados = {
+            1: ("1000.00", "1084.00"),
+            2: ("2000.00", "2100.00"),
+            3: ("1500.00", "1480.00"),
+        }
+        actual, proyectado = proyectados[material.id]
+        return _fake_forecast_result(actual=actual, proyectado=proyectado, confiabilidad="alta")
+
+    monkeypatch.setattr(purchase_optimization_module, "forecast_material", fake_forecast)
+
+    class FakeMaterialRepo:
+        def get_by_id(self, material_id: int):
+            return materiales.get(material_id)
+
+    class FakePricingRepo:
+        pass
+
+    app.dependency_overrides[get_material_repository] = lambda: FakeMaterialRepo()
+    app.dependency_overrides[get_pricing_repository] = lambda: FakePricingRepo()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/compras/recomendacion-operativa",
+            json={
+                "presupuesto_total": 180000,
+                "horizonte_meses": 3,
+                "materiales": [
+                    {"material_id": 1, "cantidad_objetivo": 100, "criticidad": "alta"},
+                    {"material_id": 2, "cantidad_objetivo": 40, "criticidad": "media"},
+                    {"material_id": 3, "cantidad_objetivo": 20, "criticidad": "baja"},
+                ],
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["fecha_calculo"]
+    assert body["horizonte_meses"] == 3
+    assert body["presupuesto_total"] == "180000.00"
+    assert body["ahorro_total_estimado"] != "0.00"
+    assert body["decision_resumen"]
+    assert len(body["items"]) == 3
+    assert body["supuestos"]
+    assert all("impacto_economico_pct" in item for item in body["items"])
+    assert all(item["accion_recomendada"] in {"COMPRAR_AHORA", "POSTERGAR", "COMPRA_PARCIAL"} for item in body["items"])
 
 
 def test_hu23_no_usa_ortools() -> None:

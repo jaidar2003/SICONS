@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Card, CardContent, FormControl, InputLabel, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, ButtonGroup, Card, CardContent, FormControl, InputLabel, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
@@ -18,6 +18,14 @@ const STRATEGY_LABELS = {
   ESPERAR_AL_HORIZONTE: "Esperar al horizonte",
   COMPRA_PARCIAL: "Compra parcial",
 };
+
+const SHARE_OPTIONS = [
+  { label: "0%", value: "0" },
+  { label: "25%", value: "0.25" },
+  { label: "50%", value: "0.50" },
+  { label: "75%", value: "0.75" },
+  { label: "100%", value: "1" },
+];
 
 export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastHorizon, token, showPrices }) {
   const [materialId, setMaterialId] = useState(selectedMaterialId || "");
@@ -42,6 +50,7 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
   );
 
   const quantity = Number(quantityInput);
+  const sharePercentage = Math.round(Number(comparisonShare) * 100);
   const validQuantity = Number.isFinite(quantity) && quantity > 0;
   const validShare = Number.isFinite(Number(comparisonShare)) && Number(comparisonShare) >= 0 && Number(comparisonShare) <= 1;
 
@@ -179,22 +188,35 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
             </FormControl>
           </Box>
 
-          <Box className="grid gap-3 lg:grid-cols-[1fr_.7fr_.7fr] lg:items-end">
-            <TextField
-              size="small"
-              label="Compra inmediata"
-              type="number"
-              value={comparisonShare}
-              onChange={(event) => setComparisonShare(event.target.value)}
-              inputProps={{ min: 0, max: 1, step: "0.05" }}
-              helperText="0 = esperar todo, 1 = comprar todo ahora."
-            />
-            <Button variant="contained" color="primary" onClick={handleRecommend} disabled={loadingRecommendation}>
-              {loadingRecommendation ? "Calculando..." : "Calcular recomendacion"}
-            </Button>
-            <Button variant="outlined" color="secondary" onClick={handleCompare} disabled={loadingComparison}>
-              {loadingComparison ? "Comparando..." : "Comparar estrategias"}
-            </Button>
+          <Box className="grid gap-3 lg:grid-cols-[minmax(320px,1fr)_minmax(0,1.4fr)] lg:items-end">
+            <Box className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+              <Typography variant="body2" fontWeight={800} color="text.secondary" mb={1}>
+                Compra inmediata
+              </Typography>
+              <ButtonGroup size="small" variant="outlined" fullWidth>
+                {SHARE_OPTIONS.map((option) => (
+                  <Button
+                    key={option.value}
+                    variant={comparisonShare === option.value ? "contained" : "outlined"}
+                    onClick={() => setComparisonShare(option.value)}
+                    sx={{ minWidth: 0 }}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </ButtonGroup>
+              <Typography variant="body2" color="text.secondary" mt={1}>
+                Compra {sharePercentage}% ahora y deja {100 - sharePercentage}% para el horizonte.
+              </Typography>
+            </Box>
+            <Box className="grid gap-3 sm:grid-cols-2">
+              <Button variant="contained" color="primary" onClick={handleRecommend} disabled={loadingRecommendation} sx={{ minHeight: 44 }}>
+                {loadingRecommendation ? "Calculando..." : "Calcular recomendacion"}
+              </Button>
+              <Button variant="outlined" color="secondary" onClick={handleCompare} disabled={loadingComparison} sx={{ minHeight: 44 }}>
+                {loadingComparison ? "Comparando..." : "Comparar estrategias"}
+              </Button>
+            </Box>
           </Box>
 
           {recommendation ? (

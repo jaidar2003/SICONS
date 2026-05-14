@@ -28,6 +28,15 @@ class PuntoSeriePrecio:
     motivo_anomalia: str | None = None
 
 
+@dataclass(frozen=True)
+class VariacionEntreFechas:
+    fecha_desde: date
+    fecha_hasta: date
+    precio_desde: Decimal
+    precio_hasta: Decimal
+    variacion_porcentual: Decimal
+
+
 def _quantize(value: Decimal, places: str = "0.0001") -> Decimal:
     return value.quantize(Decimal(places), rounding=ROUND_HALF_UP)
 
@@ -39,6 +48,45 @@ def _contar_facturas(registros: list[PrecioSerieInput]) -> int:
 
 def _usa_equivalencias_bolsa(unidad_base: str, fuentes: list[str]) -> bool:
     return unidad_base == "kg" and "Factura compra" in fuentes
+
+
+def _ultimo_precio_hasta_fecha(registros: list[PrecioSerieInput], fecha_objetivo: date) -> tuple[date, Decimal] | None:
+    candidatos = [registro for registro in registros if registro.fecha <= fecha_objetivo]
+    if not candidatos:
+        return None
+    ultimo = max(candidatos, key=lambda registro: registro.fecha)
+    return ultimo.fecha, ultimo.precio_normalizado
+
+
+def calcular_variacion_entre_fechas(
+    registros: list[PrecioSerieInput],
+    fecha_desde: date,
+    fecha_hasta: date,
+) -> VariacionEntreFechas:
+    if fecha_hasta <= fecha_desde:
+        raise ValueError("fecha_hasta debe ser posterior a fecha_desde")
+
+    punto_desde = _ultimo_precio_hasta_fecha(registros, fecha_desde)
+    if punto_desde is None:
+        raise ValueError("No hay precio historico para fecha_desde")
+
+    punto_hasta = _ultimo_precio_hasta_fecha(registros, fecha_hasta)
+    if punto_hasta is None:
+        raise ValueError("No hay precio historico para fecha_hasta")
+
+    fecha_real_desde, precio_desde = punto_desde
+    fecha_real_hasta, precio_hasta = punto_hasta
+    if precio_desde == 0:
+        raise ValueError("No se puede calcular variacion con precio_desde en cero")
+
+    variacion = _quantize(((precio_hasta - precio_desde) / precio_desde) * Decimal("100"))
+    return VariacionEntreFechas(
+        fecha_desde=fecha_real_desde,
+        fecha_hasta=fecha_real_hasta,
+        precio_desde=_quantize(precio_desde),
+        precio_hasta=_quantize(precio_hasta),
+        variacion_porcentual=variacion,
+    )
 
 
 def construir_serie_precios(registros: list[PrecioSerieInput]) -> list[PuntoSeriePrecio]:

@@ -377,3 +377,17 @@ Cada decision incluye:
 - Justificacion: la auditoria del CSV de trabajo verifico que el tramo exportado desde `Factura compra` contiene `1626` registros reales, cubre el rango continuo `2022-01-03` a `2026-03-25`, tiene `51` meses observados, `0` meses faltantes en el tramo canónico, `0` duplicados en `numero_comprobante`, `origen_dato = REAL` en todas las filas, `metodo_estimacion` vacio, `moneda = ARS` y precios positivos en todo el archivo. La fuente operativa `Factura compra` es defendible como origen porque aporta comprobantes reales y trazabilidad, mientras que el CSV versionado congela un extracto controlado, reproducible y apto para tesis.
 - Impacto en el sistema: `db/bootstrap/cemento_portland_historico.csv` es el artefacto versionable que alimenta el bootstrap minimo reproducible de Cemento Portland. El CSV no reemplaza a la fuente original de datos, sino que la congela de manera auditable. `import_cemento_facturas` permanece como carga incremental u operativa y no debe confundirse con la base metodologica canónica.
 - Limitaciones o trabajo futuro: el extracto canónico se limita al tramo continuo efectivamente validado. Valores posteriores aislados o colas incompletas no forman parte del canon hasta que puedan integrarse sin romper continuidad mensual. Si `numero_comprobante` llegara a considerarse sensible al momento de versionar el archivo, debera anonimizarse de forma deterministica sin perder unicidad ni trazabilidad.
+
+## DT-25
+
+- Fecha aproximada: mayo de 2026
+- Area: alcance DSS y defensa del MVP
+- Decision tomada: presentar el estado actual de `BuildWise` como un DSS de compra trazable en alcance MVP, sin reclamar todavia capacidades conversacionales o proactivas.
+- Problema que resuelve: evita que el sistema sea evaluado como un dashboard descriptivo y, al mismo tiempo, evita sobredimensionar el alcance vendiendolo como asistente autonomo completo.
+- Alternativas consideradas:
+  - presentar el sistema solo como dashboard analitico;
+  - esperar a implementar chat conversacional para denominarlo asistente;
+  - agregar nuevas historias funcionales antes de cerrar evidencia del DSS.
+- Justificacion: la Epica 5 ya integra forecast, criticidad, comparacion economica, restriccion presupuestaria y recomendacion operativa trazable. La salida `/compras/recomendacion-operativa` permite responder que comprar ahora, que postergar, cuanto presupuesto consume, que impacto economico estima, con que confianza y bajo que supuestos. Eso satisface el nucleo de un sistema de soporte a la decision, aunque la interfaz conversacional y las alertas queden fuera del MVP actual.
+- Impacto en el sistema: la documentacion, las HU y la demo deben alinear el mensaje alrededor de `DSS de compra trazable`. La visualizacion queda explicada como interfaz de consulta, mientras que el nucleo metodologico se ubica en la decision economica generada por reglas, forecast y optimizacion.
+- Limitaciones o trabajo futuro: la denominacion DSS no implica automatizacion completa. Quedan fuera del alcance actual la conversacion en lenguaje natural, la operacion proactiva, sustitutos, multiples proveedores, restricciones logisticas y decisiones discretas por lote o calendario.

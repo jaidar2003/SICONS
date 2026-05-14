@@ -47,10 +47,38 @@ class PurchaseRecommendationResult:
     horizonte_meses: int
     decision: str
     variacion_esperada_pct: Decimal | None
+    precio_actual: Decimal | None
+    precio_proyectado_horizonte: Decimal | None
+    cantidad_objetivo: Decimal | None
+    impacto_economico_estimado: Decimal | None
+    mape: Decimal | None
+    umbral_decision_pct: Decimal | None
+    supera_umbral_decision: bool
     confiabilidad: str
     criticidad: str
     justificacion: str
     advertencias: tuple[str, ...]
+
+
+def _quantize_amount(value: Decimal) -> Decimal:
+    return value.quantize(Decimal("0.01"))
+
+
+def _resolver_umbral_decision(mape: Decimal | None) -> Decimal:
+    if mape is None:
+        return UMBRAL_ALZA
+    return max(UMBRAL_ALZA, Decimal(mape).quantize(Decimal("0.0001")))
+
+
+def _calcular_impacto_economico(
+    *,
+    precio_actual: Decimal | None,
+    precio_proyectado_horizonte: Decimal | None,
+    cantidad_objetivo: Decimal | None,
+) -> Decimal | None:
+    if precio_actual is None or precio_proyectado_horizonte is None or cantidad_objetivo is None:
+        return None
+    return _quantize_amount((precio_proyectado_horizonte - precio_actual) * cantidad_objetivo)
 
 
 def _resolver_confiabilidad(forecast_result) -> str:
@@ -84,9 +112,18 @@ def evaluar_recomendacion_compra(
     confiabilidad: str,
     criticidad: str,
     no_calibrado: bool,
+    precio_actual: Decimal | None = None,
+    precio_proyectado_horizonte: Decimal | None = None,
+    mape: Decimal | None = None,
     advertencias: list[str] | tuple[str, ...] | None = None,
 ) -> PurchaseRecommendationResult:
     advertencias_tuple = tuple(advertencias or ())
+    umbral_decision_pct = _resolver_umbral_decision(mape)
+    impacto_economico_estimado = _calcular_impacto_economico(
+        precio_actual=precio_actual,
+        precio_proyectado_horizonte=precio_proyectado_horizonte,
+        cantidad_objetivo=cantidad_objetivo,
+    )
 
     if variacion_esperada_pct is None:
         return PurchaseRecommendationResult(
@@ -95,6 +132,13 @@ def evaluar_recomendacion_compra(
             horizonte_meses=horizonte_meses,
             decision=DECISION_MONITOREAR,
             variacion_esperada_pct=None,
+            precio_actual=precio_actual,
+            precio_proyectado_horizonte=precio_proyectado_horizonte,
+            cantidad_objetivo=cantidad_objetivo,
+            impacto_economico_estimado=impacto_economico_estimado,
+            mape=mape,
+            umbral_decision_pct=umbral_decision_pct,
+            supera_umbral_decision=False,
             confiabilidad=CONFIANZA_NO_DISPONIBLE,
             criticidad=criticidad,
             justificacion=(
@@ -112,6 +156,13 @@ def evaluar_recomendacion_compra(
             horizonte_meses=horizonte_meses,
             decision=DECISION_MONITOREAR,
             variacion_esperada_pct=variacion_esperada_pct,
+            precio_actual=precio_actual,
+            precio_proyectado_horizonte=precio_proyectado_horizonte,
+            cantidad_objetivo=cantidad_objetivo,
+            impacto_economico_estimado=impacto_economico_estimado,
+            mape=mape,
+            umbral_decision_pct=umbral_decision_pct,
+            supera_umbral_decision=abs(variacion_esperada_pct) >= umbral_decision_pct,
             confiabilidad=confiabilidad,
             criticidad=criticidad,
             justificacion=(
@@ -123,39 +174,42 @@ def evaluar_recomendacion_compra(
         )
 
     decision = DECISION_MONITOREAR
-    if variacion_esperada_pct >= UMBRAL_ALZA and criticidad in {"alta", "media"}:
+    supera_umbral_decision = abs(variacion_esperada_pct) >= umbral_decision_pct
+    umbral_baja = -umbral_decision_pct
+
+    if variacion_esperada_pct >= umbral_decision_pct and criticidad in {"alta", "media"}:
         decision = DECISION_COMPRAR_AHORA
-    elif variacion_esperada_pct <= UMBRAL_BAJA and criticidad in {"baja", "media"}:
+    elif variacion_esperada_pct <= umbral_baja and criticidad in {"baja", "media"}:
         decision = DECISION_ESPERAR
-    elif variacion_esperada_pct <= UMBRAL_BAJA and criticidad == "alta":
+    elif variacion_esperada_pct <= umbral_baja and criticidad == "alta":
         decision = DECISION_ESPERAR
 
-    if criticidad == "alta" and decision == DECISION_ESPERAR and variacion_esperada_pct > UMBRAL_BAJA:
+    if criticidad == "alta" and decision == DECISION_ESPERAR and variacion_esperada_pct > umbral_baja:
         decision = DECISION_MONITOREAR
 
-    if decision == DECISION_MONITOREAR and criticidad == "alta" and variacion_esperada_pct >= UMBRAL_ALZA:
+    if decision == DECISION_MONITOREAR and criticidad == "alta" and variacion_esperada_pct >= umbral_decision_pct:
         decision = DECISION_COMPRAR_AHORA
 
-    if decision == DECISION_MONITOREAR and criticidad == "baja" and variacion_esperada_pct <= UMBRAL_BAJA:
+    if decision == DECISION_MONITOREAR and criticidad == "baja" and variacion_esperada_pct <= umbral_baja:
         decision = DECISION_ESPERAR
 
     if decision == DECISION_COMPRAR_AHORA:
         justificacion = (
             f"Se recomienda comprar ahora porque la variacion esperada es {variacion_esperada_pct}% "
             f"en el horizonte evaluado, la criticidad es {criticidad}, la confiabilidad es {confiabilidad} "
-            f"y la cantidad objetivo es {cantidad_objetivo if cantidad_objetivo is not None else 'no informada'}."
+            f"y supera el umbral de decision de {umbral_decision_pct}%."
         )
     elif decision == DECISION_ESPERAR:
         justificacion = (
             f"Se recomienda esperar porque la variacion esperada es {variacion_esperada_pct}% "
             f"en el horizonte evaluado, la criticidad es {criticidad}, la confiabilidad es {confiabilidad} "
-            f"y la cantidad objetivo es {cantidad_objetivo if cantidad_objetivo is not None else 'no informada'}."
+            f"y supera el umbral de decision de {umbral_decision_pct}%."
         )
     else:
         justificacion = (
             f"Se recomienda monitorear porque la variacion esperada es {variacion_esperada_pct}% "
             f"en el horizonte evaluado, la criticidad es {criticidad}, la confiabilidad es {confiabilidad} "
-            f"y la cantidad objetivo es {cantidad_objetivo if cantidad_objetivo is not None else 'no informada'}."
+            f"y no habilita una accion fuerte frente al umbral de decision de {umbral_decision_pct}%."
         )
 
     return PurchaseRecommendationResult(
@@ -164,6 +218,13 @@ def evaluar_recomendacion_compra(
         horizonte_meses=horizonte_meses,
         decision=decision,
         variacion_esperada_pct=variacion_esperada_pct,
+        precio_actual=precio_actual,
+        precio_proyectado_horizonte=precio_proyectado_horizonte,
+        cantidad_objetivo=cantidad_objetivo,
+        impacto_economico_estimado=impacto_economico_estimado,
+        mape=mape,
+        umbral_decision_pct=umbral_decision_pct,
+        supera_umbral_decision=supera_umbral_decision,
         confiabilidad=confiabilidad,
         criticidad=criticidad,
         justificacion=justificacion,
@@ -224,6 +285,7 @@ def recomendar_momento_compra(
             material_id=material.id,
             material_key=material_key,
             horizonte_meses=horizonte_meses,
+            cantidad_objetivo=cantidad_objetivo,
             variacion_esperada_pct=None,
             confiabilidad=CONFIANZA_NO_DISPONIBLE,
             criticidad=criticidad,
@@ -241,6 +303,7 @@ def recomendar_momento_compra(
     selection = getattr(forecast_result, "seleccion_modelo", None)
     no_calibrado = bool(getattr(selection, "no_calibrado", False))
     confiabilidad = _resolver_confiabilidad(forecast_result)
+    mape = getattr(forecast_result.metricas, "mape", None)
     if no_calibrado:
         advertencias.append("La recomendacion se apoya en un forecast marcado como no calibrado.")
 
@@ -250,6 +313,9 @@ def recomendar_momento_compra(
         horizonte_meses=horizonte_meses,
         cantidad_objetivo=cantidad_objetivo,
         variacion_esperada_pct=variacion_esperada_pct,
+        precio_actual=ultimo_precio,
+        precio_proyectado_horizonte=punto_objetivo.precio_proyectado,
+        mape=mape,
         confiabilidad=confiabilidad,
         criticidad=criticidad,
         no_calibrado=no_calibrado,

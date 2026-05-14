@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.modules.auth.interfaces.dependencies import get_current_user
 from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.pricing.application import purchase_strategies as purchase_strategies_module
 from app.modules.pricing.application.purchase_recommendations import CONFIANZA_ALTA, CONFIANZA_BAJA
@@ -70,6 +71,10 @@ def test_si_el_precio_proyectado_sube_comprar_ahora_es_la_mejor_estrategia() -> 
     assert result.mejor_estrategia == ESTRATEGIA_COMPRAR_AHORA
     assert result.estrategias[0].costo_estimado == Decimal("100000.00")
     assert result.estrategias[1].costo_estimado == Decimal("108400.00")
+    assert result.estrategias[1].diferencia_vs_mejor_ars == Decimal("8400.00")
+    assert result.estrategias[1].diferencia_vs_mejor_pct == Decimal("8.4000")
+    assert result.umbral_decision_pct == Decimal("5.0000")
+    assert result.ventaja_significativa is True
 
 
 def test_si_el_precio_proyectado_baja_esperar_es_la_mejor_estrategia() -> None:
@@ -166,6 +171,7 @@ def test_porcentaje_compra_inmediata_invalido_falla_en_el_schema(monkeypatch) ->
 
     app.dependency_overrides[get_material_repository] = lambda: FakeMaterialRepo()
     app.dependency_overrides[get_pricing_repository] = lambda: FakePricingRepo()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
 
     try:
         client = TestClient(app)
@@ -211,6 +217,7 @@ def test_endpoint_responde_con_contrato_esperado(monkeypatch) -> None:
 
     app.dependency_overrides[get_material_repository] = lambda: FakeMaterialRepo()
     app.dependency_overrides[get_pricing_repository] = lambda: FakePricingRepo()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
 
     try:
         client = TestClient(app)
@@ -230,7 +237,11 @@ def test_endpoint_responde_con_contrato_esperado(monkeypatch) -> None:
     assert body["precio_actual"] == "1000.00"
     assert body["precio_proyectado_horizonte"] == "1084.00"
     assert body["ahorro_estimado"] == "8400.00"
+    assert body["umbral_decision_pct"] == "5.0000"
+    assert body["ventaja_significativa"] is True
     assert len(body["estrategias"]) == 3
+    assert body["estrategias"][1]["diferencia_vs_mejor_ars"] == "8400.00"
+    assert body["estrategias"][1]["diferencia_vs_mejor_pct"] == "8.4000"
 
 
 def test_endpoint_devuelve_porcentaje_compra_inmediata_personalizado(monkeypatch) -> None:
@@ -247,6 +258,7 @@ def test_endpoint_devuelve_porcentaje_compra_inmediata_personalizado(monkeypatch
 
     app.dependency_overrides[get_material_repository] = lambda: FakeMaterialRepo()
     app.dependency_overrides[get_pricing_repository] = lambda: FakePricingRepo()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
 
     try:
         client = TestClient(app)
@@ -262,6 +274,46 @@ def test_endpoint_devuelve_porcentaje_compra_inmediata_personalizado(monkeypatch
     assert Decimal(body["porcentaje_compra_inmediata"]) == Decimal("0.30")
     parcial = next(estrategia for estrategia in body["estrategias"] if estrategia["nombre"] == ESTRATEGIA_COMPRA_PARCIAL)
     assert parcial["costo_estimado"] == "105880.00"
+
+
+def test_endpoint_simulacion_escenarios_temporales_devuelve_multiples_horizontes(monkeypatch) -> None:
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+
+    def fake_forecast(_material, horizonte, *_args, **_kwargs):
+        proyectados = {3: "1084.00", 6: "1150.00", 12: "1300.00"}
+        return _fake_forecast_result(actual="1000.00", proyectado=proyectados[horizonte])
+
+    monkeypatch.setattr(purchase_strategies_module, "forecast_material", fake_forecast)
+
+    class FakeMaterialRepo:
+        def get_by_id(self, material_id: int):
+            return material if material_id == 1 else None
+
+    class FakePricingRepo:
+        pass
+
+    app.dependency_overrides[get_material_repository] = lambda: FakeMaterialRepo()
+    app.dependency_overrides[get_pricing_repository] = lambda: FakePricingRepo()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
+
+    try:
+        client = TestClient(app)
+        response = client.post(
+            "/materiales/1/simulacion-escenarios-compra",
+            json={
+                "horizontes_meses": [3, 6, 12],
+                "cantidad_objetivo": 100,
+                "porcentaje_compra_inmediata": 0.5,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["material_id"] == 1
+    assert [item["horizonte_meses"] for item in body["simulaciones"]] == [3, 6, 12]
+    assert all(item["mejor_estrategia"] == ESTRATEGIA_COMPRAR_AHORA for item in body["simulaciones"])
 
 
 def test_hu22_no_usa_pulp_ni_ortools() -> None:

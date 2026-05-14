@@ -1,7 +1,14 @@
 from datetime import date
 from decimal import Decimal
 
-from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual, construir_serie_precios
+import pytest
+
+from app.modules.pricing.application.series import (
+    PrecioSerieInput,
+    calcular_variacion_entre_fechas,
+    construir_serie_mensual,
+    construir_serie_precios,
+)
 
 
 def test_construir_serie_precios_agrupa_por_fecha_y_calcula_equivalencias() -> None:
@@ -71,3 +78,34 @@ def test_construir_serie_mensual_no_calcula_bolsas_para_material_no_cemento() ->
 
     assert serie[0].precio_equivalente_25kg is None
     assert serie[0].precio_equivalente_50kg is None
+
+
+def test_calcular_variacion_entre_fechas_toma_ultimos_puntos_hasta_fechas_objetivo() -> None:
+    registros = [
+        PrecioSerieInput(date(2026, 1, 10), Decimal("100.0000"), "kg", "Factura compra"),
+        PrecioSerieInput(date(2026, 2, 5), Decimal("110.0000"), "kg", "Factura compra"),
+        PrecioSerieInput(date(2026, 3, 20), Decimal("121.0000"), "kg", "Factura compra"),
+    ]
+
+    result = calcular_variacion_entre_fechas(
+        registros,
+        fecha_desde=date(2026, 2, 1),
+        fecha_hasta=date(2026, 3, 31),
+    )
+
+    assert result.fecha_desde == date(2026, 1, 10)
+    assert result.fecha_hasta == date(2026, 3, 20)
+    assert result.precio_desde == Decimal("100.0000")
+    assert result.precio_hasta == Decimal("121.0000")
+    assert result.variacion_porcentual == Decimal("21.0000")
+
+
+def test_calcular_variacion_entre_fechas_falla_si_fechas_invalidas() -> None:
+    registros = [PrecioSerieInput(date(2026, 1, 10), Decimal("100.0000"), "kg", "Factura compra")]
+
+    with pytest.raises(ValueError, match="fecha_hasta debe ser posterior a fecha_desde"):
+        calcular_variacion_entre_fechas(
+            registros,
+            fecha_desde=date(2026, 2, 1),
+            fecha_hasta=date(2026, 2, 1),
+        )

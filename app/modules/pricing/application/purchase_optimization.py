@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException
@@ -54,11 +55,15 @@ class PurchaseOptimizationItemResult:
     material_key: str
     cantidad_objetivo: Decimal
     cantidad_recomendada_comprar_ahora: Decimal
+    cantidad_recomendada_postergar: Decimal
     precio_actual: Decimal
     precio_proyectado_horizonte: Decimal
     costo_compra_ahora: Decimal
+    costo_futuro_estimado: Decimal
     ahorro_unitario_estimado: Decimal
     ahorro_total_estimado: Decimal
+    impacto_economico_pct: Decimal
+    accion_recomendada: str
     criticidad: str
     peso_criticidad: Decimal
     confiabilidad: str
@@ -77,11 +82,43 @@ class PurchaseOptimizationResult:
     advertencias: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class OperationalPurchaseRecommendationItem:
+    material_id: int
+    material_key: str
+    accion_recomendada: str
+    cantidad_comprar_ahora: Decimal
+    cantidad_postergar: Decimal
+    impacto_economico_estimado: Decimal
+    impacto_economico_pct: Decimal
+    confianza: str
+    criticidad: str
+    explicacion: str
+
+
+@dataclass(frozen=True)
+class OperationalPurchaseRecommendationResult:
+    fecha_calculo: date
+    horizonte_meses: int
+    presupuesto_total: Decimal
+    presupuesto_utilizado: Decimal
+    presupuesto_restante: Decimal
+    ahorro_total_estimado: Decimal
+    decision_resumen: str
+    items: tuple[OperationalPurchaseRecommendationItem, ...]
+    supuestos: tuple[str, ...]
+    advertencias: tuple[str, ...]
+
+
 def _quantize_amount(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def _quantize_quantity(value: Decimal) -> Decimal:
+    return value.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
+def _quantize_pct(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
 
 
@@ -95,6 +132,20 @@ def _es_confiabilidad_baja(confiabilidad: str, no_calibrado: bool) -> bool:
 
 def _normalizar_estado_optimizacion(status_code: int) -> str:
     return LpStatus[status_code].replace(" ", "_").upper()
+
+
+def _resolver_accion(cantidad_recomendada: Decimal, cantidad_objetivo: Decimal) -> str:
+    if cantidad_recomendada <= 0:
+        return "POSTERGAR"
+    if cantidad_recomendada >= cantidad_objetivo:
+        return "COMPRAR_AHORA"
+    return "COMPRA_PARCIAL"
+
+
+def _calcular_impacto_pct(ahorro_unitario: Decimal, precio_actual: Decimal) -> Decimal:
+    if precio_actual <= 0:
+        return Decimal("0.0000")
+    return _quantize_pct((ahorro_unitario / precio_actual) * Decimal("100"))
 
 
 def _build_candidate(item: PurchaseOptimizationInputItem, material, forecast_result) -> OptimizationCandidate:
@@ -160,7 +211,9 @@ def optimizar_compra_items(
     for candidate in candidates:
         valor_variable = value(variables[candidate.material_id])
         cantidad_recomendada = _quantize_quantity(Decimal(f"{(valor_variable or 0):.4f}"))
+        cantidad_postergada = _quantize_quantity(candidate.cantidad_objetivo - cantidad_recomendada)
         costo_compra_ahora = _quantize_amount(candidate.precio_actual * cantidad_recomendada)
+        costo_futuro_estimado = _quantize_amount(candidate.precio_proyectado_horizonte * cantidad_postergada)
         ahorro_total = _quantize_amount(candidate.ahorro_unitario_estimado * cantidad_recomendada)
         presupuesto_utilizado += costo_compra_ahora
         ahorro_total_estimado += ahorro_total
@@ -170,11 +223,18 @@ def optimizar_compra_items(
                 material_key=candidate.material_key,
                 cantidad_objetivo=candidate.cantidad_objetivo,
                 cantidad_recomendada_comprar_ahora=cantidad_recomendada,
+                cantidad_recomendada_postergar=cantidad_postergada,
                 precio_actual=candidate.precio_actual,
                 precio_proyectado_horizonte=candidate.precio_proyectado_horizonte,
                 costo_compra_ahora=costo_compra_ahora,
+                costo_futuro_estimado=costo_futuro_estimado,
                 ahorro_unitario_estimado=candidate.ahorro_unitario_estimado,
                 ahorro_total_estimado=ahorro_total,
+                impacto_economico_pct=_calcular_impacto_pct(
+                    candidate.ahorro_unitario_estimado,
+                    candidate.precio_actual,
+                ),
+                accion_recomendada=_resolver_accion(cantidad_recomendada, candidate.cantidad_objetivo),
                 criticidad=candidate.criticidad,
                 peso_criticidad=candidate.peso_criticidad,
                 confiabilidad=candidate.confiabilidad,
@@ -253,4 +313,66 @@ def optimizar_compra_con_presupuesto(
         horizonte_meses=horizonte_meses,
         candidates=candidates,
         advertencias=advertencias,
+    )
+
+
+def generar_recomendacion_operativa_compra(
+    *,
+    presupuesto_total: Decimal,
+    horizonte_meses: int,
+    materiales: list[PurchaseOptimizationInputItem],
+    material_repo: MaterialRepository,
+    pricing_repo: PricingRepository,
+    usar_selector_modelo: bool = False,
+) -> OperationalPurchaseRecommendationResult:
+    optimizacion = optimizar_compra_con_presupuesto(
+        presupuesto_total=presupuesto_total,
+        horizonte_meses=horizonte_meses,
+        materiales=materiales,
+        material_repo=material_repo,
+        pricing_repo=pricing_repo,
+        usar_selector_modelo=usar_selector_modelo,
+    )
+
+    items = tuple(
+        OperationalPurchaseRecommendationItem(
+            material_id=item.material_id,
+            material_key=item.material_key,
+            accion_recomendada=item.accion_recomendada,
+            cantidad_comprar_ahora=item.cantidad_recomendada_comprar_ahora,
+            cantidad_postergar=item.cantidad_recomendada_postergar,
+            impacto_economico_estimado=item.ahorro_total_estimado,
+            impacto_economico_pct=item.impacto_economico_pct,
+            confianza=item.confiabilidad,
+            criticidad=item.criticidad,
+            explicacion=(
+                f"{item.accion_recomendada}: ahorro unitario estimado {item.ahorro_unitario_estimado}, "
+                f"criticidad {item.criticidad}, confianza {item.confiabilidad}."
+            ),
+        )
+        for item in optimizacion.items
+    )
+
+    comprar_ahora = sum(1 for item in items if item.accion_recomendada == "COMPRAR_AHORA")
+    compra_parcial = sum(1 for item in items if item.accion_recomendada == "COMPRA_PARCIAL")
+    postergar = sum(1 for item in items if item.accion_recomendada == "POSTERGAR")
+
+    return OperationalPurchaseRecommendationResult(
+        fecha_calculo=date.today(),
+        horizonte_meses=optimizacion.horizonte_meses,
+        presupuesto_total=optimizacion.presupuesto_total,
+        presupuesto_utilizado=optimizacion.presupuesto_utilizado,
+        presupuesto_restante=optimizacion.presupuesto_restante,
+        ahorro_total_estimado=optimizacion.ahorro_total_estimado,
+        decision_resumen=(
+            f"Comprar ahora {comprar_ahora} materiales, comprar parcialmente {compra_parcial} "
+            f"y postergar {postergar}, respetando el presupuesto disponible."
+        ),
+        items=items,
+        supuestos=(
+            "Los precios futuros provienen del forecast del material y horizonte solicitados.",
+            "El impacto economico positivo representa ahorro estimado por comprar ahora frente a postergar.",
+            "La asignacion prioriza ahorro esperado ajustado por criticidad y respeta el presupuesto.",
+        ),
+        advertencias=optimizacion.advertencias,
     )

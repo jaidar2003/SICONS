@@ -48,6 +48,19 @@ class PuntoSeriePrecioRead(BaseModel):
     motivo_anomalia: str | None = None
 
 
+class PriceVariationBetweenDatesRead(BaseModel):
+    material_id: int
+    material_nombre: str
+    unidad_base: str
+    fecha_desde_solicitada: date
+    fecha_hasta_solicitada: date
+    fecha_desde_usada: date
+    fecha_hasta_usada: date
+    precio_desde: Decimal
+    precio_hasta: Decimal
+    variacion_porcentual: Decimal
+
+
 class ForecastMetricasRead(BaseModel):
     folds: int
     mae: Decimal
@@ -271,6 +284,13 @@ class PurchaseRecommendationRead(BaseModel):
     horizonte_meses: int
     decision: Literal["COMPRAR_AHORA", "ESPERAR", "MONITOREAR"]
     variacion_esperada_pct: Decimal | None = None
+    precio_actual: Decimal | None = None
+    precio_proyectado_horizonte: Decimal | None = None
+    cantidad_objetivo: Decimal | None = None
+    impacto_economico_estimado: Decimal | None = None
+    mape: Decimal | None = None
+    umbral_decision_pct: Decimal | None = None
+    supera_umbral_decision: bool = False
     confiabilidad: str
     criticidad: str
     justificacion: str
@@ -291,8 +311,12 @@ class PurchaseStrategyComparisonCreate(BaseModel):
 class PurchaseStrategyRead(BaseModel):
     nombre: Literal["COMPRAR_AHORA", "ESPERAR_AL_HORIZONTE", "COMPRA_PARCIAL"]
     costo_estimado: Decimal
+    diferencia_vs_mejor_ars: Decimal
+    diferencia_vs_mejor_pct: Decimal
     riesgo: str
     descripcion: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PurchaseStrategyComparisonRead(BaseModel):
@@ -308,8 +332,37 @@ class PurchaseStrategyComparisonRead(BaseModel):
     estrategias: list[PurchaseStrategyRead]
     mejor_estrategia: Literal["COMPRAR_AHORA", "ESPERAR_AL_HORIZONTE", "COMPRA_PARCIAL"]
     ahorro_estimado: Decimal
+    umbral_decision_pct: Decimal
+    ventaja_significativa: bool
     justificacion: str
     advertencias: list[str]
+
+
+class PurchaseTemporalSimulationCreate(BaseModel):
+    horizontes_meses: list[int] = Field(default=[3, 6, 12], min_length=2)
+    cantidad_objetivo: Decimal = Field(gt=0, decimal_places=4)
+    porcentaje_compra_inmediata: Decimal = Field(
+        default=Decimal("0.50"),
+        ge=0,
+        le=1,
+        decimal_places=4,
+    )
+
+    @model_validator(mode="after")
+    def validate_horizontes(self):
+        if any(horizonte < 1 or horizonte > 12 for horizonte in self.horizontes_meses):
+            raise ValueError("Cada horizonte_meses debe estar entre 1 y 12")
+        if len(set(self.horizontes_meses)) != len(self.horizontes_meses):
+            raise ValueError("horizontes_meses no puede tener valores duplicados")
+        return self
+
+
+class PurchaseTemporalSimulationRead(BaseModel):
+    material_id: int
+    material_key: str
+    cantidad_objetivo: Decimal
+    porcentaje_compra_inmediata: Decimal
+    simulaciones: list[PurchaseStrategyComparisonRead]
 
 
 class PurchaseOptimizationMaterialCreate(BaseModel):
@@ -329,11 +382,15 @@ class PurchaseOptimizationItemRead(BaseModel):
     material_key: str
     cantidad_objetivo: Decimal
     cantidad_recomendada_comprar_ahora: Decimal
+    cantidad_recomendada_postergar: Decimal
     precio_actual: Decimal
     precio_proyectado_horizonte: Decimal
     costo_compra_ahora: Decimal
+    costo_futuro_estimado: Decimal
     ahorro_unitario_estimado: Decimal
     ahorro_total_estimado: Decimal
+    impacto_economico_pct: Decimal
+    accion_recomendada: Literal["COMPRAR_AHORA", "POSTERGAR", "COMPRA_PARCIAL"]
     criticidad: str
     peso_criticidad: Decimal
     confiabilidad: str
@@ -348,4 +405,34 @@ class PurchaseOptimizationRead(BaseModel):
     items: list[PurchaseOptimizationItemRead]
     ahorro_total_estimado: Decimal
     justificacion: str
+    advertencias: list[str]
+
+
+class OperationalPurchaseRecommendationCreate(PurchaseOptimizationCreate):
+    pass
+
+
+class OperationalPurchaseRecommendationItemRead(BaseModel):
+    material_id: int
+    material_key: str
+    accion_recomendada: Literal["COMPRAR_AHORA", "POSTERGAR", "COMPRA_PARCIAL"]
+    cantidad_comprar_ahora: Decimal
+    cantidad_postergar: Decimal
+    impacto_economico_estimado: Decimal
+    impacto_economico_pct: Decimal
+    confianza: str
+    criticidad: str
+    explicacion: str
+
+
+class OperationalPurchaseRecommendationRead(BaseModel):
+    fecha_calculo: date
+    horizonte_meses: int
+    presupuesto_total: Decimal
+    presupuesto_utilizado: Decimal
+    presupuesto_restante: Decimal
+    ahorro_total_estimado: Decimal
+    decision_resumen: str
+    items: list[OperationalPurchaseRecommendationItemRead]
+    supuestos: list[str]
     advertencias: list[str]
