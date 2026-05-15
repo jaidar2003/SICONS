@@ -32,21 +32,6 @@ Las historias nuevas o pendientes deben considerarse prioritariamente sobre esto
 
 - `HU33` queda diferida a post-MVP por insuficiencia de universo de sustitucion en el catalogo actual.
 
-## Cierre prioritario DSS antes de Epica 6/7
-
-El cierre DSS previo a cualquier evolucion conversacional o proactiva queda completo. Las historias decisionales del MVP ya entregan una salida accionable, trazable y visible en frontend: forecast, impacto economico, confianza, criticidad, restriccion presupuestaria y recomendacion operativa.
-
-| Prioridad | HU | Estado | Cierre funcional | Criterio de aceptacion literal | Evidencia minima |
-| ---: | --- | --- | --- | --- | --- |
-| 1 | HU28b | Implementada | Pantalla inicial `Decisión final` y endpoint `/compras/recomendacion-operativa` consolidan la recomendacion operativa trazable. | Para una obra o seleccion de materiales, devuelve recomendacion operativa trazable con accion, cantidades, impacto ARS/%, confianza, supuestos y advertencias. | Frontend `FinalDecisionCard`, endpoint `/compras/recomendacion-operativa`, test de recomendacion trazable y demo DSS documentada. |
-| 2 | HU21 | Implementada | La recomendacion consolida accion, impacto y confianza por material/horizonte. | Para cada producto MVP, devuelve `comprar ahora`, `postergar` o `sin ventaja clara`, con horizonte, impacto ARS/%, MAPE y umbral aplicado. | Endpoint `/materiales/{material_id}/recomendacion-compra` y tests de recomendacion. |
-| 3 | HU22 | Implementada | La comparacion de estrategias queda como tabla accionable reutilizable. | Compara `100% ahora`, `100% futuro` y `50/50`, calcula costo total, diferencia ARS/%, estrategia ganadora y si supera umbral de decision. | Endpoint `/materiales/{material_id}/comparacion-estrategias-compra` y tests de estrategias. |
-| 4 | HU23 | Implementada | La optimizacion presupuestaria queda validada con restriccion presupuestaria explicita. | La solucion respeta presupuesto, cantidades, no negatividad y explica que compra ahora/posterga por material. | Test reproducible donde el presupuesto limita la compra inmediata y el resultado no excede el presupuesto. |
-| 5 | HU28 | Implementada | La decision presupuestaria integra criticidad + forecast + presupuesto como salida operativa. | Ingresa presupuesto, horizonte y materiales con cantidades; devuelve asignacion recomendada, presupuesto usado/restante, impacto esperado, criticidad y advertencias de confianza. | Endpoint `/compras/optimizar-presupuesto` y tests de optimizacion multi-material. |
-| 6 | HU11 | Implementada | El forecast toma precio base desde la serie del sistema y devuelve precio futuro estimado con variacion y confianza. | Permite seleccionar material y horizonte; usa el precio actual del sistema como base y devuelve precio futuro estimado con diferencia ARS/% y metrica de confianza. | Respuesta API o vista con `material`, `horizonte_meses`, `precio_actual_sistema`, `precio_proyectado` y variacion para los 3 productos MVP. |
-
-Regla de cierre aplicada: una HU queda `Implementada` y `✅ Si` cuando funciona para los 3 productos MVP y entrega una salida accionable o verificable segun su criterio literal. Bajo ese criterio, no quedan historias parciales dentro del DSS MVP.
-
 ## Criterios
 
 | Campo | Valor | Criterio |
