@@ -217,6 +217,7 @@ def serie_mensual_material(material: Material, pricing_repo: PricingRepository):
             numero_comprobante=precio.numero_comprobante,
         )
         for precio in pricing_repo.get_historical_prices(material.id, FORECAST_DATASET_START)
+        if precio.fecha <= date.today()
     ]
     return construir_serie_mensual(registros)
 

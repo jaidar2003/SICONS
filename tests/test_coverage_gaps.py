@@ -448,6 +448,11 @@ def test_forecast_material_cubre_insuficiente_y_snapshot_persistido(monkeypatch:
 
 
 def test_serie_mensual_y_precomputar_forecasts(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FixedDate(date):
+        @classmethod
+        def today(cls) -> date:
+            return date(2026, 5, 15)
+
     material = SimpleNamespace(id=7, nombre="Arena", unidad_base="kg")
     price = SimpleNamespace(
         fecha=date(2026, 1, 10),
@@ -455,7 +460,17 @@ def test_serie_mensual_y_precomputar_forecasts(monkeypatch: pytest.MonkeyPatch) 
         fuente=SimpleNamespace(nombre="Factura"),
         numero_comprobante="A-1",
     )
-    serie = serie_mensual_material(material, SimpleNamespace(get_historical_prices=lambda *_args: [price]))
+    future_price = SimpleNamespace(
+        fecha=date(2026, 11, 26),
+        precio_normalizado=Decimal("999"),
+        fuente=SimpleNamespace(nombre="Factura"),
+        numero_comprobante="A-2",
+    )
+    monkeypatch.setattr("app.modules.pricing.application.forecast_service.date", FixedDate)
+
+    serie = serie_mensual_material(material, SimpleNamespace(get_historical_prices=lambda *_args: [price, future_price]))
+
+    assert len(serie) == 1
     assert serie[0].precio_promedio_normalizado == Decimal("100.0000")
 
     calls = []

@@ -93,9 +93,7 @@ export async function loadInitialAppData({ token, forecastHorizon, clientDefault
   const desde = rangeDesde ? (rangeDesde.isAfter(clientDefaultStart) ? rangeDesde : clientDefaultStart) : clientDefaultStart;
   const hasta = dayjs(range.hasta || range.hoy);
   const maxDate = range.hoy ? dayjs(range.hoy) : null;
-  const dateWarning = range.tiene_fechas_futuras
-    ? `Hay registros posteriores a hoy (${dayjs(range.hasta_real).format("DD/MM/YY")}). El analisis se limita hasta ${hasta.format("DD/MM/YY")}.`
-    : "";
+  const dateWarning = "";
   const analysis = await loadMaterialAnalysis({
     materialId: selectedMaterialId,
     from: desde,

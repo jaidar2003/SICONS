@@ -74,6 +74,12 @@ Lectura esperada:
 forecast -> decision -> impacto ARS/% -> confianza/umbral -> advertencias
 ```
 
+Nota para explicar el umbral:
+
+- `umbral_decision_pct = 5%` indica la variacion minima necesaria para emitir una accion fuerte cuando la confiabilidad no obliga a ser mas conservador.
+- Si la variacion esperada queda por debajo de ese valor, por ejemplo `4.8291%`, el sistema recomienda monitorear o declara que no hay ventaja clara.
+- El umbral evita que diferencias pequenas, potencialmente explicables por ruido del forecast, disparen recomendaciones tajantes.
+
 ## Caso 2 - Comparacion de estrategias
 
 Endpoint:

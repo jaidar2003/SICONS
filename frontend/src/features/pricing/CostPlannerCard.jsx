@@ -15,8 +15,10 @@ const AddIcon = resolveMuiIcon(AddIconModule);
 const DeleteOutlineIcon = resolveMuiIcon(DeleteOutlineIconModule);
 const ExpandMoreIcon = resolveMuiIcon(ExpandMoreIconModule);
 const ContentCopyIcon = resolveMuiIcon(ContentCopyIconModule);
+const COST_SCENARIO_HORIZONS = Array.from({ length: 12 }, (_, index) => index + 1);
 
 export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizon, token, showPrices }) {
+  const [costScenarioHorizon, setCostScenarioHorizon] = useState(forecastHorizon);
   const {
     rows,
     plannerRows,
@@ -28,7 +30,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
     updateRow,
     storedBudgetInput,
     setBudgetPersisted,
-  } = useCostPlanner({ materiales, selectedMaterialId, forecastHorizon, token });
+  } = useCostPlanner({ materiales, selectedMaterialId, forecastHorizon: costScenarioHorizon, token });
   const [budgetInput, setBudgetInput] = useState("");
   const [budgetTouched, setBudgetTouched] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
@@ -38,6 +40,13 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
   const [prioritizationError, setPrioritizationError] = useState("");
   const [prioritizationResult, setPrioritizationResult] = useState(null);
   const [openSection, setOpenSection] = useState("budget");
+
+  useEffect(() => {
+    setOptimizationResult(null);
+    setOptimizationError("");
+    setPrioritizationResult(null);
+    setPrioritizationError("");
+  }, [costScenarioHorizon]);
 
   const optimizationItems = useMemo(
     () =>
@@ -102,7 +111,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
       const result = await optimizePurchaseBudget(
         {
           presupuesto_total: presupuestoTotal,
-          horizonte_meses: forecastHorizon,
+          horizonte_meses: costScenarioHorizon,
           materiales: optimizationItems,
         },
         token
@@ -128,7 +137,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
     try {
       const result = await prioritizeMaterials(
         {
-          horizonte_meses: forecastHorizon,
+          horizonte_meses: costScenarioHorizon,
           materiales: prioritizationItems,
         },
         token
@@ -195,16 +204,33 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
       <CardContent>
         <SectionHeader
           title="Planificador de costos multi-material"
-          description={`Proyecta el costo total de varios materiales usando el ultimo punto del horizonte actual de ${forecastHorizon} meses.`}
+          description={`Proyecta el costo total de varios materiales usando el escenario de costos a ${costScenarioHorizon} meses.`}
           action={
-            <Button
-              variant="outlined"
-              color="secondary"
-              startIcon={<AddIcon />}
-              onClick={() => addRow("")}
-            >
-              Agregar material
-            </Button>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} alignItems={{ xs: "stretch", sm: "center" }}>
+              <FormControl size="small" sx={{ minWidth: 190 }}>
+                <InputLabel id="cost-scenario-horizon-label">Escenario de costos</InputLabel>
+                <Select
+                  labelId="cost-scenario-horizon-label"
+                  label="Escenario de costos"
+                  value={costScenarioHorizon}
+                  onChange={(event) => setCostScenarioHorizon(Number(event.target.value))}
+                >
+                  {COST_SCENARIO_HORIZONS.map((horizon) => (
+                    <MenuItem key={horizon} value={horizon}>
+                      {horizon} {horizon === 1 ? "mes" : "meses"}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Button
+                variant="outlined"
+                color="secondary"
+                startIcon={<AddIcon />}
+                onClick={() => addRow("")}
+              >
+                Agregar material
+              </Button>
+            </Stack>
           }
         />
 
@@ -317,7 +343,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
                     setBudgetPersisted(event.target.value);
                   }}
                   inputProps={{ min: 0, step: "any" }}
-                  helperText="La optimización usa el horizonte activo y minimiza el costo esperado."
+                  helperText="La optimización usa el escenario de costos seleccionado."
                 />
                 <Box className="rounded-xl border border-slate-200 bg-white px-3 py-2">
                   <Typography variant="body2" fontWeight={800} color="text.secondary">
@@ -398,7 +424,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
               {prioritizationError ? <Alert severity="error">{prioritizationError}</Alert> : null}
               {!prioritizationResult && !prioritizationError ? (
                 <Alert severity="info">
-                  El ranking usa el forecast activo y devuelve una lectura operativa para decidir qué material conviene anticipar.
+                  El ranking usa el escenario de costos seleccionado y devuelve una lectura operativa para decidir qué material conviene anticipar.
                 </Alert>
               ) : null}
 
@@ -499,7 +525,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
 
               <Box className="grid gap-3 md:grid-cols-4">
                 <SummaryMini label="Costo actual total" value={formatCurrency(summary.totalCurrent)} helper={`${summary.comparableRows.length} materiales con forecast`} />
-                <SummaryMini label="Costo proyectado total" value={formatCurrency(summary.totalProjected)} helper={`Horizonte ${forecastHorizon} meses`} />
+                <SummaryMini label="Costo proyectado total" value={formatCurrency(summary.totalProjected)} helper={`Escenario ${costScenarioHorizon} meses`} />
                 <SummaryMini label="Impacto presupuestario" value={formatCurrency(summary.totalDelta)} helper={`${formatNumber(summary.totalDeltaPercent)}% sobre el costo actual`} />
                 <SummaryMini label="Mayor impacto" value={summary.highestImpact.material.nombre} helper={formatCurrency(summary.highestImpact.delta)} />
               </Box>

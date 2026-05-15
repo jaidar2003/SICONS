@@ -113,6 +113,14 @@ Ejemplo conceptual:
 - si la diferencia esperada entre comprar ahora y postergar es menor que un umbral asociado al error historico del modelo, no corresponde emitir una recomendacion fuerte;
 - en ese caso, la salida adecuada es `sin ventaja clara`.
 
+En la implementacion actual se usa un umbral minimo de decision de `5%` cuando no corresponde elevarlo por baja confiabilidad. Esto significa que una variacion esperada de `4.8291%`, aunque sea positiva y cercana al limite, no alcanza para activar una accion fuerte: la respuesta correcta es monitorear o informar que no hay ventaja clara. El umbral funciona como filtro contra ruido del forecast y evita recomendar compras o postergaciones por diferencias marginales.
+
+La lectura operativa de las acciones es:
+
+- variacion esperada mayor o igual al umbral positivo: `comprar ahora`, especialmente con criticidad alta o media;
+- variacion esperada menor o igual al umbral negativo: `postergar` o `esperar`, si la criticidad lo permite;
+- variacion esperada dentro del rango entre `-5%` y `+5%`: `monitorear` o `sin ventaja clara`.
+
 ### Salida esperada
 
 - recomendacion final;

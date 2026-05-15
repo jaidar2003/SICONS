@@ -6,9 +6,21 @@ import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
 
 const RefreshIcon = resolveMuiIcon(RefreshIconModule);
 
-export function FiltersBar({ materiales, selectedMaterialId, desde, hasta, maxDate, warning, onMaterialChange, onDesdeChange, onHastaChange, onRefresh }) {
+export function FiltersBar({
+  materiales,
+  selectedMaterialId,
+  desde,
+  hasta,
+  maxDate,
+  warning,
+  onMaterialChange,
+  onDesdeChange,
+  onHastaChange,
+  onRefresh,
+  className = "-mt-12",
+}) {
   return (
-    <Card className="-mt-12">
+    <Card className={className}>
       <CardContent className="grid gap-4 p-4 md:grid-cols-[180px_1fr] md:items-center">
         <Box className="border-b border-slate-200 pb-3 md:border-b-0 md:border-r md:pb-0 md:pr-4">
           <Typography color="primary" fontSize={12} fontWeight={800}>

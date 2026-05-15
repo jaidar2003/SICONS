@@ -102,6 +102,12 @@ def _es_suficiente_confiabilidad(confiabilidad: str, no_calibrado: bool) -> bool
     return not no_calibrado and confiabilidad not in {CONFIANZA_BAJA, CONFIANZA_NO_CALIBRADA, CONFIANZA_NO_DISPONIBLE}
 
 
+def _justificacion_conservadora_por_confiabilidad(confiabilidad: str, no_calibrado: bool) -> str:
+    if no_calibrado:
+        return "Se recomienda monitorear porque el modelo no esta calibrado de forma suficiente."
+    return f"Se recomienda monitorear porque la confiabilidad del forecast es {confiabilidad}."
+
+
 def evaluar_recomendacion_compra(
     *,
     material_id: int,
@@ -165,10 +171,7 @@ def evaluar_recomendacion_compra(
             supera_umbral_decision=abs(variacion_esperada_pct) >= umbral_decision_pct,
             confiabilidad=confiabilidad,
             criticidad=criticidad,
-            justificacion=(
-                f"Se recomienda monitorear porque la confiabilidad es {confiabilidad} "
-                "o el modelo no esta calibrado de forma suficiente."
-            ),
+            justificacion=_justificacion_conservadora_por_confiabilidad(confiabilidad, no_calibrado),
             advertencias=advertencias_tuple
             + ("La recomendacion se marca como conservadora por baja confiabilidad o no calibrado.",),
         )

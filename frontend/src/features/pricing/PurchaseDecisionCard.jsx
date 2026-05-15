@@ -26,9 +26,11 @@ const SHARE_OPTIONS = [
   { label: "75%", value: "0.75" },
   { label: "100%", value: "1" },
 ];
+const HORIZON_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
 
 export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastHorizon, token, showPrices }) {
   const [materialId, setMaterialId] = useState(selectedMaterialId || "");
+  const [decisionHorizon, setDecisionHorizon] = useState(forecastHorizon);
   const [quantityInput, setQuantityInput] = useState("100");
   const [criticidad, setCriticidad] = useState("media");
   const [recommendation, setRecommendation] = useState(null);
@@ -43,6 +45,11 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
       setMaterialId(selectedMaterialId);
     }
   }, [materialId, selectedMaterialId]);
+
+  useEffect(() => {
+    setRecommendation(null);
+    setComparison(null);
+  }, [criticidad, decisionHorizon, materialId, quantityInput]);
 
   const selectedMaterial = useMemo(
     () => materiales.find((material) => String(material.id) === String(materialId)),
@@ -71,7 +78,7 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
     try {
       const result = await recommendPurchase(
         {
-          horizonte_meses: forecastHorizon,
+          horizonte_meses: decisionHorizon,
           criticidad,
           cantidad_objetivo: quantity,
         },
@@ -107,7 +114,7 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
     try {
       const result = await comparePurchaseStrategies(
         {
-          horizonte_meses: forecastHorizon,
+          horizonte_meses: decisionHorizon,
           cantidad_objetivo: quantity,
           porcentaje_compra_inmediata: Number(comparisonShare),
         },
@@ -147,7 +154,7 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
         <Stack spacing={2.5}>
           {error ? <Alert severity="error">{error}</Alert> : null}
 
-          <Box className="grid gap-3 lg:grid-cols-[1.2fr_.8fr_.8fr] lg:items-end">
+          <Box className="grid gap-3 lg:grid-cols-[1.2fr_.8fr_.8fr_.8fr] lg:items-end">
             <FormControl size="small">
               <InputLabel id="decision-material">Material</InputLabel>
               <Select
@@ -159,6 +166,22 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
                 {materiales.map((material) => (
                   <MenuItem key={material.id} value={String(material.id)}>
                     {material.nombre} ({material.unidad_base})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl size="small">
+              <InputLabel id="decision-horizon">Horizonte</InputLabel>
+              <Select
+                labelId="decision-horizon"
+                label="Horizonte"
+                value={decisionHorizon}
+                onChange={(event) => setDecisionHorizon(Number(event.target.value))}
+              >
+                {HORIZON_OPTIONS.map((horizon) => (
+                  <MenuItem key={horizon} value={horizon}>
+                    {horizon} {horizon === 1 ? "mes" : "meses"}
                   </MenuItem>
                 ))}
               </Select>

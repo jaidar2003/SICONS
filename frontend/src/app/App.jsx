@@ -11,7 +11,6 @@ import {
   Card,
   CardContent,
   CircularProgress,
-  Container,
   Divider,
   Typography,
 } from "@mui/material";
@@ -229,6 +228,10 @@ export function App() {
   );
   const isAdmin = user?.rol === "admin";
   const visibleTabs = useMemo(() => VIEW_TABS.filter((tab) => tab.value !== "admin" || isAdmin), [isAdmin]);
+  const visibleHistoryWorkflows = useMemo(
+    () => HISTORY_WORKFLOWS.filter((workflow) => !workflow.adminOnly || isAdmin),
+    [isAdmin]
+  );
   const activeTabConfig = useMemo(
     () => visibleTabs.find((tab) => tab.value === activeView) ?? visibleTabs[0],
     [activeView, visibleTabs]
@@ -264,6 +267,19 @@ export function App() {
         : summaryForecastDeltaPct < 0
           ? "Tendencia bajista"
           : "Tendencia estable";
+
+  useEffect(() => {
+    if (!visibleTabs.some((tab) => tab.value === activeView)) {
+      setActiveView(visibleTabs[0]?.value ?? "summary");
+    }
+  }, [activeView, visibleTabs]);
+
+  useEffect(() => {
+    if (!visibleHistoryWorkflows.some((workflow) => workflow.value === historyWorkflow)) {
+      setHistoryWorkflow(visibleHistoryWorkflows[0]?.value ?? "variation");
+    }
+  }, [historyWorkflow, visibleHistoryWorkflows]);
+
   const loadForecastData = useCallback(
     async ({ materialId, horizon, activeToken }) => {
       if (!materialId || !activeToken) return;
@@ -404,6 +420,11 @@ export function App() {
     return saved;
   }
 
+  function handleMaterialChange(value) {
+    setSelectedMaterialId(value);
+    loadSerieData({ materialId: value }).catch((loadError) => setError(loadError.message));
+  }
+
   async function handleRefresh() {
     setError("");
     try {
@@ -430,7 +451,7 @@ export function App() {
       {!user ? (
         <LoginPage onLogin={login} onRegister={register} />
       ) : (
-        <Container maxWidth="lg" className="pb-12">
+        <Box className="mx-auto w-[95%] max-w-[1600px] pb-12">
           {loading ? (
             <Box className="-mt-8 flex justify-center rounded-md bg-white p-8 shadow-md1">
               <CircularProgress />
@@ -443,22 +464,6 @@ export function App() {
                 </Alert>
               ) : null}
 
-              <FiltersBar
-                materiales={materiales}
-                selectedMaterialId={selectedMaterialId}
-                desde={desde}
-                hasta={hasta}
-                maxDate={maxDate}
-                warning={dateWarning}
-                onMaterialChange={(value) => {
-                  setSelectedMaterialId(value);
-                  loadSerieData({ materialId: value }).catch((loadError) => setError(loadError.message));
-                }}
-                onDesdeChange={setDesde}
-                onHastaChange={setHasta}
-                onRefresh={handleRefresh}
-              />
-
               <AppViewHeader
                 activeView={activeView}
                 activeTabConfig={activeTabConfig}
@@ -470,6 +475,19 @@ export function App() {
 
               {activeView === "summary" ? (
                 <>
+                  <FiltersBar
+                    className="mt-3"
+                    materiales={materiales}
+                    selectedMaterialId={selectedMaterialId}
+                    desde={desde}
+                    hasta={hasta}
+                    maxDate={maxDate}
+                    warning={dateWarning}
+                    onMaterialChange={handleMaterialChange}
+                    onDesdeChange={setDesde}
+                    onHastaChange={setHasta}
+                    onRefresh={handleRefresh}
+                  />
                   <MetricsGrid serie={serie} showPrices={showPrices} selectedMaterial={selectedMaterial} />
                   <InsightStrip serie={serie} selectedMaterial={selectedMaterial} showPrices={showPrices} />
                   {forecast ? (
@@ -533,6 +551,20 @@ export function App() {
 
               {activeView === "forecast" ? (
                 <>
+                  <FiltersBar
+                    className="mt-3"
+                    materiales={materiales}
+                    selectedMaterialId={selectedMaterialId}
+                    desde={desde}
+                    hasta={hasta}
+                    maxDate={maxDate}
+                    warning={dateWarning}
+                    onMaterialChange={handleMaterialChange}
+                    onDesdeChange={setDesde}
+                    onHastaChange={setHasta}
+                    onRefresh={handleRefresh}
+                  />
+
                   <WorkflowSwitcher
                     eyebrow="Flujo de forecast"
                     title="Elegí qué querés revisar"
@@ -715,10 +747,24 @@ export function App() {
 
               {activeView === "history" ? (
                 <>
+                  <FiltersBar
+                    className="mt-3"
+                    materiales={materiales}
+                    selectedMaterialId={selectedMaterialId}
+                    desde={desde}
+                    hasta={hasta}
+                    maxDate={maxDate}
+                    warning={dateWarning}
+                    onMaterialChange={handleMaterialChange}
+                    onDesdeChange={setDesde}
+                    onHastaChange={setHasta}
+                    onRefresh={handleRefresh}
+                  />
+
                   <WorkflowSwitcher
                     eyebrow="Flujo de historial"
                     title="Elegí cómo revisar los datos"
-                    workflows={HISTORY_WORKFLOWS.filter((workflow) => !workflow.adminOnly || isAdmin)}
+                    workflows={visibleHistoryWorkflows}
                     activeValue={historyWorkflow}
                     onChange={setHistoryWorkflow}
                   />
@@ -783,7 +829,7 @@ export function App() {
 
             </>
           )}
-        </Container>
+        </Box>
       )}
     </Box>
   );

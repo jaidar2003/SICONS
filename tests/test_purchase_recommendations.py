@@ -121,6 +121,8 @@ def test_no_calibrado_monitorear() -> None:
     )
 
     assert result.decision == DECISION_MONITOREAR
+    assert "modelo no esta calibrado" in result.justificacion
+    assert "confiabilidad es alta o" not in result.justificacion
 
 
 def test_confiabilidad_baja_monitorear() -> None:
@@ -136,6 +138,7 @@ def test_confiabilidad_baja_monitorear() -> None:
     )
 
     assert result.decision == DECISION_MONITOREAR
+    assert "confiabilidad del forecast es baja" in result.justificacion
 
 
 def test_criticidad_alta_evita_esperar_salvo_baja_fuerte() -> None:

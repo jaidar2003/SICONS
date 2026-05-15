@@ -1,5 +1,5 @@
 import LogoutIconModule from "@mui/icons-material/Logout";
-import { Box, Button, ButtonGroup, Container, Typography } from "@mui/material";
+import { Box, Button, ButtonGroup, Typography } from "@mui/material";
 
 import { brand } from "../../app/brand.js";
 import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
@@ -12,44 +12,54 @@ export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowP
   return (
     <Box
       component="header"
-      className="pb-20 pt-8 text-white"
+      className="pb-16 pt-6 text-white"
       sx={{
         background: brand.gradients.hero,
         boxShadow: brand.shadows.header,
       }}
     >
-      <Container maxWidth="lg" className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-        <Box>
-          <Box className="mb-4 inline-flex min-h-[96px] w-[180px] items-center justify-center rounded-[18px] border border-white/30 bg-white px-4 py-3 shadow-md1">
+      <Box className="mx-auto flex w-[95%] max-w-[1600px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <Box className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-8">
+          <Box className="inline-flex min-h-[64px] w-[120px] items-center justify-center rounded-[12px] border border-white/30 bg-white px-3 py-2 shadow-md1">
             <img src={bwLogo} alt="BuildWise" className="h-auto w-full object-contain" />
           </Box>
-          <Typography variant="h1">BuildWise</Typography>
-          <Typography color="rgba(255,255,255,.82)" mt={1.25} maxWidth={680}>
-            Analisis de precios de materiales, comparacion por unidad y proyecciones para decidir mejor cuando comprar.
-          </Typography>
+          <Box>
+            <Typography variant="h1" sx={{ fontSize: { xs: "1.75rem", md: "2.25rem" } }}>
+              BuildWise
+            </Typography>
+            <Typography color="rgba(255,255,255,.82)" mt={0.5} maxWidth={600} variant="body2">
+              Análisis de precios y proyecciones para decidir mejor cuándo comprar materiales de obra.
+            </Typography>
+          </Box>
         </Box>
 
-        <Box className="flex w-full flex-col gap-2 rounded-md border border-white/20 bg-white/10 p-2 shadow-md1 sm:w-auto sm:min-w-[360px] sm:flex-row sm:items-center sm:justify-between lg:mt-2">
-          <Box className="flex justify-start sm:justify-end">
+        <Box className="flex flex-col gap-2 rounded-xl border border-white/20 bg-white/10 p-2 shadow-md1 sm:flex-row sm:items-center lg:mt-0">
+          <Box className="flex items-center gap-3">
             <StatusBadge mode={apiStatus.mode} label={apiStatus.label} />
+            {user && (
+              <Typography fontSize={13} fontWeight={800} sx={{ opacity: 0.9, whiteSpace: "nowrap" }}>
+                {user.nombre} ({user.rol})
+              </Typography>
+            )}
           </Box>
           {user ? (
-            <Box className="flex flex-wrap items-center justify-between gap-2">
+            <Box className="flex items-center gap-2 border-t border-white/10 pt-2 sm:border-l sm:border-t-0 sm:pl-2 sm:pt-0">
               <ButtonGroup
                 size="small"
                 variant="outlined"
                 disableElevation
                 sx={{
                   borderRadius: 999,
-                  bgcolor: "rgba(255,255,255,0.10)",
+                  bgcolor: "rgba(255,255,255,0.05)",
                   "& .MuiButton-root": {
-                    borderColor: "rgba(255,255,255,0.85)",
+                    borderColor: "rgba(255,255,255,0.4)",
                     bgcolor: "white",
                     color: "primary.main",
-                    fontSize: 12,
-                    fontWeight: 800,
-                    minWidth: 92,
-                    px: 1.5,
+                    fontSize: 11,
+                    fontWeight: 900,
+                    minWidth: 80,
+                    px: 1.25,
+                    height: 32,
                     textTransform: "none",
                     "&:hover": {
                       borderColor: "white",
@@ -60,6 +70,7 @@ export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowP
                     bgcolor: brand.colors.primary,
                     color: "white",
                     boxShadow: "none",
+                    borderColor: "transparent",
                     "&:hover": { bgcolor: brand.colors.primaryHover, boxShadow: "none" },
                   },
                 }}
@@ -68,18 +79,23 @@ export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowP
                   Precios
                 </Button>
                 <Button variant={!showPrices ? "contained" : "outlined"} onClick={() => onToggleShowPrices({ target: { checked: false } })}>
-                  Variacion %
+                  Var %
                 </Button>
               </ButtonGroup>
-              <Typography fontSize={14} fontWeight={700} noWrap>
-                {user.nombre} ({user.rol})
-              </Typography>
               <Button
                 color="inherit"
                 size="small"
                 variant="contained"
                 startIcon={<LogoutIcon />}
-                sx={{ bgcolor: "white", color: "primary.main", "&:hover": { bgcolor: brand.colors.primarySoft } }}
+                sx={{
+                  height: 32,
+                  bgcolor: "white",
+                  color: "primary.main",
+                  fontSize: 11,
+                  fontWeight: 900,
+                  px: 1.5,
+                  "&:hover": { bgcolor: brand.colors.primarySoft },
+                }}
                 onClick={onLogout}
               >
                 Salir
@@ -87,7 +103,7 @@ export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowP
             </Box>
           ) : null}
         </Box>
-      </Container>
+      </Box>
     </Box>
   );
 }

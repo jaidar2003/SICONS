@@ -230,7 +230,7 @@ export function FinalDecisionCard({ materiales, forecastHorizon, token, showPric
         <SectionHeader
           title="Decisión final de compra"
           description="Elegí materiales, cantidades y presupuesto. El sistema devuelve qué comprar ahora, qué postergar y por qué."
-          badge="HU28b"
+          badge="Recomendación operativa"
           action={
             <Button variant="contained" onClick={handleGenerate} disabled={loading}>
               {loading ? "Calculando..." : "Generar decisión"}
@@ -437,11 +437,11 @@ function DecisionItem({ item, material }) {
         <SmallMetric label="Impacto" value={formatCurrency(item.impacto_economico_estimado)} />
         <SmallMetric label="%" value={`${formatNumber(item.impacto_economico_pct)}%`} />
         <SmallMetric
-          label="HU21"
+          label="Recomendación"
           value={SIMPLE_RECOMMENDATION_LABELS[item.recomendacion_simple] || item.recomendacion_simple || "-"}
         />
         <SmallMetric
-          label="HU22"
+          label="Estrategia"
           value={STRATEGY_LABELS[item.mejor_estrategia] || item.mejor_estrategia || "-"}
         />
       </Box>
