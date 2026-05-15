@@ -32,26 +32,28 @@ export function AppViewHeader({ activeView, activeTabConfig, forecastHorizon, se
           </Box>
         </Box>
         <Box className="border-b border-slate-200 bg-white px-2 pt-2">
-          <Box className="flex items-end overflow-x-auto">
+          <Box className="flex items-end overflow-hidden">
             <Tabs
               value={activeView}
               onChange={(_event, value) => onViewChange(value)}
-              variant="scrollable"
-              scrollButtons="auto"
-              allowScrollButtonsMobile
+              variant="fullWidth"
               className="w-full"
               sx={{
                 minHeight: 0,
                 width: "100%",
+                overflow: "hidden",
                 "& .MuiTabs-indicator": {
                   height: 4,
                   borderRadius: 999,
                   backgroundColor: activeTabConfig.accent,
                 },
+                "& .MuiTabs-scroller": {
+                  overflow: "hidden !important",
+                },
                 "& .MuiTabs-flexContainer": {
-                  gap: 8,
-                  flexWrap: "nowrap",
-                  justifyContent: "flex-start",
+                  display: "flex",
+                  width: "100%",
+                  overflow: "hidden",
                 },
               }}
             >
@@ -64,14 +66,22 @@ export function AppViewHeader({ activeView, activeTabConfig, forecastHorizon, se
                   label={tab.label}
                   disabled={tab.disabled}
                   sx={{
+                    flex: "1 1 0",
                     minHeight: 0,
-                    minWidth: "auto",
-                    px: 2,
+                    minWidth: 0,
+                    maxWidth: "none",
+                    width: "100%",
+                    px: { xs: 0.5, sm: 1, md: 2 },
                     py: 1.5,
                     textTransform: "none",
-                    fontSize: 14,
+                    fontSize: { xs: 11, sm: 12, md: 14 },
                     fontWeight: 800,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
                     color: tab.accent,
+                    "& .MuiTab-iconWrapper": {
+                      mr: { xs: 0.5, sm: 0.75, md: 1 },
+                    },
                     "&.Mui-selected": {
                       color: activeTabConfig.accent,
                     },
