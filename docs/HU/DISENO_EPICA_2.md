@@ -66,10 +66,16 @@ variacion_pct = ((precio_final - precio_inicial) / precio_inicial) * 100
 
 Identificar meses o puntos con cambios atipicos que merezcan revision.
 
+### Criterio implementado
+
+La deteccion mensual de anomalias no usa un porcentaje fijo, porque un umbral unico puede ser demasiado rigido para materiales con comportamientos distintos. La implementacion actual entrena un `RandomForestRegressor` sobre la serie mensual del material con variables temporales y de rezago, estima el precio esperado de cada mes y marca como anomalia los meses cuyo residuo porcentual queda fuera de una banda dinamica calculada sobre los residuos del propio modelo.
+
+Si la serie tiene muy pocos meses para entrenar el modelo, no se fuerza una anomalia: se mantiene la serie sin marcas hasta contar con evidencia suficiente.
+
 ### Salida esperada
 
 - marcas de anomalia;
-- explicacion breve del cambio;
+- explicacion breve del cambio detectado por Random Forest;
 - soporte para interpretacion del grafico y la serie.
 
 ---

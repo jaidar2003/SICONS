@@ -61,7 +61,7 @@ Las historias nuevas o pendientes deben considerarse prioritariamente sobre esto
 | HU7 | Visualizar precios historicos en graficos. | Implementada | ✅ Si | Grafico historico disponible. |
 | HU8 | Comparar materiales entre si. | Implementada | ✅ Si | Comparacion entre materiales disponible. |
 | HU9 | Identificar variaciones porcentuales de precios. | Implementada | ✅ Si | Incluye comparador libre entre dos fechas arbitrarias por material mediante `variacion-entre-fechas`, con trazabilidad de fechas usadas y variacion % calculada. |
-| HU10 | Detectar cambios bruscos o anomalias. | Implementada | ✅ Si | Deteccion de anomalias mensual disponible. |
+| HU10 | Detectar cambios bruscos o anomalias. | Implementada | ✅ Si | Deteccion mensual disponible con Random Forest y residuo dinamico por material, sin umbral porcentual fijo. |
 
 ## Epica 3. Prediccion de precios
 

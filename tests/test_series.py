@@ -32,27 +32,33 @@ def test_construir_serie_precios_agrupa_por_fecha_y_calcula_equivalencias() -> N
     assert serie[1].variacion_porcentual_anterior == Decimal("4.3670")
 
 
-def test_construir_serie_mensual_promedia_y_detecta_anomalias() -> None:
+def test_construir_serie_mensual_promedia_y_detecta_anomalias_con_random_forest() -> None:
     serie = construir_serie_mensual(
         [
             PrecioSerieInput(date(2026, 1, 3), Decimal("100.0000"), "kg", "Factura compra", "A-0001"),
             PrecioSerieInput(date(2026, 1, 20), Decimal("120.0000"), "kg", "Factura compra", "A-0002"),
-            PrecioSerieInput(date(2026, 2, 4), Decimal("132.0000"), "kg", "Lista proveedor", "A-0003"),
-        ],
-        umbral_anomalia=Decimal("8"),
+            PrecioSerieInput(date(2026, 2, 4), Decimal("112.0000"), "kg", "Lista proveedor", "A-0003"),
+            PrecioSerieInput(date(2026, 3, 4), Decimal("114.0000"), "kg", "Lista proveedor", "A-0004"),
+            PrecioSerieInput(date(2026, 4, 4), Decimal("116.0000"), "kg", "Lista proveedor", "A-0005"),
+            PrecioSerieInput(date(2026, 5, 4), Decimal("118.0000"), "kg", "Lista proveedor", "A-0006"),
+            PrecioSerieInput(date(2026, 6, 4), Decimal("120.0000"), "kg", "Lista proveedor", "A-0007"),
+            PrecioSerieInput(date(2026, 7, 4), Decimal("170.0000"), "kg", "Lista proveedor", "A-0008"),
+            PrecioSerieInput(date(2026, 8, 4), Decimal("124.0000"), "kg", "Lista proveedor", "A-0009"),
+        ]
     )
 
-    assert len(serie) == 2
+    assert len(serie) == 8
     assert serie[0].fecha == date(2026, 1, 1)
     assert serie[0].precio_promedio_normalizado == Decimal("110.0000")
     assert serie[0].precio_equivalente_25kg == Decimal("2750.0000")
     assert serie[0].cantidad_registros == 2
     assert serie[0].cantidad_facturas == 2
     assert serie[0].es_anomalia is False
-    assert serie[1].fecha == date(2026, 2, 1)
-    assert serie[1].variacion_porcentual_anterior == Decimal("20.0000")
-    assert serie[1].es_anomalia is True
-    assert serie[1].motivo_anomalia == "Variacion mensual de 20.0000%"
+    assert serie[6].fecha == date(2026, 7, 1)
+    assert serie[6].variacion_porcentual_anterior == Decimal("41.6667")
+    assert serie[6].es_anomalia is True
+    assert serie[6].motivo_anomalia is not None
+    assert "Random Forest" in serie[6].motivo_anomalia
 
 
 def test_construir_serie_mensual_cuenta_facturas_distintas() -> None:

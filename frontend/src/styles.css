@@ -38,8 +38,16 @@ body {
   min-height: 360px;
 }
 
+.anomaly-chart-shell canvas {
+  min-height: 340px;
+}
+
 @media (max-width: 768px) {
   .chart-shell canvas {
     min-height: 300px;
+  }
+
+  .anomaly-chart-shell canvas {
+    min-height: 320px;
   }
 }
