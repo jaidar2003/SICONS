@@ -43,11 +43,17 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
     () =>
       plannerRows
         .filter((row) => row.material && row.validQuantity)
-        .map((row) => ({
-          material_id: Number(row.material.id),
-          cantidad_objetivo: row.quantity,
-          criticidad: row.criticidad || "media",
-        })),
+        .map((row) => {
+          const minimumImmediatePct = Number(row.minimumImmediatePct);
+          return {
+            material_id: Number(row.material.id),
+            cantidad_objetivo: row.quantity,
+            criticidad: row.criticidad || "media",
+            ...(Number.isFinite(minimumImmediatePct) && minimumImmediatePct > 0
+              ? { porcentaje_minimo_compra_inmediata: minimumImmediatePct / 100 }
+              : {}),
+          };
+        }),
     [plannerRows]
   );
 
@@ -143,7 +149,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
     const usado = Number(optimizationResult.presupuesto_utilizado || 0);
 
     if (restante <= 0) {
-      return "La optimizacion uso todo el presupuesto disponible y priorizo los materiales mas convenientes segun criticidad y ahorro esperado.";
+      return "La optimizacion uso todo el presupuesto disponible minimizando el costo esperado del plan.";
     }
 
     if (usado <= 0) {
@@ -225,7 +231,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
 
           <Box className="grid gap-3">
             {rows.map((row, index) => (
-              <Box key={row.id} className="grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-[minmax(240px,1.2fr)_180px_1fr_auto] md:items-end">
+              <Box key={row.id} className="grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-[minmax(220px,1.1fr)_130px_140px_150px_1fr_auto] md:items-end">
                 <FormControl size="small">
                   <InputLabel id={`planner-material-${row.id}`}>Material</InputLabel>
                   <Select
@@ -249,6 +255,29 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
                   value={row.quantity}
                   onChange={(event) => updateRow(row.id, "quantity", event.target.value)}
                   inputProps={{ min: 0, step: "any" }}
+                />
+
+                <FormControl size="small">
+                  <InputLabel id={`planner-criticality-${row.id}`}>Criticidad</InputLabel>
+                  <Select
+                    labelId={`planner-criticality-${row.id}`}
+                    label="Criticidad"
+                    value={row.criticidad || "media"}
+                    onChange={(event) => updateRow(row.id, "criticidad", String(event.target.value))}
+                  >
+                    <MenuItem value="alta">Alta</MenuItem>
+                    <MenuItem value="media">Media</MenuItem>
+                    <MenuItem value="baja">Baja</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <TextField
+                  size="small"
+                  label="Mín. ahora (%)"
+                  type="number"
+                  value={row.minimumImmediatePct || ""}
+                  onChange={(event) => updateRow(row.id, "minimumImmediatePct", event.target.value)}
+                  inputProps={{ min: 0, max: 100, step: "any" }}
                 />
 
                 <Box className="rounded-lg bg-slate-50 px-3 py-2">
@@ -288,7 +317,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
                     setBudgetPersisted(event.target.value);
                   }}
                   inputProps={{ min: 0, step: "any" }}
-                  helperText="La optimización usa el horizonte activo y prioriza criticidad + ahorro esperado."
+                  helperText="La optimización usa el horizonte activo y minimiza el costo esperado."
                 />
                 <Box className="rounded-xl border border-slate-200 bg-white px-3 py-2">
                   <Typography variant="body2" fontWeight={800} color="text.secondary">
@@ -308,8 +337,8 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
                   {optimizationError ? <Alert severity="error">{optimizationError}</Alert> : null}
                   {!optimizationResult && !optimizationError ? (
                     <Alert severity="info">
-                      La optimización real usa PuLP en el backend. Devuelve cuánto conviene comprar ahora dentro del presupuesto,
-                      respetando criticidad y el forecast activo.
+                      La optimización real usa PuLP en el backend. Devuelve cuánto comprar ahora y cuánto postergar,
+                      respetando presupuesto, cantidades y mínimos configurados.
                     </Alert>
                   ) : null}
 
@@ -339,8 +368,8 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
                   {optimizationError ? <Alert severity="error">{optimizationError}</Alert> : null}
                   {!optimizationResult && !optimizationError ? (
                     <Alert severity="info">
-                      La optimización real usa PuLP en el backend. Devuelve cuánto conviene comprar ahora dentro del presupuesto,
-                      respetando criticidad y el forecast activo.
+                      La optimización real usa PuLP en el backend. Devuelve cuánto comprar ahora y cuánto postergar,
+                      respetando presupuesto, cantidades y mínimos configurados.
                     </Alert>
                   ) : null}
                 </>
@@ -523,7 +552,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
                 <SummaryMini
                   label="Ahorro estimado"
                   value={formatCurrency(optimizationResult.ahorro_total_estimado)}
-                  helper="Suma ponderada por criticidad"
+                  helper="Frente a postergar compra"
                 />
               </Box>
 
@@ -561,7 +590,7 @@ export function CostPlannerCard({ materiales, selectedMaterialId, forecastHorizo
                     <Typography fontWeight={700}>
                       Comprar ahora: {formatNumber(item.cantidad_recomendada_comprar_ahora, 4)}
                     </Typography>
-                    <Typography fontWeight={700}>Costo hoy: {formatCurrency(item.costo_compra_ahora)}</Typography>
+                    <Typography fontWeight={700}>Postergar: {formatNumber(item.cantidad_recomendada_postergar, 4)}</Typography>
                     <Typography color="success.main" fontWeight={800}>
                       Ahorro: {formatCurrency(item.ahorro_total_estimado)}
                     </Typography>

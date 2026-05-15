@@ -22,9 +22,9 @@ import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
 import { generateOperationalRecommendation } from "./pricing.api.js";
 
 const DEFAULT_ROWS = [
-  { match: "cemento", cantidad: "100", criticidad: "alta" },
-  { match: "pastina", cantidad: "40", criticidad: "media" },
-  { match: "membrana", cantidad: "20", criticidad: "baja" },
+  { match: "cemento", cantidad: "100", criticidad: "alta", minimumImmediatePct: "" },
+  { match: "pastina", cantidad: "40", criticidad: "media", minimumImmediatePct: "" },
+  { match: "membrana", cantidad: "20", criticidad: "baja", minimumImmediatePct: "" },
 ];
 
 const ACTION_META = {
@@ -57,6 +57,18 @@ const CRITICIDAD_LABELS = {
   baja: "Baja",
 };
 
+const SIMPLE_RECOMMENDATION_LABELS = {
+  COMPRAR_AHORA: "Comprar ahora",
+  ESPERAR: "Esperar",
+  MONITOREAR: "Monitorear",
+};
+
+const STRATEGY_LABELS = {
+  COMPRAR_AHORA: "100% ahora",
+  ESPERAR_AL_HORIZONTE: "100% futuro",
+  COMPRA_PARCIAL: "50/50",
+};
+
 function normalize(value) {
   return String(value || "")
     .normalize("NFD")
@@ -76,6 +88,7 @@ function buildDefaultRows(materiales) {
       materialId: material ? String(material.id) : "",
       cantidad: defaultRow.cantidad,
       criticidad: defaultRow.criticidad,
+      minimumImmediatePct: defaultRow.minimumImmediatePct,
     };
   });
 
@@ -89,6 +102,7 @@ function buildDefaultRows(materiales) {
       ...row,
       materialId: fallback ? String(fallback.id) : "",
       cantidad: row.cantidad || String(index === 0 ? 100 : 20),
+      minimumImmediatePct: row.minimumImmediatePct || "",
     };
   });
 }
@@ -124,11 +138,17 @@ export function FinalDecisionCard({ materiales, forecastHorizon, token, showPric
     () =>
       rows
         .filter((row) => row.materialId && Number(row.cantidad) > 0)
-        .map((row) => ({
-          material_id: Number(row.materialId),
-          cantidad_objetivo: Number(row.cantidad),
-          criticidad: row.criticidad,
-        })),
+        .map((row) => {
+          const minimumImmediatePct = Number(row.minimumImmediatePct);
+          return {
+            material_id: Number(row.materialId),
+            cantidad_objetivo: Number(row.cantidad),
+            criticidad: row.criticidad,
+            ...(Number.isFinite(minimumImmediatePct) && minimumImmediatePct > 0
+              ? { porcentaje_minimo_compra_inmediata: minimumImmediatePct / 100 }
+              : {}),
+          };
+        }),
     [rows]
   );
 
@@ -254,14 +274,24 @@ export function FinalDecisionCard({ materiales, forecastHorizon, token, showPric
                         ))}
                       </Select>
                     </FormControl>
-                    <TextField
-                      size="small"
-                      label={`Cantidad${material?.unidad_base ? ` (${material.unidad_base})` : ""}`}
-                      type="number"
-                      value={row.cantidad}
-                      onChange={(event) => updateRow(row.id, "cantidad", event.target.value)}
-                      inputProps={{ min: 0, step: "any" }}
-                    />
+                    <Box className="grid grid-cols-2 gap-2">
+                      <TextField
+                        size="small"
+                        label={`Cantidad${material?.unidad_base ? ` (${material.unidad_base})` : ""}`}
+                        type="number"
+                        value={row.cantidad}
+                        onChange={(event) => updateRow(row.id, "cantidad", event.target.value)}
+                        inputProps={{ min: 0, step: "any" }}
+                      />
+                      <TextField
+                        size="small"
+                        label="Mín. ahora (%)"
+                        type="number"
+                        value={row.minimumImmediatePct || ""}
+                        onChange={(event) => updateRow(row.id, "minimumImmediatePct", event.target.value)}
+                        inputProps={{ min: 0, max: 100, step: "any" }}
+                      />
+                    </Box>
                     <FormControl size="small">
                       <InputLabel id={`final-criticality-${row.id}`}>Criticidad</InputLabel>
                       <Select
@@ -289,7 +319,7 @@ export function FinalDecisionCard({ materiales, forecastHorizon, token, showPric
 
           {!result && !loading ? (
             <Alert severity="info">
-              Usá los valores precargados para una demo rápida con presupuesto restrictivo. La salida prioriza ahorro esperado ajustado por criticidad y respeta el presupuesto.
+              Usá los valores precargados para una demo rápida con presupuesto restrictivo. La salida minimiza costo esperado y respeta presupuesto, cantidades y mínimos configurados.
             </Alert>
           ) : null}
 
@@ -406,7 +436,18 @@ function DecisionItem({ item, material }) {
         <SmallMetric label="Postergar" value={formatNumber(item.cantidad_postergar, 2)} />
         <SmallMetric label="Impacto" value={formatCurrency(item.impacto_economico_estimado)} />
         <SmallMetric label="%" value={`${formatNumber(item.impacto_economico_pct)}%`} />
+        <SmallMetric
+          label="HU21"
+          value={SIMPLE_RECOMMENDATION_LABELS[item.recomendacion_simple] || item.recomendacion_simple || "-"}
+        />
+        <SmallMetric
+          label="HU22"
+          value={STRATEGY_LABELS[item.mejor_estrategia] || item.mejor_estrategia || "-"}
+        />
       </Box>
+      <Typography color={item.ventaja_estrategia_significativa ? "success.main" : "text.secondary"} fontSize={12} fontWeight={800} mt={1}>
+        {item.ventaja_estrategia_significativa ? "Ventaja significativa" : "Ventaja marginal"}
+      </Typography>
     </Box>
   );
 }

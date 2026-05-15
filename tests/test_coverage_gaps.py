@@ -129,6 +129,9 @@ def test_crear_precio_historico_cubre_errores_basicos() -> None:
         def add(self, _value):
             return None
 
+        def flush(self):
+            return None
+
         def commit(self):
             if self.fail_commit:
                 raise IntegrityError("stmt", "params", Exception("duplicado"))

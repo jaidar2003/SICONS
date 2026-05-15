@@ -79,7 +79,7 @@ Las historias nuevas o pendientes deben considerarse prioritariamente sobre esto
 | --- | --- | --- | --- | --- |
 | HU16 | Proyectar costo futuro segun cantidad necesaria. | Implementada | ✅ Si | Calculo por cantidad disponible. |
 | HU17 | Comparar comprar ahora versus comprar despues. | Implementada | ✅ Si | Comparacion actual/proyectado disponible. |
-| HU18 | Simular escenarios temporales de compra. | Implementada | ✅ Si | Incluye simulador temporal multi-horizonte en una sola salida (`simulacion-escenarios-compra`) con estrategias comparables por escenario. |
+| HU18 | Simular escenarios temporales de compra. | Implementada | ✅ Si | Incluye simulador temporal multi-horizonte en una sola salida (`simulacion-escenarios-compra`) con estrategias comparables por horizonte; no equivale a los escenarios optimista/base/pesimista de HU31. |
 | HU19 | Estimar costo futuro de varios materiales de una obra. | Implementada | ✅ Si | Planificador multi-material disponible. |
 | HU20 | Obtener resumen del impacto presupuestario. | Implementada | ✅ Si | Resumen agregado disponible para materiales cargados. |
 
@@ -89,10 +89,10 @@ Las historias nuevas o pendientes deben considerarse prioritariamente sobre esto
 | --- | --- | --- | --- | --- |
 | HU21 | Recomendar el mejor momento de compra. | Implementada | ✅ Si | Devuelve accion, variacion, impacto economico, MAPE, umbral de decision, confianza y advertencias. |
 | HU22 | Comparar estrategias de compra. | Implementada | ✅ Si | Compara compra ahora, espera y compra parcial, con costo, diferencia ARS/%, estrategia ganadora y significancia. |
-| HU23 | Optimizar compra bajo restriccion presupuestaria. | Implementada | ✅ Si | Respeta presupuesto, cantidades, no negatividad y expone compra ahora/postergada por material. |
+| HU23 | Optimizar compra bajo restriccion presupuestaria. | Implementada | ✅ Si | Usa variables explicitas de compra inmediata y postergada, minimiza costo total esperado, respeta presupuesto, cantidades, no negatividad y minimos por criticidad cuando se informan. |
 | HU24 | Priorizar materiales criticos. | Implementada | ✅ Si | Ranking de criticidad disponible. |
 | HU28 | Optimizar presupuesto con criticidad y forecast. | Implementada | ✅ Si | Devuelve asignacion recomendada, presupuesto usado/restante, impacto economico, criticidad, confianza y advertencias. |
-| HU28b | Generar recomendacion operativa trazable. | Implementada | ✅ Si | Consolida accion, cantidades, impacto economico, confianza, supuestos y advertencias en una salida final. |
+| HU28b | Generar recomendacion operativa trazable. | Implementada | ✅ Si | Consolida accion, cantidades, impacto economico, confianza, supuestos y advertencias en una salida final, incorporando recomendacion simple y mejor estrategia comparativa por material. |
 
 ## Epica 6. Asistencia conversacional
 
@@ -109,6 +109,6 @@ Las historias nuevas o pendientes deben considerarse prioritariamente sobre esto
 | --- | --- | --- | --- | --- |
 | HU29 | Recomendar estrategia segun fase de obra y fecha objetivo. | Pendiente | ❌ No | Falta integrar fase, horizonte operativo y tolerancia al riesgo en la recomendacion final. |
 | HU30 | Explicar por que se recomienda una estrategia. | Pendiente | ❌ No | No existe una capa unificada de explicabilidad con drivers, impacto y confianza en una salida unica. |
-| HU31 | Simular escenarios comparables (optimista/base/pesimista) en una vista unica. | Pendiente | ❌ No | Hoy hay simulaciones parciales por estrategia/horizonte, pero no consolidacion multi-escenario integral. |
+| HU31 | Simular escenarios comparables (optimista/base/pesimista) en una vista unica. | Pendiente | ❌ No | Hoy hay simulacion temporal por horizontes (HU18), pero no consolidacion optimista/base/pesimista con rango de resultados y sensibilidad. |
 | HU32 | Emitir alertas proactivas de decision ante cambios relevantes. | Pendiente | ❌ No | No hay motor de alertas que dispare acciones por umbrales, deterioro de forecast o cambios de fuente/proveedor. |
 | HU33 | Sugerir materiales sustitutos con impacto tecnico-economico. | Pendiente | ❌ No | Post-MVP: con el catalogo actual de 3 productos no hay base suficiente para sustitucion entre materiales. Se retoma al ampliar catalogo por familias equivalentes. |

@@ -299,13 +299,13 @@ def recomendar_momento_compra_material(
         horizonte_meses=result.horizonte_meses,
         decision=result.decision,
         variacion_esperada_pct=result.variacion_esperada_pct,
-        precio_actual=result.precio_actual,
-        precio_proyectado_horizonte=result.precio_proyectado_horizonte,
-        cantidad_objetivo=result.cantidad_objetivo,
-        impacto_economico_estimado=result.impacto_economico_estimado,
-        mape=result.mape,
-        umbral_decision_pct=result.umbral_decision_pct,
-        supera_umbral_decision=result.supera_umbral_decision,
+        precio_actual=getattr(result, "precio_actual", None),
+        precio_proyectado_horizonte=getattr(result, "precio_proyectado_horizonte", None),
+        cantidad_objetivo=getattr(result, "cantidad_objetivo", None),
+        impacto_economico_estimado=getattr(result, "impacto_economico_estimado", None),
+        mape=getattr(result, "mape", None),
+        umbral_decision_pct=getattr(result, "umbral_decision_pct", None),
+        supera_umbral_decision=getattr(result, "supera_umbral_decision", False),
         confiabilidad=result.confiabilidad,
         criticidad=result.criticidad,
         justificacion=result.justificacion,
@@ -351,8 +351,8 @@ def comparar_estrategias_compra_material(
             {
                 "nombre": estrategia.nombre,
                 "costo_estimado": estrategia.costo_estimado,
-                "diferencia_vs_mejor_ars": estrategia.diferencia_vs_mejor_ars,
-                "diferencia_vs_mejor_pct": estrategia.diferencia_vs_mejor_pct,
+                "diferencia_vs_mejor_ars": getattr(estrategia, "diferencia_vs_mejor_ars", Decimal("0.00")),
+                "diferencia_vs_mejor_pct": getattr(estrategia, "diferencia_vs_mejor_pct", Decimal("0.0000")),
                 "riesgo": estrategia.riesgo,
                 "descripcion": estrategia.descripcion,
             }
@@ -360,8 +360,8 @@ def comparar_estrategias_compra_material(
         ],
         mejor_estrategia=result.mejor_estrategia,
         ahorro_estimado=result.ahorro_estimado,
-        umbral_decision_pct=result.umbral_decision_pct,
-        ventaja_significativa=result.ventaja_significativa,
+        umbral_decision_pct=getattr(result, "umbral_decision_pct", Decimal("0.0000")),
+        ventaja_significativa=getattr(result, "ventaja_significativa", False),
         justificacion=result.justificacion,
         advertencias=list(result.advertencias),
     )
@@ -439,6 +439,7 @@ def optimizar_presupuesto_compra(
                 material_id=item.material_id,
                 cantidad_objetivo=item.cantidad_objetivo,
                 criticidad=item.criticidad,
+                porcentaje_minimo_compra_inmediata=item.porcentaje_minimo_compra_inmediata,
             )
             for item in payload.materiales
         ],
@@ -495,6 +496,7 @@ def generar_recomendacion_operativa(
                 material_id=item.material_id,
                 cantidad_objetivo=item.cantidad_objetivo,
                 criticidad=item.criticidad,
+                porcentaje_minimo_compra_inmediata=item.porcentaje_minimo_compra_inmediata,
             )
             for item in payload.materiales
         ],
@@ -522,6 +524,9 @@ def generar_recomendacion_operativa(
                 "impacto_economico_pct": item.impacto_economico_pct,
                 "confianza": item.confianza,
                 "criticidad": item.criticidad,
+                "recomendacion_simple": item.recomendacion_simple,
+                "mejor_estrategia": item.mejor_estrategia,
+                "ventaja_estrategia_significativa": item.ventaja_estrategia_significativa,
                 "explicacion": item.explicacion,
             }
             for item in result.items
@@ -651,4 +656,4 @@ def crear_precio_historico(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_admin),
 ) -> PrecioHistorico:
-    return crear_precio_historico_service(db, **payload.model_dump(), usuario_id=current_user.id)
+    return crear_precio_historico_service(db, **payload.model_dump(), usuario_id=getattr(current_user, "id", None))

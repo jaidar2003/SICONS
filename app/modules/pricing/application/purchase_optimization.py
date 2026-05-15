@@ -5,7 +5,7 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException
-from pulp import PULP_CBC_CMD, LpMaximize, LpProblem, LpStatus, LpVariable, lpSum, value
+from pulp import PULP_CBC_CMD, LpMinimize, LpProblem, LpStatus, LpVariable, lpSum, value
 
 from app.modules.catalog.application.utils import derive_material_key
 from app.modules.catalog.domain.repositories import MaterialRepository
@@ -15,9 +15,12 @@ from app.modules.pricing.application.purchase_recommendations import (
     CONFIANZA_NO_CALIBRADA,
     CONFIANZA_NO_DISPONIBLE,
     _resolver_confiabilidad,
+    evaluar_recomendacion_compra,
 )
+from app.modules.pricing.application.purchase_strategies import evaluar_estrategias_compra
 from app.modules.pricing.domain.exceptions import MaterialNotFoundException
 from app.modules.pricing.domain.repositories import PricingRepository
+from app.modules.pricing.domain.rules import calcular_variacion_esperada_porcentual
 
 PESO_CRITICIDAD = {
     "alta": Decimal("3.00"),
@@ -33,6 +36,7 @@ class PurchaseOptimizationInputItem:
     material_id: int
     cantidad_objetivo: Decimal
     criticidad: str
+    porcentaje_minimo_compra_inmediata: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -47,6 +51,8 @@ class OptimizationCandidate:
     peso_criticidad: Decimal
     confiabilidad: str
     no_calibrado: bool
+    mape: Decimal | None = None
+    porcentaje_minimo_compra_inmediata: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -67,6 +73,8 @@ class PurchaseOptimizationItemResult:
     criticidad: str
     peso_criticidad: Decimal
     confiabilidad: str
+    mape: Decimal | None
+    no_calibrado: bool
 
 
 @dataclass(frozen=True)
@@ -93,6 +101,9 @@ class OperationalPurchaseRecommendationItem:
     impacto_economico_pct: Decimal
     confianza: str
     criticidad: str
+    recomendacion_simple: str
+    mejor_estrategia: str
+    ventaja_estrategia_significativa: bool
     explicacion: str
 
 
@@ -156,6 +167,7 @@ def _build_candidate(item: PurchaseOptimizationInputItem, material, forecast_res
     ahorro_unitario = max(precio_proyectado_horizonte - precio_actual, Decimal("0"))
     confiabilidad = _resolver_confiabilidad(forecast_result)
     no_calibrado = bool(getattr(selection, "no_calibrado", False))
+    mape = getattr(forecast_result.metricas, "mape", None)
 
     return OptimizationCandidate(
         material_id=material.id,
@@ -168,6 +180,8 @@ def _build_candidate(item: PurchaseOptimizationInputItem, material, forecast_res
         peso_criticidad=PESO_CRITICIDAD[item.criticidad],
         confiabilidad=confiabilidad,
         no_calibrado=no_calibrado,
+        mape=mape,
+        porcentaje_minimo_compra_inmediata=item.porcentaje_minimo_compra_inmediata,
     )
 
 
@@ -181,37 +195,56 @@ def optimizar_compra_items(
     if not candidates:
         raise HTTPException(status_code=422, detail="No hay materiales validos para optimizar la compra.")
 
-    problem = LpProblem("purchase_budget_optimization", LpMaximize)
-    variables: dict[int, LpVariable] = {}
+    problem = LpProblem("purchase_budget_optimization", LpMinimize)
+    variables_ahora: dict[int, LpVariable] = {}
+    variables_futuro: dict[int, LpVariable] = {}
 
     for candidate in candidates:
-        upper_bound = float(candidate.cantidad_objetivo if candidate.ahorro_unitario_estimado > 0 else Decimal("0"))
-        variables[candidate.material_id] = LpVariable(
-            f"x_{candidate.material_id}",
+        variables_ahora[candidate.material_id] = LpVariable(
+            f"x_ahora_{candidate.material_id}",
             lowBound=0,
-            upBound=upper_bound,
+            upBound=float(candidate.cantidad_objetivo),
+        )
+        variables_futuro[candidate.material_id] = LpVariable(
+            f"x_futuro_{candidate.material_id}",
+            lowBound=0,
+            upBound=float(candidate.cantidad_objetivo),
         )
 
     problem += lpSum(
-        float(candidate.ahorro_unitario_estimado * candidate.peso_criticidad) * variables[candidate.material_id]
+        (
+            float(candidate.precio_actual) * variables_ahora[candidate.material_id]
+            + float(candidate.precio_proyectado_horizonte) * variables_futuro[candidate.material_id]
+        )
         for candidate in candidates
     )
-    problem += lpSum(float(candidate.precio_actual) * variables[candidate.material_id] for candidate in candidates) <= float(
-        presupuesto_total
-    )
+    problem += lpSum(
+        float(candidate.precio_actual) * variables_ahora[candidate.material_id] for candidate in candidates
+    ) <= float(presupuesto_total)
+
+    for candidate in candidates:
+        problem += (
+            variables_ahora[candidate.material_id] + variables_futuro[candidate.material_id]
+            == float(candidate.cantidad_objetivo)
+        )
+        if candidate.porcentaje_minimo_compra_inmediata is not None:
+            problem += variables_ahora[candidate.material_id] >= float(
+                candidate.cantidad_objetivo * candidate.porcentaje_minimo_compra_inmediata
+            )
 
     status_code = problem.solve(PULP_CBC_CMD(msg=False))
     estado_optimizacion = _normalizar_estado_optimizacion(status_code)
-    if estado_optimizacion not in {ESTADO_OPTIMAL, "NOT_SOLVED"} and not candidates:
+    if estado_optimizacion != ESTADO_OPTIMAL:
         raise HTTPException(status_code=422, detail="No fue posible resolver la optimizacion de compra.")
 
     resultados: list[PurchaseOptimizationItemResult] = []
     presupuesto_utilizado = Decimal("0")
     ahorro_total_estimado = Decimal("0")
     for candidate in candidates:
-        valor_variable = value(variables[candidate.material_id])
-        cantidad_recomendada = _quantize_quantity(Decimal(f"{(valor_variable or 0):.4f}"))
-        cantidad_postergada = _quantize_quantity(candidate.cantidad_objetivo - cantidad_recomendada)
+        valor_ahora = value(variables_ahora[candidate.material_id])
+        valor_futuro = value(variables_futuro[candidate.material_id])
+        cantidad_recomendada = _quantize_quantity(Decimal(f"{(valor_ahora or 0):.4f}"))
+        cantidad_postergada = _quantize_quantity(Decimal(f"{(valor_futuro or 0):.4f}"))
         costo_compra_ahora = _quantize_amount(candidate.precio_actual * cantidad_recomendada)
         costo_futuro_estimado = _quantize_amount(candidate.precio_proyectado_horizonte * cantidad_postergada)
         ahorro_total = _quantize_amount(candidate.ahorro_unitario_estimado * cantidad_recomendada)
@@ -238,6 +271,8 @@ def optimizar_compra_items(
                 criticidad=candidate.criticidad,
                 peso_criticidad=candidate.peso_criticidad,
                 confiabilidad=candidate.confiabilidad,
+                mape=candidate.mape,
+                no_calibrado=candidate.no_calibrado,
             )
         )
 
@@ -255,8 +290,8 @@ def optimizar_compra_items(
         items=tuple(resultados),
         ahorro_total_estimado=ahorro_total_estimado,
         justificacion=(
-            "La optimizacion prioriza materiales con mayor ahorro esperado ajustado por criticidad, "
-            "respetando el presupuesto disponible."
+            "La optimizacion minimiza el costo total esperado con variables explicitas de compra inmediata "
+            "y postergada, respetando el presupuesto disponible."
         ),
         advertencias=tuple(advertencias_resultado),
     )
@@ -334,24 +369,59 @@ def generar_recomendacion_operativa_compra(
         usar_selector_modelo=usar_selector_modelo,
     )
 
-    items = tuple(
-        OperationalPurchaseRecommendationItem(
+    items_list: list[OperationalPurchaseRecommendationItem] = []
+    for item in optimizacion.items:
+        variacion_esperada_pct = calcular_variacion_esperada_porcentual(
+            item.precio_actual,
+            item.precio_proyectado_horizonte,
+        )
+        recommendation = evaluar_recomendacion_compra(
             material_id=item.material_id,
             material_key=item.material_key,
-            accion_recomendada=item.accion_recomendada,
-            cantidad_comprar_ahora=item.cantidad_recomendada_comprar_ahora,
-            cantidad_postergar=item.cantidad_recomendada_postergar,
-            impacto_economico_estimado=item.ahorro_total_estimado,
-            impacto_economico_pct=item.impacto_economico_pct,
-            confianza=item.confiabilidad,
+            horizonte_meses=optimizacion.horizonte_meses,
+            cantidad_objetivo=item.cantidad_objetivo,
+            variacion_esperada_pct=variacion_esperada_pct,
+            precio_actual=item.precio_actual,
+            precio_proyectado_horizonte=item.precio_proyectado_horizonte,
+            mape=item.mape,
+            confiabilidad=item.confiabilidad,
             criticidad=item.criticidad,
-            explicacion=(
-                f"{item.accion_recomendada}: ahorro unitario estimado {item.ahorro_unitario_estimado}, "
-                f"criticidad {item.criticidad}, confianza {item.confiabilidad}."
-            ),
+            no_calibrado=item.no_calibrado,
+            advertencias=(),
         )
-        for item in optimizacion.items
-    )
+        strategy_comparison = evaluar_estrategias_compra(
+            material_id=item.material_id,
+            material_key=item.material_key,
+            horizonte_meses=optimizacion.horizonte_meses,
+            cantidad_objetivo=item.cantidad_objetivo,
+            precio_actual=item.precio_actual,
+            precio_proyectado_horizonte=item.precio_proyectado_horizonte,
+            confiabilidad=item.confiabilidad,
+            no_calibrado=item.no_calibrado,
+            advertencias=(),
+        )
+        items_list.append(
+            OperationalPurchaseRecommendationItem(
+                material_id=item.material_id,
+                material_key=item.material_key,
+                accion_recomendada=item.accion_recomendada,
+                cantidad_comprar_ahora=item.cantidad_recomendada_comprar_ahora,
+                cantidad_postergar=item.cantidad_recomendada_postergar,
+                impacto_economico_estimado=item.ahorro_total_estimado,
+                impacto_economico_pct=item.impacto_economico_pct,
+                confianza=item.confiabilidad,
+                criticidad=item.criticidad,
+                recomendacion_simple=recommendation.decision,
+                mejor_estrategia=strategy_comparison.mejor_estrategia,
+                ventaja_estrategia_significativa=strategy_comparison.ventaja_significativa,
+                explicacion=(
+                    f"{item.accion_recomendada}: recomendacion simple {recommendation.decision}, "
+                    f"mejor estrategia {strategy_comparison.mejor_estrategia}, ahorro unitario estimado "
+                    f"{item.ahorro_unitario_estimado}, criticidad {item.criticidad}, confianza {item.confiabilidad}."
+                ),
+            )
+        )
+    items = tuple(items_list)
 
     comprar_ahora = sum(1 for item in items if item.accion_recomendada == "COMPRAR_AHORA")
     compra_parcial = sum(1 for item in items if item.accion_recomendada == "COMPRA_PARCIAL")
@@ -372,7 +442,8 @@ def generar_recomendacion_operativa_compra(
         supuestos=(
             "Los precios futuros provienen del forecast del material y horizonte solicitados.",
             "El impacto economico positivo representa ahorro estimado por comprar ahora frente a postergar.",
-            "La asignacion prioriza ahorro esperado ajustado por criticidad y respeta el presupuesto.",
+            "La asignacion minimiza costo esperado respetando presupuesto, cantidades requeridas y no negatividad.",
+            "Cada item incorpora la recomendacion simple y la mejor estrategia comparativa como trazabilidad de HU21 y HU22.",
         ),
         advertencias=optimizacion.advertencias,
     )

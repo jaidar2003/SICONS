@@ -198,8 +198,8 @@ En la formulacion continua vigente, el problema se apoya en una estructura de pr
 
 Para cada material `i`:
 
-- `x_ahora_i`: cantidad a comprar ahora
-- `x_futuro_i`: cantidad a postergar
+- `x_ahora_i`: cantidad recomendada a comprar ahora.
+- `x_futuro_i`: cantidad postergada, derivada como diferencia entre la cantidad requerida y `x_ahora_i`.
 
 Con la relacion:
 
@@ -242,7 +242,7 @@ x_futuro_i >= 0
 x_ahora_i >= porcentaje_minimo_i * cantidad_requerida_i
 ```
 
-Esta ultima restriccion aplica solo cuando se quiera forzar una compra minima inmediata para materiales considerados criticos.
+Esta ultima restriccion aplica solo cuando se quiera forzar una compra minima inmediata para materiales considerados criticos. En el contrato de API vigente se expresa por material mediante `porcentaje_minimo_compra_inmediata`.
 
 ### Salida esperada
 
@@ -289,7 +289,7 @@ Ademas:
 
 ### Criterio funcional
 
-La optimizacion no reemplaza la recomendacion simple ni la comparacion de estrategias. Se apoya en ellas y las eleva a una decision mas operativa: no solo indica si conviene comprar, sino como asignar el presupuesto entre materiales segun criticidad y ahorro esperado.
+La optimizacion no reemplaza la recomendacion simple ni la comparacion de estrategias. Toma sus criterios economicos como base metodologica y los eleva a una decision mas operativa: no solo indica si conviene comprar, sino como asignar el presupuesto entre materiales segun criticidad y ahorro esperado.
 
 ### Estado de implementacion
 
@@ -346,7 +346,7 @@ La salida debe permitir tomar una decision sin obligar al usuario a reconstruir 
 
 - Endpoint: `/compras/recomendacion-operativa`.
 - Test: `test_endpoint_recomendacion_operativa_consolida_decision_trazable`.
-- Salida: `fecha_calculo`, `decision_resumen`, detalle por material, `supuestos` y `advertencias`.
+- Salida: `fecha_calculo`, `decision_resumen`, detalle por material, `recomendacion_simple`, `mejor_estrategia`, `ventaja_estrategia_significativa`, `supuestos` y `advertencias`.
 
 ---
 

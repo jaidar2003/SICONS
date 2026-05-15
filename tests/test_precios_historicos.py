@@ -15,7 +15,7 @@ class FakeDb:
         self.material = material
         self.presentacion = presentacion
         self.fuente = fuente
-        self.added = None
+        self.added = []
 
     def get(self, model, item_id):
         if model is Material and item_id == self.material.id:
@@ -27,7 +27,10 @@ class FakeDb:
         return None
 
     def add(self, value) -> None:
-        self.added = value
+        self.added.append(value)
+
+    def flush(self) -> None:
+        return None
 
     def commit(self) -> None:
         return None
@@ -58,7 +61,7 @@ def test_crear_precio_historico_normaliza_segun_presentacion() -> None:
 
     assert precio.precio_original == Decimal("6250.00")
     assert precio.precio_normalizado == Decimal("250.0000")
-    assert db.added is precio
+    assert precio in db.added
 
 
 def test_crear_precio_historico_rechaza_presentacion_de_otro_material() -> None:
@@ -101,4 +104,4 @@ def test_crear_precio_historico_rechaza_fecha_futura() -> None:
 
     assert exc.value.status_code == 422
     assert exc.value.detail == "La fecha no puede ser futura"
-    assert db.added is None
+    assert db.added == []

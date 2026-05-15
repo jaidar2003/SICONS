@@ -32,6 +32,7 @@ def _candidate(
     peso_criticidad: str,
     confiabilidad: str = "alta",
     no_calibrado: bool = False,
+    porcentaje_minimo_compra_inmediata: Decimal | None = None,
 ) -> OptimizationCandidate:
     return OptimizationCandidate(
         material_id=material_id,
@@ -46,6 +47,7 @@ def _candidate(
         peso_criticidad=Decimal(peso_criticidad),
         confiabilidad=confiabilidad,
         no_calibrado=no_calibrado,
+        porcentaje_minimo_compra_inmediata=porcentaje_minimo_compra_inmediata,
     )
 
 
@@ -131,7 +133,7 @@ def test_no_compra_mas_que_la_cantidad_objetivo() -> None:
     assert result.items[0].cantidad_recomendada_postergar >= Decimal("0.0000")
 
 
-def test_prioriza_material_con_mayor_ahorro_ajustado_por_criticidad() -> None:
+def test_minimiza_costo_esperado_bajo_presupuesto_restrictivo() -> None:
     result = optimizar_compra_items(
         presupuesto_total=Decimal("100.00"),
         horizonte_meses=3,
@@ -158,8 +160,8 @@ def test_prioriza_material_con_mayor_ahorro_ajustado_por_criticidad() -> None:
     )
 
     cantidades = {item.material_id: item.cantidad_recomendada_comprar_ahora for item in result.items}
-    assert cantidades[1] == Decimal("1.0000")
-    assert cantidades[2] == Decimal("0.0000")
+    assert cantidades[1] == Decimal("0.0000")
+    assert cantidades[2] == Decimal("1.0000")
 
 
 def test_material_con_baja_no_se_prioriza_si_el_beneficio_esperado_es_cero() -> None:
@@ -213,7 +215,7 @@ def test_con_presupuesto_suficiente_compra_toda_la_cantidad_objetivo_con_benefic
     assert cantidades[2] == Decimal("3.0000")
 
 
-def test_con_presupuesto_limitado_asigna_primero_al_mayor_beneficio_por_unidad_ajustado() -> None:
+def test_con_presupuesto_limitado_asigna_primero_al_mayor_ahorro_de_costo() -> None:
     result = optimizar_compra_items(
         presupuesto_total=Decimal("100.00"),
         horizonte_meses=3,
@@ -240,8 +242,65 @@ def test_con_presupuesto_limitado_asigna_primero_al_mayor_beneficio_por_unidad_a
     )
 
     cantidades = {item.material_id: item.cantidad_recomendada_comprar_ahora for item in result.items}
-    assert cantidades[1] == Decimal("1.0000")
-    assert cantidades[2] == Decimal("0.0000")
+    assert cantidades[1] == Decimal("0.0000")
+    assert cantidades[2] == Decimal("1.0000")
+
+
+def test_respeta_minimo_de_compra_inmediata_por_criticidad_si_se_informa() -> None:
+    result = optimizar_compra_items(
+        presupuesto_total=Decimal("100.00"),
+        horizonte_meses=3,
+        candidates=[
+            _candidate(
+                material_id=1,
+                material_key="cemento-portland",
+                cantidad_objetivo="1.0000",
+                precio_actual="100.00",
+                precio_proyectado="130.00",
+                criticidad="alta",
+                peso_criticidad="3.00",
+            ),
+            _candidate(
+                material_id=2,
+                material_key="pastina",
+                cantidad_objetivo="1.0000",
+                precio_actual="100.00",
+                precio_proyectado="140.00",
+                criticidad="baja",
+                peso_criticidad="1.00",
+            ),
+        ],
+    )
+    with_minimum = optimizar_compra_items(
+        presupuesto_total=Decimal("100.00"),
+        horizonte_meses=3,
+        candidates=[
+            _candidate(
+                material_id=1,
+                material_key="cemento-portland",
+                cantidad_objetivo="1.0000",
+                precio_actual="100.00",
+                precio_proyectado="130.00",
+                criticidad="alta",
+                peso_criticidad="3.00",
+                porcentaje_minimo_compra_inmediata=Decimal("1.0000"),
+            ),
+            _candidate(
+                material_id=2,
+                material_key="pastina",
+                cantidad_objetivo="1.0000",
+                precio_actual="100.00",
+                precio_proyectado="140.00",
+                criticidad="baja",
+                peso_criticidad="1.00",
+            ),
+        ],
+    )
+
+    cantidades_sin_minimo = {item.material_id: item.cantidad_recomendada_comprar_ahora for item in result.items}
+    cantidades_con_minimo = {item.material_id: item.cantidad_recomendada_comprar_ahora for item in with_minimum.items}
+    assert cantidades_sin_minimo[1] == Decimal("0.0000")
+    assert cantidades_con_minimo[1] == Decimal("1.0000")
 
 
 def test_agrega_advertencia_si_hay_baja_confiabilidad(monkeypatch) -> None:
@@ -434,6 +493,9 @@ def test_endpoint_recomendacion_operativa_consolida_decision_trazable(monkeypatc
     assert len(body["items"]) == 3
     assert body["supuestos"]
     assert all("impacto_economico_pct" in item for item in body["items"])
+    assert all("recomendacion_simple" in item for item in body["items"])
+    assert all("mejor_estrategia" in item for item in body["items"])
+    assert all("ventaja_estrategia_significativa" in item for item in body["items"])
     assert all(item["accion_recomendada"] in {"COMPRAR_AHORA", "POSTERGAR", "COMPRA_PARCIAL"} for item in body["items"])
 
 

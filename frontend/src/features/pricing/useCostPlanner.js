@@ -9,6 +9,7 @@ function createEmptyRow(materialId = "") {
     materialId,
     quantity: "100",
     criticidad: "media",
+    minimumImmediatePct: "",
   };
 }
 
@@ -35,6 +36,7 @@ export function useCostPlanner({ materiales, selectedMaterialId, forecastHorizon
         materialId: row.materialId || "",
         quantity: row.quantity || "100",
         criticidad: row.criticidad || "media",
+        minimumImmediatePct: row.minimumImmediatePct || "",
       }));
     } catch {
       return [createEmptyRow(selectedMaterialId || "")];
@@ -120,6 +122,7 @@ export function useCostPlanner({ materiales, selectedMaterialId, forecastHorizon
         const forecast = row.materialId ? forecastsByMaterial[row.materialId] : null;
         const quantity = Number(row.quantity);
         const criticidad = row.criticidad || "media";
+        const minimumImmediatePct = row.minimumImmediatePct || "";
         const validQuantity = Number.isFinite(quantity) && quantity > 0;
         const currentUnitPrice = forecast ? Number(forecast.ultimo_precio_observado) : 0;
         const projectedPoint = forecast?.puntos?.[forecast.puntos.length - 1] || null;
@@ -135,6 +138,7 @@ export function useCostPlanner({ materiales, selectedMaterialId, forecastHorizon
           forecast,
           quantity,
           criticidad,
+          minimumImmediatePct,
           validQuantity,
           projectedPoint,
           currentCost,

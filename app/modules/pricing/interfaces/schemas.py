@@ -369,6 +369,7 @@ class PurchaseOptimizationMaterialCreate(BaseModel):
     material_id: int
     cantidad_objetivo: Decimal = Field(gt=0, decimal_places=4)
     criticidad: Literal["alta", "media", "baja"]
+    porcentaje_minimo_compra_inmediata: Decimal | None = Field(default=None, ge=0, le=1, decimal_places=4)
 
 
 class PurchaseOptimizationCreate(BaseModel):
@@ -422,6 +423,9 @@ class OperationalPurchaseRecommendationItemRead(BaseModel):
     impacto_economico_pct: Decimal
     confianza: str
     criticidad: str
+    recomendacion_simple: Literal["COMPRAR_AHORA", "ESPERAR", "MONITOREAR"]
+    mejor_estrategia: Literal["COMPRAR_AHORA", "ESPERAR_AL_HORIZONTE", "COMPRA_PARCIAL"]
+    ventaja_estrategia_significativa: bool
     explicacion: str
 
 

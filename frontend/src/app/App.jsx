@@ -1,7 +1,5 @@
-import AddIconModule from "@mui/icons-material/Add";
 import AutoGraphIconModule from "@mui/icons-material/AutoGraph";
 import AdminPanelSettingsOutlinedIconModule from "@mui/icons-material/AdminPanelSettingsOutlined";
-import ExpandLessIconModule from "@mui/icons-material/ExpandLess";
 import Inventory2OutlinedIconModule from "@mui/icons-material/Inventory2Outlined";
 import SavingsOutlinedIconModule from "@mui/icons-material/SavingsOutlined";
 import TimelineOutlinedIconModule from "@mui/icons-material/TimelineOutlined";
@@ -51,22 +49,12 @@ import { AppViewHeader } from "./AppViewHeader.jsx";
 import { brand } from "./brand.js";
 
 const SHOW_PRICES_KEY = "sicons_show_prices";
-const AddIcon = resolveMuiIcon(AddIconModule);
 const AutoGraphIcon = resolveMuiIcon(AutoGraphIconModule);
 const AdminPanelSettingsOutlinedIcon = resolveMuiIcon(AdminPanelSettingsOutlinedIconModule);
-const ExpandLessIcon = resolveMuiIcon(ExpandLessIconModule);
 const Inventory2OutlinedIcon = resolveMuiIcon(Inventory2OutlinedIconModule);
 const SavingsOutlinedIcon = resolveMuiIcon(SavingsOutlinedIconModule);
 const TimelineOutlinedIcon = resolveMuiIcon(TimelineOutlinedIconModule);
 const VIEW_TABS = [
-  {
-    value: "decision",
-    label: "Decisión final",
-    description: "Recomendación operativa con presupuesto, cantidades, impacto y confianza.",
-    accent: brand.sections.costs.accent,
-    eyebrow: "DSS de compra",
-    icon: SavingsOutlinedIcon,
-  },
   {
     value: "summary",
     label: "Resumen",
@@ -118,6 +106,94 @@ const VIEW_TABS = [
   },
 ];
 
+const COST_WORKFLOWS = [
+  {
+    value: "planner",
+    label: "Armar presupuesto",
+    helper: "Cargá varios materiales, cantidades, criticidad y presupuesto.",
+  },
+  {
+    value: "final",
+    label: "Qué comprar",
+    helper: "Recomendación final: comprar ahora, compra parcial o postergar.",
+  },
+  {
+    value: "single",
+    label: "Analizar material",
+    helper: "Recomendación y estrategias para un solo material.",
+  },
+  {
+    value: "scenarios",
+    label: "Comparar meses",
+    helper: "Compará escenarios de 3, 6 y 12 meses.",
+  },
+  {
+    value: "quantity",
+    label: "Calcular cantidad",
+    helper: "Estimá el costo futuro según una cantidad puntual.",
+  },
+];
+
+const FORECAST_WORKFLOWS = [
+  {
+    value: "projection",
+    label: "Proyección",
+    helper: "Horizonte, próximos precios y lectura simple.",
+  },
+  {
+    value: "chart",
+    label: "Gráfico",
+    helper: "Curva histórica y proyectada del material.",
+  },
+  {
+    value: "model",
+    label: "Modelo",
+    helper: "MAPE, MAE, calibración y selección técnica.",
+  },
+];
+
+const HISTORY_WORKFLOWS = [
+  {
+    value: "variation",
+    label: "Variación",
+    helper: "Comparar precios entre dos fechas.",
+  },
+  {
+    value: "chart",
+    label: "Gráfico",
+    helper: "Ver la serie histórica completa.",
+  },
+  {
+    value: "anomalies",
+    label: "Anomalías",
+    helper: "Detectar saltos bruscos de precio.",
+  },
+  {
+    value: "table",
+    label: "Tabla",
+    helper: "Revisar registros históricos.",
+  },
+  {
+    value: "load",
+    label: "Cargar precio",
+    helper: "Alta administrativa de precios históricos.",
+    adminOnly: true,
+  },
+];
+
+const ADMIN_WORKFLOWS = [
+  {
+    value: "users",
+    label: "Usuarios",
+    helper: "Administrar accesos y roles.",
+  },
+  {
+    value: "margins",
+    label: "Márgenes",
+    helper: "Configurar márgenes comerciales.",
+  },
+];
+
 export function App() {
   const { token, user, login, register, loadCurrentUser, clearSession } = useAuthSession();
   const [showPrices, setShowPrices] = useState(() => localStorage.getItem(SHOW_PRICES_KEY) !== "false");
@@ -139,8 +215,11 @@ export function App() {
   const [forecastHorizon, setForecastHorizon] = useState(3);
   const [forecastPriceView, setForecastPriceView] = useState("comparative");
   const [comparisonRows, setComparisonRows] = useState([]);
-  const [showPriceForm, setShowPriceForm] = useState(false);
-  const [activeView, setActiveView] = useState("decision");
+  const [activeView, setActiveView] = useState("summary");
+  const [costWorkflow, setCostWorkflow] = useState("planner");
+  const [forecastWorkflow, setForecastWorkflow] = useState("projection");
+  const [historyWorkflow, setHistoryWorkflow] = useState("variation");
+  const [adminWorkflow, setAdminWorkflow] = useState("users");
   const forecastRequestRef = useRef(0);
   const clientDefaultStart = useMemo(() => dayjs("2026-01-01"), []);
 
@@ -240,7 +319,6 @@ export function App() {
     setCommercialPrice(null);
     setForecastLoading(false);
     setComparisonRows([]);
-    setShowPriceForm(false);
   }, []);
 
   const bootstrapApp = useCallback(
@@ -390,15 +468,6 @@ export function App() {
                 onViewChange={setActiveView}
               />
 
-              {activeView === "decision" ? (
-                <FinalDecisionCard
-                  materiales={materiales}
-                  forecastHorizon={forecastHorizon}
-                  token={token}
-                  showPrices={showPrices}
-                />
-              ) : null}
-
               {activeView === "summary" ? (
                 <>
                   <MetricsGrid serie={serie} showPrices={showPrices} selectedMaterial={selectedMaterial} />
@@ -464,171 +533,219 @@ export function App() {
 
               {activeView === "forecast" ? (
                 <>
-                  <ForecastCard
-                    forecast={forecast}
-                    serie={serie}
-                    horizonteMeses={forecastHorizon}
-                    showPrices={showPrices}
-                    onChangeHorizon={(value) => {
-                      setForecastHorizon(value);
-                      loadSerieData({ materialId: selectedMaterialId, horizon: value }).catch((loadError) => setError(loadError.message));
-                    }}
+                  <WorkflowSwitcher
+                    eyebrow="Flujo de forecast"
+                    title="Elegí qué querés revisar"
+                    workflows={FORECAST_WORKFLOWS}
+                    activeValue={forecastWorkflow}
+                    onChange={setForecastWorkflow}
                   />
-                  {forecast ? (
-                    <Card className="mt-3 overflow-hidden border border-slate-200 shadow-md1">
-                      <CardContent className="p-0">
-                        <Box className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                          <Typography variant="overline" color="text.secondary">
-                            Síntesis del forecast
-                          </Typography>
-                          <Typography mt={0.5} variant="h3">
-                            ¿Qué me dice la proyección?
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            La lectura más simple del modelo para usarla sin interpretar toda la tabla.
-                          </Typography>
-                        </Box>
-                        <Box className="grid gap-3 p-4 md:grid-cols-3">
-                          <Box className="rounded-xl border border-slate-200 bg-white p-3">
-                            <Typography color="text.secondary" variant="body2" fontWeight={800}>
-                              Dirección
-                            </Typography>
-                            <Typography component="strong" display="block" mt={0.75} variant="h2" lineHeight={1.1}>
-                              {summaryForecastDirection}
-                            </Typography>
-                            <Typography color="text.secondary" variant="body2" mt={0.5}>
-                              {summaryForecastDeltaPct === null ? "Sin forecast disponible" : `Cambio estimado: ${formatNumber(summaryForecastDeltaPct)}%`}
-                            </Typography>
-                          </Box>
-                          <Box className="rounded-xl border border-slate-200 bg-white p-3">
-                            <Typography color="text.secondary" variant="body2" fontWeight={800}>
-                              Próximo mes
-                            </Typography>
-                            <Typography component="strong" display="block" mt={0.75} variant="h2" lineHeight={1.1}>
-                              {summaryNextForecastPoint ? formatCurrency(getDisplayPrice(summaryNextForecastPoint.precio_proyectado, forecast.material_nombre, forecast.unidad_base)) : "-"}
-                            </Typography>
-                            <Typography color="text.secondary" variant="body2" mt={0.5}>
-                              {summaryNextForecastPoint
-                                ? dayjs(summaryNextForecastPoint.fecha).format("DD/MM/YY")
-                                : "No hay horizonte calculado"}
-                            </Typography>
-                          </Box>
-                          <Box className="rounded-xl border border-slate-200 bg-white p-3">
-                            <Typography color="text.secondary" variant="body2" fontWeight={800}>
-                              Horizonte completo
-                            </Typography>
-                            <Typography component="strong" display="block" mt={0.75} variant="h2" lineHeight={1.1}>
-                              {summaryLastForecastPoint ? formatCurrency(getDisplayPrice(summaryLastForecastPoint.precio_proyectado, forecast.material_nombre, forecast.unidad_base)) : "-"}
-                            </Typography>
-                            <Typography color="text.secondary" variant="body2" mt={0.5}>
-                              {summaryLastForecastPoint ? dayjs(summaryLastForecastPoint.fecha).format("DD/MM/YY") : "No hay horizonte calculado"}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      </CardContent>
-                    </Card>
+
+                  {forecastWorkflow === "projection" ? (
+                    <>
+                      <ForecastCard
+                        forecast={forecast}
+                        serie={serie}
+                        horizonteMeses={forecastHorizon}
+                        showPrices={showPrices}
+                        onChangeHorizon={(value) => {
+                          setForecastHorizon(value);
+                          loadSerieData({ materialId: selectedMaterialId, horizon: value }).catch((loadError) => setError(loadError.message));
+                        }}
+                      />
+                      {forecast ? (
+                        <Card className="mt-3 overflow-hidden border border-slate-200 shadow-md1">
+                          <CardContent className="p-0">
+                            <Box className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                              <Typography variant="overline" color="text.secondary">
+                                Síntesis del forecast
+                              </Typography>
+                              <Typography mt={0.5} variant="h3">
+                                ¿Qué me dice la proyección?
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                La lectura más simple del modelo para usarla sin interpretar toda la tabla.
+                              </Typography>
+                            </Box>
+                            <Box className="grid gap-3 p-4 md:grid-cols-3">
+                              <Box className="rounded-xl border border-slate-200 bg-white p-3">
+                                <Typography color="text.secondary" variant="body2" fontWeight={800}>
+                                  Dirección
+                                </Typography>
+                                <Typography component="strong" display="block" mt={0.75} variant="h2" lineHeight={1.1}>
+                                  {summaryForecastDirection}
+                                </Typography>
+                                <Typography color="text.secondary" variant="body2" mt={0.5}>
+                                  {summaryForecastDeltaPct === null ? "Sin forecast disponible" : `Cambio estimado: ${formatNumber(summaryForecastDeltaPct)}%`}
+                                </Typography>
+                              </Box>
+                              <Box className="rounded-xl border border-slate-200 bg-white p-3">
+                                <Typography color="text.secondary" variant="body2" fontWeight={800}>
+                                  Próximo mes
+                                </Typography>
+                                <Typography component="strong" display="block" mt={0.75} variant="h2" lineHeight={1.1}>
+                                  {summaryNextForecastPoint ? formatCurrency(getDisplayPrice(summaryNextForecastPoint.precio_proyectado, forecast.material_nombre, forecast.unidad_base)) : "-"}
+                                </Typography>
+                                <Typography color="text.secondary" variant="body2" mt={0.5}>
+                                  {summaryNextForecastPoint
+                                    ? dayjs(summaryNextForecastPoint.fecha).format("DD/MM/YY")
+                                    : "No hay horizonte calculado"}
+                                </Typography>
+                              </Box>
+                              <Box className="rounded-xl border border-slate-200 bg-white p-3">
+                                <Typography color="text.secondary" variant="body2" fontWeight={800}>
+                                  Horizonte completo
+                                </Typography>
+                                <Typography component="strong" display="block" mt={0.75} variant="h2" lineHeight={1.1}>
+                                  {summaryLastForecastPoint ? formatCurrency(getDisplayPrice(summaryLastForecastPoint.precio_proyectado, forecast.material_nombre, forecast.unidad_base)) : "-"}
+                                </Typography>
+                                <Typography color="text.secondary" variant="body2" mt={0.5}>
+                                  {summaryLastForecastPoint ? dayjs(summaryLastForecastPoint.fecha).format("DD/MM/YY") : "No hay horizonte calculado"}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      ) : null}
+                    </>
                   ) : null}
-                  <ForecastModelDetails selection={summaryForecastSelection} title="Detalles del modelo" compact />
-                  {showPrices && isAdmin ? (
-                    <Box
-                      className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-4 py-3"
-                      sx={{
-                        boxShadow: "0 8px 20px rgba(15, 23, 42, 0.06)",
-                      }}
-                    >
-                      <Box>
-                        <Typography variant="body2" fontWeight={800} color="text.secondary">
-                          Cómo ver la curva
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Elegí el precio que querés ver en el gráfico.
-                        </Typography>
-                      </Box>
-                      <ButtonGroup size="small" variant="outlined">
-                        <Button variant={forecastPriceView === "base" ? "contained" : "outlined"} onClick={() => setForecastPriceView("base")}>
-                          Solo costo
-                        </Button>
-                        <Button variant={forecastPriceView === "commercial" ? "contained" : "outlined"} onClick={() => setForecastPriceView("commercial")}>
-                          Solo venta mayorista
-                        </Button>
-                        <Button variant={forecastPriceView === "comparative" ? "contained" : "outlined"} onClick={() => setForecastPriceView("comparative")}>
-                          Comparar ambas
-                        </Button>
-                      </ButtonGroup>
-                    </Box>
+
+                  {forecastWorkflow === "model" ? (
+                    <ForecastModelDetails selection={summaryForecastSelection} title="Detalles del modelo" compact />
                   ) : null}
-                  <PriceChart
-                    className="mt-3"
-                    serie={serie}
-                    forecast={forecast}
-                    selectedMaterial={selectedMaterial}
-                    showPrices={showPrices}
-                    chartMode={forecastChartMode}
-                    commercialMarginPct={commercialPrice?.margen_ganancia_pct ?? null}
-                    canShowCostDetails={isAdmin}
-                  />
+
+                  {forecastWorkflow === "chart" ? (
+                    <>
+                      {showPrices && isAdmin ? (
+                        <Box
+                          className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-4 py-3"
+                          sx={{
+                            boxShadow: "0 8px 20px rgba(15, 23, 42, 0.06)",
+                          }}
+                        >
+                          <Box>
+                            <Typography variant="body2" fontWeight={800} color="text.secondary">
+                              Cómo ver la curva
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Elegí el precio que querés ver en el gráfico.
+                            </Typography>
+                          </Box>
+                          <ButtonGroup size="small" variant="outlined">
+                            <Button variant={forecastPriceView === "base" ? "contained" : "outlined"} onClick={() => setForecastPriceView("base")}>
+                              Solo costo
+                            </Button>
+                            <Button variant={forecastPriceView === "commercial" ? "contained" : "outlined"} onClick={() => setForecastPriceView("commercial")}>
+                              Solo venta mayorista
+                            </Button>
+                            <Button variant={forecastPriceView === "comparative" ? "contained" : "outlined"} onClick={() => setForecastPriceView("comparative")}>
+                              Comparar ambas
+                            </Button>
+                          </ButtonGroup>
+                        </Box>
+                      ) : null}
+                      <PriceChart
+                        className="mt-3"
+                        serie={serie}
+                        forecast={forecast}
+                        selectedMaterial={selectedMaterial}
+                        showPrices={showPrices}
+                        chartMode={forecastChartMode}
+                        commercialMarginPct={commercialPrice?.margen_ganancia_pct ?? null}
+                        canShowCostDetails={isAdmin}
+                      />
+                    </>
+                  ) : null}
                 </>
               ) : null}
 
               {activeView === "costs" ? (
                 <>
-                  <PurchaseDecisionCard
-                    materiales={materiales}
-                    selectedMaterialId={selectedMaterialId}
-                    forecastHorizon={forecastHorizon}
-                    token={token}
-                    showPrices={showPrices}
+                  <WorkflowSwitcher
+                    eyebrow="Flujo de costos"
+                    title="Elegí una tarea para trabajar"
+                    workflows={COST_WORKFLOWS}
+                    activeValue={costWorkflow}
+                    onChange={setCostWorkflow}
                   />
-                  <PurchaseScenarioSimulationCard
-                    materiales={materiales}
-                    selectedMaterialId={selectedMaterialId}
-                    token={token}
-                    showPrices={showPrices}
-                  />
-                  <CostProjectionCard forecast={forecast} selectedMaterial={selectedMaterial} showPrices={showPrices} />
-                  <CostPlannerCard
-                    materiales={materiales}
-                    selectedMaterialId={selectedMaterialId}
-                    forecastHorizon={forecastHorizon}
-                    token={token}
-                    showPrices={showPrices}
-                  />
+
+                  {costWorkflow === "planner" ? (
+                    <CostPlannerCard
+                      materiales={materiales}
+                      selectedMaterialId={selectedMaterialId}
+                      forecastHorizon={forecastHorizon}
+                      token={token}
+                      showPrices={showPrices}
+                    />
+                  ) : null}
+
+                  {costWorkflow === "final" ? (
+                    <FinalDecisionCard
+                      materiales={materiales}
+                      forecastHorizon={forecastHorizon}
+                      token={token}
+                      showPrices={showPrices}
+                    />
+                  ) : null}
+
+                  {costWorkflow === "single" ? (
+                    <PurchaseDecisionCard
+                      materiales={materiales}
+                      selectedMaterialId={selectedMaterialId}
+                      forecastHorizon={forecastHorizon}
+                      token={token}
+                      showPrices={showPrices}
+                    />
+                  ) : null}
+
+                  {costWorkflow === "scenarios" ? (
+                    <PurchaseScenarioSimulationCard
+                      materiales={materiales}
+                      selectedMaterialId={selectedMaterialId}
+                      token={token}
+                      showPrices={showPrices}
+                    />
+                  ) : null}
+
+                  {costWorkflow === "quantity" ? (
+                    <CostProjectionCard forecast={forecast} selectedMaterial={selectedMaterial} showPrices={showPrices} />
+                  ) : null}
                 </>
               ) : null}
 
               {activeView === "history" ? (
                 <>
-                  <PriceVariationBetweenDatesCard
-                    selectedMaterial={selectedMaterial}
-                    serie={serie}
-                    token={token}
-                    showPrices={showPrices}
+                  <WorkflowSwitcher
+                    eyebrow="Flujo de historial"
+                    title="Elegí cómo revisar los datos"
+                    workflows={HISTORY_WORKFLOWS.filter((workflow) => !workflow.adminOnly || isAdmin)}
+                    activeValue={historyWorkflow}
+                    onChange={setHistoryWorkflow}
                   />
 
-                  <PriceChart
-                    className="mt-3"
-                    serie={serie}
-                    forecast={forecast}
-                    selectedMaterial={selectedMaterial}
-                    showPrices={showPrices}
-                    chartMode={forecastChartMode}
-                    commercialMarginPct={commercialPrice?.margen_ganancia_pct ?? null}
-                    canShowCostDetails={isAdmin}
-                    action={
-                      isAdmin ? (
-                        <Button
-                          variant="outlined"
-                          color="secondary"
-                          startIcon={showPriceForm ? <ExpandLessIcon /> : <AddIcon />}
-                          onClick={() => setShowPriceForm((current) => !current)}
-                        >
-                          {showPriceForm ? "Ocultar carga" : "Registrar precio"}
-                        </Button>
-                      ) : null
-                    }
-                  />
+                  {historyWorkflow === "variation" ? (
+                    <PriceVariationBetweenDatesCard
+                      selectedMaterial={selectedMaterial}
+                      serie={serie}
+                      token={token}
+                      showPrices={showPrices}
+                    />
+                  ) : null}
 
-                  {isAdmin && showPriceForm ? (
+                  {historyWorkflow === "chart" ? (
+                    <PriceChart
+                      className="mt-3"
+                      serie={serie}
+                      forecast={forecast}
+                      selectedMaterial={selectedMaterial}
+                      showPrices={showPrices}
+                      chartMode={forecastChartMode}
+                      commercialMarginPct={commercialPrice?.margen_ganancia_pct ?? null}
+                      canShowCostDetails={isAdmin}
+                    />
+                  ) : null}
+
+                  {isAdmin && historyWorkflow === "load" ? (
                     <PriceForm
                       materiales={materiales}
                       presentaciones={presentaciones}
@@ -638,17 +755,29 @@ export function App() {
                     />
                   ) : null}
 
-                  <Box className="mt-3 grid gap-3 lg:grid-cols-2 lg:items-stretch">
+                  {historyWorkflow === "anomalies" ? (
                     <AnomaliesCard serie={serie} showPrices={showPrices} selectedMaterial={selectedMaterial} />
+                  ) : null}
+
+                  {historyWorkflow === "table" ? (
                     <HistoryTable serie={serie} showPrices={showPrices} selectedMaterial={selectedMaterial} />
-                  </Box>
+                  ) : null}
                 </>
               ) : null}
 
               {isAdmin && activeView === "admin" ? (
                 <>
-                  <UsersAdmin token={token} />
-                  <CommercialMarginsAdmin token={token} materiales={materiales} presentaciones={presentaciones} />
+                  <WorkflowSwitcher
+                    eyebrow="Flujo de administración"
+                    title="Elegí qué querés configurar"
+                    workflows={ADMIN_WORKFLOWS}
+                    activeValue={adminWorkflow}
+                    onChange={setAdminWorkflow}
+                  />
+                  {adminWorkflow === "users" ? <UsersAdmin token={token} /> : null}
+                  {adminWorkflow === "margins" ? (
+                    <CommercialMarginsAdmin token={token} materiales={materiales} presentaciones={presentaciones} />
+                  ) : null}
                 </>
               ) : null}
 
@@ -656,6 +785,39 @@ export function App() {
           )}
         </Container>
       )}
+    </Box>
+  );
+}
+
+function WorkflowSwitcher({ eyebrow, title, workflows, activeValue, onChange }) {
+  const activeWorkflow = workflows.find((workflow) => workflow.value === activeValue) || workflows[0];
+
+  return (
+    <Box className="mt-3 rounded-md border border-slate-200 bg-white p-3 shadow-md1">
+      <Box className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <Box>
+          <Typography variant="body2" fontWeight={900} color="text.secondary">
+            {eyebrow}
+          </Typography>
+          <Typography variant="h3" mt={0.25}>
+            {title}
+          </Typography>
+        </Box>
+        <ButtonGroup size="small" variant="outlined">
+          {workflows.map((workflow) => (
+            <Button
+              key={workflow.value}
+              variant={activeValue === workflow.value ? "contained" : "outlined"}
+              onClick={() => onChange(workflow.value)}
+            >
+              {workflow.label}
+            </Button>
+          ))}
+        </ButtonGroup>
+      </Box>
+      <Typography color="text.secondary" variant="body2" mt={1.5}>
+        {activeWorkflow?.helper}
+      </Typography>
     </Box>
   );
 }
