@@ -108,7 +108,7 @@ app/
   operations/
 
 frontend/
-docs/
+docs/documentacion/
 db/
 tests/
 ```
@@ -164,8 +164,8 @@ Mejores estimaciones hoy:
 
 Detalle completo:
 
-- [docs/MEDICIONES_FORECASTING.md](docs/MEDICIONES_FORECASTING.md)
-- [docs/DECISIONES_TESIS.md](docs/DECISIONES_TESIS.md)
+- [docs/documentacion/MEDICIONES_FORECASTING.md](docs/documentacion/MEDICIONES_FORECASTING.md)
+- [docs/documentacion/DECISIONES_TESIS.md](docs/documentacion/DECISIONES_TESIS.md)
 
 ## Optimizacion de compras
 
@@ -184,7 +184,7 @@ La optimizacion bajo presupuesto usa `PuLP`.
 Detalle metodologico:
 
 - [docs/HU/DISENO_EPICA_5.md](docs/HU/DISENO_EPICA_5.md)
-- [docs/DEMO_DSS.md](docs/DEMO_DSS.md)
+- [docs/documentacion/DEMO_DSS.md](docs/documentacion/DEMO_DSS.md)
 
 ## Bootstrap y reproducibilidad
 
@@ -261,10 +261,13 @@ Verificacion enfocada del DSS:
 
 ## Documentacion
 
-- [docs/MEDICIONES_FORECASTING.md](docs/MEDICIONES_FORECASTING.md): metricas, backtesting y comparativas
-- [docs/DECISIONES_TESIS.md](docs/DECISIONES_TESIS.md): decisiones metodologicas
-- [docs/REGISTRO_DECISIONES_TRABAJO.md](docs/REGISTRO_DECISIONES_TRABAJO.md): decisiones operativas de cierre MVP
-- [docs/DEMO_DSS.md](docs/DEMO_DSS.md): guion de demo reproducible del DSS
+- [docs/documentacion/MEDICIONES_FORECASTING.md](docs/documentacion/MEDICIONES_FORECASTING.md): metricas, backtesting y comparativas
+- [docs/documentacion/DECISIONES_TESIS.md](docs/documentacion/DECISIONES_TESIS.md): decisiones metodologicas
+- [docs/documentacion/REGISTRO_DECISIONES_TRABAJO.md](docs/documentacion/REGISTRO_DECISIONES_TRABAJO.md): decisiones operativas de cierre MVP
+- [docs/documentacion/DEMO_DSS.md](docs/documentacion/DEMO_DSS.md): guion de demo reproducible del DSS
+- [docs/documentacion/GUIA_FLUJOS_UI.md](docs/documentacion/GUIA_FLUJOS_UI.md): recorrido funcional de la interfaz
+- [docs/documentacion/GLOSARIO_FUNCIONAL.md](docs/documentacion/GLOSARIO_FUNCIONAL.md): terminos principales usados por el sistema
+- [docs/documentacion/ANOMALIAS_RANDOM_FOREST.md](docs/documentacion/ANOMALIAS_RANDOM_FOREST.md): deteccion de anomalias con Random Forest
 - [docs/HU/HU.md](docs/HU/HU.md): historias de usuario y estado funcional
 - [docs/HU/DISENO_EPICA_1.md](docs/HU/DISENO_EPICA_1.md): gestion y preparacion de datos
 - [docs/HU/DISENO_EPICA_2.md](docs/HU/DISENO_EPICA_2.md): analisis y visualizacion
@@ -272,9 +275,9 @@ Verificacion enfocada del DSS:
 - [docs/HU/DISENO_EPICA_4.md](docs/HU/DISENO_EPICA_4.md): proyeccion de costos de obra
 - [docs/HU/DISENO_EPICA_5.md](docs/HU/DISENO_EPICA_5.md): optimizacion de compras
 - [docs/HU/DISENO_EPICA_6.md](docs/HU/DISENO_EPICA_6.md): asistencia conversacional
-- [docs/DISENO_SELECTOR_MODELOS.md](docs/DISENO_SELECTOR_MODELOS.md): seleccion de modelos
-- [docs/DISENO_INTEGRACION_SELECTOR_FORECAST.md](docs/DISENO_INTEGRACION_SELECTOR_FORECAST.md): integracion futura del selector
-- [docs/TESIS_BORRADOR.md](docs/TESIS_BORRADOR.md): redaccion de tesis en curso
+- [docs/documentacion/DISENO_SELECTOR_MODELOS.md](docs/documentacion/DISENO_SELECTOR_MODELOS.md): seleccion de modelos
+- [docs/documentacion/DISENO_INTEGRACION_SELECTOR_FORECAST.md](docs/documentacion/DISENO_INTEGRACION_SELECTOR_FORECAST.md): integracion futura del selector
+- [docs/documentacion/TESIS_BORRADOR.md](docs/documentacion/TESIS_BORRADOR.md): redaccion de tesis en curso
 
 ## Nota de alcance
 

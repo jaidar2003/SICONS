@@ -94,7 +94,7 @@ La primera version debe ser deliberadamente simple:
 
 La recomendacion concreta es mantener una configuracion versionada, legible y acotada, separada del servicio de forecast. Esa configuracion no debe contener logica; solo datos declarativos.
 
-Importante: este documento describe la calibracion actual del selector en runtime. No debe confundirse con las mejores mediciones experimentales mas nuevas documentadas en `docs/MEDICIONES_FORECASTING.md`, porque algunas de esas mejoras todavia no fueron promovidas formalmente al selector productivo.
+Importante: este documento describe la calibracion actual del selector en runtime. No debe confundirse con las mejores mediciones experimentales mas nuevas documentadas en `docs/documentacion/MEDICIONES_FORECASTING.md`, porque algunas de esas mejoras todavia no fueron promovidas formalmente al selector productivo.
 
 ### Configuracion inicial conocida
 

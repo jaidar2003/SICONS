@@ -284,7 +284,7 @@ Cada decision incluye:
   - absorber la logica de seleccion con condicionales ad hoc dentro del flujo productivo.
 - Justificacion: la evidencia de backtesting ya justifica seleccionar configuraciones distintas por material y horizonte, pero esa capacidad debia incorporarse de forma reversible y defendible. El flag interno permite validar la integracion sin alterar la salida vigente del endpoint. Cuando se activa, el sistema resuelve el modelo recomendado, sus regresores y los metadatos metodologicos asociados; si no existe calibracion o faltan regresores operativos, degrada de forma controlada a `prophet_base`, marcado como `no_calibrado`, sin romper el endpoint ni inventar metricas nuevas.
 - Impacto en el sistema: `forecast_service` ya puede resolver `material_key` a partir de `Material.nombre`, consumir `resolve_model_selection(material_key, horizonte_meses)`, traducir la seleccion a una configuracion efectiva de `Prophet`, preservar la normalizacion por `kg`, y exponer `seleccion_modelo` con `material_key`, `modelo_resuelto`, `regresores_resueltos`, metricas de referencia, confiabilidad, `origen_decision`, `justificacion` y `no_calibrado` cuando el flag se encuentra activo. El frontend no fue modificado en esta etapa.
-- Limitaciones o trabajo futuro: la integracion permanece desactivada por defecto aun despues de una validacion controlada del cableado tecnico y del contrato de respuesta, ejecutada con el flag activado solo en memoria. Esa validacion no constituye una nueva medicion de backtesting ni de precision predictiva y no modifica las metricas documentadas. La activacion futura en prueba o produccion debe responder a un criterio explicito de activacion progresiva y rollback, documentado en `docs/DISENO_INTEGRACION_SELECTOR_FORECAST.md`, antes de considerar cualquier cambio del valor por defecto del flag.
+- Limitaciones o trabajo futuro: la integracion permanece desactivada por defecto aun despues de una validacion controlada del cableado tecnico y del contrato de respuesta, ejecutada con el flag activado solo en memoria. Esa validacion no constituye una nueva medicion de backtesting ni de precision predictiva y no modifica las metricas documentadas. La activacion futura en prueba o produccion debe responder a un criterio explicito de activacion progresiva y rollback, documentado en `docs/documentacion/DISENO_INTEGRACION_SELECTOR_FORECAST.md`, antes de considerar cualquier cambio del valor por defecto del flag.
   - eliminar de inmediato los paths legacy sin transicion;
   - mezclar bootstrap con comandos informales fuera del repositorio.
 - Justificacion: un namespace operativo explicito mejora la legibilidad del proyecto, facilita explicar la arquitectura y permite migrar de manera incremental sin romper de golpe referencias existentes. La compatibilidad minima en `app.db` evita una ruptura innecesaria mientras se termina de limpiar el remanente legacy.
@@ -391,3 +391,73 @@ Cada decision incluye:
 - Justificacion: la Epica 5 ya integra forecast, criticidad, comparacion economica, restriccion presupuestaria y recomendacion operativa trazable. La salida `/compras/recomendacion-operativa` permite responder que comprar ahora, que postergar, cuanto presupuesto consume, que impacto economico estima, con que confianza y bajo que supuestos. Eso satisface el nucleo de un sistema de soporte a la decision, aunque la interfaz conversacional y las alertas queden fuera del MVP actual.
 - Impacto en el sistema: la documentacion, las HU y la demo deben alinear el mensaje alrededor de `DSS de compra trazable`. La visualizacion queda explicada como interfaz de consulta, mientras que el nucleo metodologico se ubica en la decision economica generada por reglas, forecast y optimizacion.
 - Limitaciones o trabajo futuro: la denominacion DSS no implica automatizacion completa. Quedan fuera del alcance actual la conversacion en lenguaje natural, la operacion proactiva, sustitutos, multiples proveedores, restricciones logisticas y decisiones discretas por lote o calendario.
+
+## DT-26
+
+- Fecha aproximada: mayo de 2026
+- Area: calidad de datos y forecasting
+- Decision tomada: excluir registros con fecha posterior a la fecha de calculo al construir la serie mensual usada por el forecast.
+- Problema que resuelve: evita que una carga con comprobantes fechados en el futuro desplace artificialmente el inicio de la proyeccion y genere escenarios como `2026-12-01` cuando el analisis se esta ejecutando el `2026-05-15`.
+- Alternativas consideradas:
+  - permitir que todos los registros cargados entren al forecast sin filtrar por fecha;
+  - mostrar una advertencia visual y mantener el calculo sobre fechas futuras;
+  - corregir manualmente la base antes de cada demo.
+- Justificacion: un forecast defendible debe simular la informacion disponible al momento de calculo. Si el sistema utiliza registros posteriores a hoy, deja de representar una decision ex ante y pasa a mezclar datos observados futuros con proyeccion. El filtro por `date.today()` mantiene coherencia temporal y evita una explicacion confusa para el usuario.
+- Impacto en el sistema: `forecast_service.serie_mensual_material` solo considera precios con `fecha <= date.today()`. Los escenarios de costo, forecast y recomendaciones parten desde el mes posterior al ultimo dato no futuro disponible.
+- Limitaciones o trabajo futuro: si se necesita analizar una fecha de corte historica distinta de hoy, convendra parametrizar explicitamente una `fecha_corte` en lugar de depender siempre de la fecha del sistema.
+
+## DT-27
+
+- Fecha aproximada: mayo de 2026
+- Area: deteccion de anomalias
+- Decision tomada: reemplazar el umbral fijo de variacion mensual del `8%` por una deteccion basada en `RandomForestRegressor` y residuo dinamico.
+- Problema que resuelve: evita que la anomalia dependa de un porcentaje arbitrario igual para todos los materiales, meses y contextos de precio.
+- Alternativas consideradas:
+  - mantener el umbral fijo del `8%`;
+  - usar solo reglas estadisticas simples sobre variacion mensual;
+  - incorporar modelos mas complejos de deteccion no supervisada.
+- Justificacion: la recomendacion docente fue evitar un umbral fijo y usar un modelo de aprendizaje automatico. La solucion adoptada entrena un Random Forest sobre features temporales y rezagos de la serie mensual, estima el precio esperado y marca como anomalo aquello cuyo residuo porcentual queda por encima de un umbral robusto calculado con IQR. Asi el criterio se adapta al comportamiento historico de la serie.
+- Impacto en el sistema: la salida de anomalias deja de explicar la deteccion como "supera 8%" y pasa a informar precio esperado, residuo porcentual y variacion mensual. El frontend incorpora un grafico de serie con puntos anomalo destacados para hacerlo defendible visualmente.
+- Limitaciones o trabajo futuro: con series muy cortas no se fuerza un modelo porque no hay suficiente evidencia. A futuro puede compararse Random Forest contra Isolation Forest, modelos robustos de regresion o validaciones etiquetadas si se cuenta con anomalias reales confirmadas.
+
+## DT-28
+
+- Fecha aproximada: mayo de 2026
+- Area: interpretacion funcional de horizontes y escenarios
+- Decision tomada: separar en la interfaz los controles de `Vista actual / Serie historica`, horizonte de forecast, escenario de costos y horizonte de analisis individual.
+- Problema que resuelve: evita que el usuario interprete como contradictorias fechas o resultados que en realidad pertenecen a contextos distintos de calculo.
+- Alternativas consideradas:
+  - usar un unico horizonte global para toda la aplicacion;
+  - dejar fijo el escenario de costos;
+  - mantener solo el selector en Forecast y no replicarlo en Costos.
+- Justificacion: Forecast responde como evoluciona el precio proyectado; Costos responde que impacto economico tiene un escenario futuro; Analizar material responde una recomendacion individual para un horizonte elegido. Aunque todos reutilizan el forecast, cada pantalla tiene una pregunta funcional distinta y necesita que el usuario pueda controlar el contexto que esta viendo.
+- Impacto en el sistema: `Resumen` y `Forecast` exponen el selector de vista; `Costos` permite elegir escenario de costo de `1` a `12` meses; `Analizar material` permite elegir horizonte de recomendacion individual. La documentacion funcional explica la diferencia entre estos controles.
+- Limitaciones o trabajo futuro: si aparecen mas pantallas dependientes de horizonte, convendra centralizar el estado o mostrar una leyenda compacta con la fecha efectiva del escenario calculado.
+
+## DT-29
+
+- Fecha aproximada: mayo de 2026
+- Area: reglas de decision economica
+- Decision tomada: conservar un umbral de decision del `5%` como criterio operativo para distinguir senales fuertes de compra/postergacion frente a casos de monitoreo.
+- Problema que resuelve: evita recomendar acciones fuertes ante variaciones proyectadas pequenas, donde el error del forecast o la volatilidad normal pueden ser mas relevantes que la diferencia esperada.
+- Alternativas consideradas:
+  - recomendar siempre comprar si la variacion esperada es positiva;
+  - usar umbrales distintos no documentados por material;
+  - quitar el umbral y dejar la decision solo a criterio del usuario.
+- Justificacion: el umbral del `5%` funciona como margen minimo de materialidad economica. Si la variacion esperada queda dentro de ese rango, la recomendacion conservadora es monitorear, salvo que otras reglas justificadas modifiquen el resultado. Si supera el umbral y la criticidad/confiabilidad acompanan, la accion fuerte puede ser comprar ahora o postergar segun el signo de la variacion.
+- Impacto en el sistema: la recomendacion puede devolver `COMPRAR_AHORA`, `POSTERGAR`, `COMPRA_PARCIAL` o `MONITOREAR`, con justificacion asociada a variacion esperada, criticidad, confiabilidad y presupuesto.
+- Limitaciones o trabajo futuro: el `5%` es un criterio de cierre MVP. A futuro puede calibrarse por material, volatilidad historica, costo financiero, lead time de compra o tolerancia al riesgo del usuario.
+
+## DT-30
+
+- Fecha aproximada: mayo de 2026
+- Area: comunicacion de recomendaciones
+- Decision tomada: ajustar las justificaciones para distinguir entre `modelo no calibrado`, `confiabilidad baja` y `monitorear por variacion insuficiente`.
+- Problema que resuelve: evita mensajes contradictorios como recomendar monitoreo "porque la confiabilidad es alta o el modelo no esta calibrado".
+- Alternativas consideradas:
+  - mantener una justificacion generica para todos los casos conservadores;
+  - ocultar confiabilidad y mostrar solo la accion final;
+  - convertir toda senal incierta en compra parcial.
+- Justificacion: una recomendacion DSS debe ser trazable y semanticamente consistente. No es lo mismo monitorear por baja confianza, por falta de calibracion o porque la variacion esperada no supera el umbral de decision. Separar esos motivos mejora la defensa metodologica y la comprension del usuario.
+- Impacto en el sistema: las respuestas de compra explican con mayor precision por que no se habilita una accion fuerte. La documentacion funcional y el glosario reflejan los conceptos de confiabilidad, criticidad, umbral y monitoreo.
+- Limitaciones o trabajo futuro: las justificaciones siguen siendo reglas textuales. Si el DSS incorpora perfiles de usuario o politicas configurables, el lenguaje debera parametrizarse junto con esas reglas.
