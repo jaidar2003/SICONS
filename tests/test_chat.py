@@ -93,6 +93,8 @@ def test_build_material_context_formatea_recomendacion_real(monkeypatch: pytest.
         justificacion="El precio proyectado sube.",
         precio_actual=100,
         precio_proyectado_horizonte=130,
+        precio_proyectado_optimista=120,
+        precio_proyectado_pesimista=140,
         variacion_esperada_pct=30,
         mape=5,
         advertencias=(),
@@ -119,6 +121,8 @@ def test_build_material_context_informa_operaciones_administrativas_solo_admin(m
         justificacion="Revisar.",
         precio_actual=None,
         precio_proyectado_horizonte=None,
+        precio_proyectado_optimista=None,
+        precio_proyectado_pesimista=None,
         variacion_esperada_pct=None,
         mape=None,
         advertencias=(),
@@ -405,3 +409,96 @@ def test_endpoint_chat_cliente_rechaza_acciones_admin_sin_proveedor(question: st
         "proveedor_utilizado": False,
     }
     assert provider.calls == []
+
+def test_consultar_chat_admin_only_request_denied_for_regular_user():
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=2, rol="cliente")
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={"pregunta": "Listar usuarios", "historial": []},
+        )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    data = response.json()
+    assert data["aceptada"] is False
+    assert "administrador" in data["respuesta"]
+
+def test_consultar_chat_llm_config_error(monkeypatch):
+    from app.modules.chat.infrastructure.llm_client import LLMConfigurationError
+    def mock_answer(*args, **kwargs):
+        raise LLMConfigurationError("IA no configurada")
+    monkeypatch.setattr("app.modules.chat.interfaces.routes.answer_question", mock_answer)
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={"pregunta": "Hola", "historial": []},
+        )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 503
+    assert "configurada" in response.json()["detail"]
+
+def test_consultar_chat_llm_provider_error(monkeypatch):
+    from app.modules.chat.infrastructure.llm_client import LLMProviderError
+    def mock_answer(*args, **kwargs):
+        raise LLMProviderError("error provider")
+    monkeypatch.setattr("app.modules.chat.interfaces.routes.answer_question", mock_answer)
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={"pregunta": "Hola", "historial": []},
+        )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 502
+    assert "error provider" in response.json()["detail"]
+
+def test_consultar_chat_with_operation_plan(monkeypatch):
+    monkeypatch.setattr("app.modules.chat.interfaces.routes.needs_operation_plan", lambda x: True)
+    monkeypatch.setattr("app.modules.chat.interfaces.routes.plan_operation", lambda *args, **kwargs: {"action": "LIST_USERS"})
+    
+    from app.modules.chat.application.operations import OperationResult
+    monkeypatch.setattr("app.modules.chat.interfaces.routes.execute_operation", 
+                        lambda *args, **kwargs: OperationResult(context="LISTA DE USUARIOS", action="LIST_USERS"))
+    
+    from app.modules.chat.application.service import ChatAnswer
+    monkeypatch.setattr("app.modules.chat.interfaces.routes.answer_question", 
+                        lambda *args, **kwargs: ChatAnswer(aceptada=True, respuesta="Aqui estan los usuarios", proveedor_utilizado=True))
+    
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(get_by_id=lambda _id: SimpleNamespace(id=1), list_active=lambda: [])
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={"pregunta": "Lista los usuarios", "historial": [], "material_id": 1},
+        )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert "usuarios" in response.json()["respuesta"]
+
+def test_consultar_chat_operation_plan_value_error(monkeypatch):
+    monkeypatch.setattr("app.modules.chat.interfaces.routes.needs_operation_plan", lambda x: True)
+    monkeypatch.setattr("app.modules.chat.interfaces.routes.plan_operation", lambda *args, **kwargs: {"action": "LIST_USERS"})
+    
+    def mock_execute(*args, **kwargs):
+        raise ValueError("falta un dato")
+    monkeypatch.setattr("app.modules.chat.interfaces.routes.execute_operation", mock_execute)
+    
+    from app.modules.chat.application.service import ChatAnswer
+    monkeypatch.setattr("app.modules.chat.interfaces.routes.answer_question", 
+                        lambda *args, **kwargs: ChatAnswer(aceptada=True, respuesta="Error controlado", proveedor_utilizado=True))
+    
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(get_by_id=lambda _id: SimpleNamespace(id=1), list_active=lambda: [])
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={"pregunta": "Lista los usuarios", "historial": [], "material_id": 1},
+        )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200

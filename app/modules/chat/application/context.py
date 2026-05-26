@@ -43,9 +43,9 @@ def build_material_context(material, horizon: int, pricing_repo, *, is_admin: bo
         lines.append(
             f"- Precio proyectado al horizonte: ARS {recommendation.precio_proyectado_horizonte} por {material.unidad_base}."
         )
-    if recommendation.precio_proyectado_optimista is not None:
+    if getattr(recommendation, "precio_proyectado_optimista", None) is not None:
         lines.append(f"- Escenario optimista (precio mas bajo): ARS {recommendation.precio_proyectado_optimista} por {material.unidad_base}.")
-    if recommendation.precio_proyectado_pesimista is not None:
+    if getattr(recommendation, "precio_proyectado_pesimista", None) is not None:
         lines.append(f"- Escenario pesimista (precio mas alto): ARS {recommendation.precio_proyectado_pesimista} por {material.unidad_base}.")
     if recommendation.variacion_esperada_pct is not None:
         lines.append(f"- Variacion esperada: {recommendation.variacion_esperada_pct}%.")

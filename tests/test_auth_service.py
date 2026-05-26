@@ -3,9 +3,15 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+from unittest.mock import MagicMock
 
-from app.modules.auth.application.service import autenticar_usuario, habilitar_usuario, registrar_cliente
-
+from app.modules.auth.application.service import (
+    autenticar_usuario, 
+    habilitar_usuario, 
+    registrar_cliente, 
+    eliminar_usuario
+)
+from app.modules.auth.infrastructure.models import Usuario
 
 def make_session():
     engine = create_engine(
@@ -113,3 +119,57 @@ def test_usuario_inactivo_no_puede_autenticarse_hasta_habilitarse() -> None:
     assert habilitado.activo is True
     assert login.usuario.id == result.usuario.id
     assert login.access_token
+
+def test_registrar_cliente_invalid_data() -> None:
+    session, _engine = make_session()
+    with pytest.raises(HTTPException) as exc:
+        registrar_cliente(session, username="", nombre="n", email="e@e.com", password="p")
+    assert exc.value.status_code == 400
+    
+    with pytest.raises(HTTPException) as exc:
+        registrar_cliente(session, username="u", nombre="", email="e@e.com", password="p")
+    assert exc.value.status_code == 400
+    
+    with pytest.raises(HTTPException) as exc:
+        registrar_cliente(session, username="u", nombre="n", email="invalid-email", password="p")
+    assert exc.value.status_code == 400
+
+def test_registrar_cliente_duplicate() -> None:
+    session, _engine = make_session()
+    registrar_cliente(session, username="dup", nombre="n", email="dup@e.com", password="p")
+    
+    with pytest.raises(HTTPException) as exc:
+        registrar_cliente(session, username="dup", nombre="n2", email="other@e.com", password="p")
+    assert exc.value.status_code == 409
+    
+    with pytest.raises(HTTPException) as exc:
+        registrar_cliente(session, username="other", nombre="n2", email="dup@e.com", password="p")
+    assert exc.value.status_code == 409
+
+def test_habilitar_usuario_not_found() -> None:
+    session, _engine = make_session()
+    with pytest.raises(HTTPException) as exc:
+        habilitar_usuario(session, user_id=999)
+    assert exc.value.status_code == 404
+
+def test_eliminar_usuario_restrictions() -> None:
+    session, _engine = make_session()
+    admin = Usuario(id=1, username="a", email="a@a.com", nombre="a", password_hash="h", rol="admin")
+    other_admin = Usuario(id=2, username="a2", email="a2@a.com", nombre="a2", password_hash="h", rol="admin")
+    session.add_all([admin, other_admin])
+    session.commit()
+    
+    # Delete self
+    with pytest.raises(HTTPException) as exc:
+        eliminar_usuario(session, user_id=1, current_user=admin)
+    assert exc.value.status_code == 400
+    
+    # Delete non-existent
+    with pytest.raises(HTTPException) as exc:
+        eliminar_usuario(session, user_id=999, current_user=admin)
+    assert exc.value.status_code == 404
+        
+    # Delete admin
+    with pytest.raises(HTTPException) as exc:
+        eliminar_usuario(session, user_id=2, current_user=admin)
+    assert exc.value.status_code == 400

@@ -38,12 +38,27 @@ FORECAST_SELECTOR_FALLBACK_ORIGIN = "fallback_regresores"
 
 @dataclass(frozen=True)
 class ForecastMaterialResult:
-    dataset: list
+    dataset: list["ProphetRow"]
     metricas: ForecastMetricasRead
     forecast: list[ForecastPuntoRead]
     modelo: str = FORECAST_MODEL_NAME
     supuesto_regresores: str = FORECAST_REGRESSOR_NOTE
     seleccion_modelo: ForecastSelectionRead | None = None
+
+
+@dataclass(frozen=True)
+class ProphetRow:
+    ds: date | None
+    y: float
+
+
+@dataclass(frozen=True)
+class ProphetExecutionResult:
+    forecast: list[ForecastPuntoRead]
+    dataset: list[ProphetRow]
+    mape: float
+    mae: float
+    modelo_config: dict
 
 
 @dataclass(frozen=True)

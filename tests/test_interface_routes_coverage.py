@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
@@ -400,3 +401,53 @@ def test_pricing_routes_margenes_precio_comercial_imputacion_y_creacion(monkeypa
         current_user=object(),
     )
     assert created["material_id"] == 1
+
+def test_obtener_serie_precios_material_invalid_agrupacion():
+    material = SimpleNamespace(id=1, nombre="Cemento", unidad_base="kg")
+    repo = SimpleNamespace(get_by_id=lambda _id: material)
+    pricing_repo = SimpleNamespace(get_historical_prices=lambda *args: [])
+    
+    with pytest.raises(HTTPException) as exc:
+        pricing_routes.obtener_serie_precios_material(
+            material_id=1, agrupacion="invalid", material_repo=repo, pricing_repo=pricing_repo, current_user=None
+        )
+    assert exc.value.status_code == 422
+
+def test_obtener_variacion_entre_fechas_material_invalid_fechas():
+    material = SimpleNamespace(id=1, nombre="Cemento", unidad_base="kg")
+    repo = SimpleNamespace(get_by_id=lambda _id: material)
+    pricing_repo = SimpleNamespace(get_historical_prices=lambda *args: [])
+    
+    with pytest.raises(HTTPException) as exc:
+        pricing_routes.obtener_variacion_entre_fechas_material(
+            material_id=1, fecha_desde=date(2024, 1, 1), fecha_hasta=date(2023, 1, 1),
+            material_repo=repo, pricing_repo=pricing_repo, current_user=None
+        )
+    assert exc.value.status_code == 422
+
+def test_obtener_forecast_material_invalid_horizon():
+    with pytest.raises(HTTPException) as exc:
+        pricing_routes.obtener_forecast_material(material_id=1, horizonte_meses=13, current_user=None)
+    assert exc.value.status_code == 422
+
+def test_obtener_precio_comercial_material_invalid_horizon():
+    with pytest.raises(HTTPException) as exc:
+        pricing_routes.obtener_precio_comercial_material(material_id=1, horizonte_meses=13, current_user=None)
+    assert exc.value.status_code == 422
+
+def test_priorizar_materiales_por_criticidad_invalid_payload():
+    payload = MaterialCriticidadCreate(horizonte_meses=3, materiales=[], alpha=0, beta=0)
+    with pytest.raises(HTTPException) as exc:
+        pricing_routes.priorizar_materiales_por_criticidad(payload=payload, material_repo=None, pricing_repo=None, current_user=None)
+    assert exc.value.status_code == 422
+
+def test_alertas_lectura_batch():
+    # We need a db that supports .query().filter().update()
+    mock_db = MagicMock()
+    mock_query = mock_db.query.return_value
+    mock_filter = mock_query.filter.return_value
+    mock_filter.update.return_value = 2
+    
+    payload = AlertaBatchUpdate(alerta_ids=[1, 2], leida=True)
+    result = pricing_routes.marcar_alertas_como_leidas(payload=payload, db=mock_db, current_user=None)
+    assert "2 alertas actualizadas" in result["mensaje"]

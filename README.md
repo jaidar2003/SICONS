@@ -4,6 +4,8 @@
 
 # BuildWise
 
+![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen)
+
 BuildWise es un sistema para analizar precios de materiales de construccion, proyectar su evolucion y apoyar decisiones de compra.
 
 Hoy el proyecto cubre tres frentes:

@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Identity,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
@@ -28,7 +29,7 @@ class Material(Base):
     __tablename__ = "materiales"
     __table_args__ = (UniqueConstraint("nombre", "unidad_base", "marca", name="materiales_nombre_unidad_marca_unique"),)
 
-    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(150))
     categoria: Mapped[str | None] = mapped_column(String(100))
     marca: Mapped[str | None] = mapped_column(String(100))
@@ -51,7 +52,7 @@ class Presentacion(Base):
         Index("idx_presentaciones_material_id", "material_id"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     material_id: Mapped[int] = mapped_column(ForeignKey("materiales.id", name="presentaciones_material_id_fkey", ondelete="RESTRICT"))
     nombre_presentacion: Mapped[str] = mapped_column(String(100))
     cantidad_base: Mapped[Decimal] = mapped_column(Numeric(12, 4))
@@ -71,7 +72,7 @@ class Fuente(Base):
     __tablename__ = "fuentes"
     __table_args__ = (UniqueConstraint("nombre", name="fuentes_nombre_key"),)
 
-    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(150))
     tipo_fuente: Mapped[str | None] = mapped_column(String(50))
     descripcion: Mapped[str | None] = mapped_column(Text)

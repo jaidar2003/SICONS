@@ -503,8 +503,12 @@ def test_forecast_helpers_sin_regresores() -> None:
             return pd.DataFrame({"ds": pd.date_range(start=start, periods=periods, freq=freq)})
 
         def predict(self, df):
-            return pd.DataFrame({"ds": df["ds"], "yhat": [110.0 + index for index in range(len(df))]})
-
+            return pd.DataFrame({
+                "ds": df["ds"],
+                "yhat": [110.0 + index for index in range(len(df))],
+                "yhat_lower": [105.0 + index for index in range(len(df))],
+                "yhat_upper": [115.0 + index for index in range(len(df))]
+            })
     dataset = [ProphetRow(ds=date(2024, month, 1), y=100.0 + month) for month in range(1, 7)]
     with pytest.MonkeyPatch.context() as monkeypatch_folds:
         monkeypatch_folds.setattr(

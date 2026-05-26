@@ -433,6 +433,35 @@ class OperationalPurchaseRecommendationItemRead(BaseModel):
     explicacion: str
 
 
+class OperationalPurchaseRecommendationItemRead(BaseModel):
+    material_id: int
+    material_key: str
+    accion_recomendada: Literal["COMPRAR_AHORA", "POSTERGAR", "COMPRA_PARCIAL"]
+    cantidad_comprar_ahora: Decimal
+    cantidad_postergar: Decimal
+    impacto_economico_estimado: Decimal
+    impacto_economico_pct: Decimal
+    confianza: str
+    criticidad: str
+    recomendacion_simple: Literal["COMPRAR_AHORA", "ESPERAR", "MONITOREAR"]
+    mejor_estrategia: Literal["COMPRAR_AHORA", "ESPERAR_AL_HORIZONTE", "COMPRA_PARCIAL"]
+    ventaja_estrategia_significativa: bool
+    explicacion: str
+
+
+class OperationalPurchaseRecommendationRead(BaseModel):
+    fecha_calculo: date
+    horizonte_meses: int
+    presupuesto_total: Decimal
+    presupuesto_utilizado: Decimal
+    presupuesto_restante: Decimal
+    ahorro_total_estimado: Decimal
+    decision_resumen: str
+    items: list[OperationalPurchaseRecommendationItemRead]
+    supuestos: list[str]
+    advertencias: list[str]
+
+
 class AlertaRead(BaseModel):
     id: int
     material_id: int | None

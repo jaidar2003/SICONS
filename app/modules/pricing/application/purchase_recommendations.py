@@ -49,8 +49,6 @@ class PurchaseRecommendationResult:
     variacion_esperada_pct: Decimal | None
     precio_actual: Decimal | None
     precio_proyectado_horizonte: Decimal | None
-    precio_proyectado_optimista: Decimal | None = None
-    precio_proyectado_pesimista: Decimal | None = None
     cantidad_objetivo: Decimal | None
     impacto_economico_estimado: Decimal | None
     mape: Decimal | None
@@ -60,6 +58,8 @@ class PurchaseRecommendationResult:
     criticidad: str
     justificacion: str
     advertencias: tuple[str, ...]
+    precio_proyectado_optimista: Decimal | None = None
+    precio_proyectado_pesimista: Decimal | None = None
 
 
 def _quantize_amount(value: Decimal) -> Decimal:

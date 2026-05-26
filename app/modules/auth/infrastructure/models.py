@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, Identity, String, func
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, Identity, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.shared.database.base import Base
@@ -10,10 +10,10 @@ class Usuario(Base):
     __tablename__ = "usuarios"
     __table_args__ = (
         CheckConstraint("rol IN ('admin', 'cliente')", name="usuarios_rol_allowed"),
-        CheckConstraint("btrim(username::text) <> ''::text", name="usuarios_username_not_blank"),
+        CheckConstraint("trim(username) <> ''", name="usuarios_username_not_blank"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     email: Mapped[str | None] = mapped_column(String(160), unique=True, nullable=True)
     nombre: Mapped[str] = mapped_column(String(120), nullable=False)

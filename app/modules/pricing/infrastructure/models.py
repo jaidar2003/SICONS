@@ -12,6 +12,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Identity,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
@@ -39,7 +40,7 @@ class PrecioHistorico(Base):
         ),
         CheckConstraint("precio_original >= 0", name="precios_historicos_precio_original_nonnegative"),
         CheckConstraint("precio_normalizado >= 0", name="precios_historicos_precio_normalizado_nonnegative"),
-        CheckConstraint("btrim(moneda::text) <> ''::text", name="precios_historicos_moneda_not_blank"),
+        CheckConstraint("trim(moneda) <> ''", name="precios_historicos_moneda_not_blank"),
         CheckConstraint(
             "origen_dato IN ('REAL', 'ESTIMADO')",
             name="precios_historicos_origen_dato_allowed",
@@ -58,7 +59,7 @@ class PrecioHistorico(Base):
         ),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     material_id: Mapped[int] = mapped_column(ForeignKey("materiales.id", name="precios_historicos_material_id_fkey", ondelete="RESTRICT"))
     presentacion_id: Mapped[int | None] = mapped_column(
         ForeignKey("presentaciones.id", name="precios_historicos_presentacion_id_fkey", ondelete="RESTRICT")
@@ -87,7 +88,7 @@ class ExternalIndexValue(Base):
         Index("idx_external_index_values_series_date", "series_id", "date"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     source_name: Mapped[str] = mapped_column(String(50))
     series_id: Mapped[str] = mapped_column(String(100))
     date: Mapped[date] = mapped_column(Date)
@@ -129,7 +130,7 @@ class CommercialMargin(Base):
         Index("idx_commercial_margins_product_key", "product_key"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     scope: Mapped[str] = mapped_column(String(20), nullable=False)
     material_id: Mapped[int | None] = mapped_column(ForeignKey("materiales.id", name="commercial_margins_material_id_fkey", ondelete="RESTRICT"))
     presentation_id: Mapped[int | None] = mapped_column(
@@ -158,7 +159,7 @@ class Alerta(Base):
         Index("idx_alertas_created_at", text("created_at DESC")),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     usuario_id: Mapped[int | None] = mapped_column(
         ForeignKey("usuarios.id", name="alertas_usuario_id_fkey", ondelete="CASCADE")
     )
