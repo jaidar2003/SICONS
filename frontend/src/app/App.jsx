@@ -36,6 +36,7 @@ import { PurchaseDecisionCard } from "../features/pricing/PurchaseDecisionCard.j
 import { PriceChart } from "../features/pricing/PriceChart.jsx";
 import { CommercialMarginsAdmin } from "../features/admin/CommercialMarginsAdmin.jsx";
 import { UsersAdmin } from "../features/admin/UsersAdmin.jsx";
+import { ChatCard } from "../features/chat/ChatCard.jsx";
 import { PriceVariationBetweenDatesCard } from "../features/pricing/PriceVariationBetweenDatesCard.jsx";
 import { PurchaseScenarioSimulationCard } from "../features/pricing/PurchaseScenarioSimulationCard.jsx";
 import { createPrecioHistorico } from "../features/pricing/pricing.api.js";
@@ -81,11 +82,10 @@ const VIEW_TABS = [
   {
     value: "chatbot",
     label: "Chatbot IA",
-    description: "Asistente conversacional para consultas y recomendaciones. Se incorpora en el segundo sprint.",
+    description: "Asistente conversacional restringido a consultas del proyecto.",
     accent: brand.sections.chatbot.accent,
-    eyebrow: "Segundo sprint",
+    eyebrow: "Asistencia conversacional",
     icon: AdminPanelSettingsOutlinedIcon,
-    disabled: true,
   },
   {
     value: "history",
@@ -439,6 +439,7 @@ export function App() {
       <AppHeader
         apiStatus={apiStatus}
         user={user}
+        token={token}
         onLogout={handleLogout}
         showPrices={showPrices}
         onToggleShowPrices={(event) => {
@@ -743,6 +744,10 @@ export function App() {
                     <CostProjectionCard forecast={forecast} selectedMaterial={selectedMaterial} showPrices={showPrices} />
                   ) : null}
                 </>
+              ) : null}
+
+              {activeView === "chatbot" ? (
+                <ChatCard token={token} selectedMaterial={selectedMaterial} forecastHorizon={forecastHorizon} isAdmin={isAdmin} />
               ) : null}
 
               {activeView === "history" ? (

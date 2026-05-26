@@ -291,22 +291,26 @@ def pronosticar_futuro(
             raise HTTPException(status_code=422, detail="No hay regresores externos alineados con la ultima fecha observada.")
         futuro_reg = proyectar_regresores_futuros(pd, regresores_hasta_ultima_fecha, fechas_futuras, regresores)
         futuro = pd.concat([dataset_reg[["ds", *regresores]], futuro_reg], ignore_index=True)
-        forecast = modelo.predict(futuro)[["ds", "yhat"]].tail(horizonte_meses)
+        forecast = modelo.predict(futuro)[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail(horizonte_meses)
     else:
         modelo.fit(dataset_df)
         futuro = modelo.make_future_dataframe(periods=horizonte_meses, freq="MS")
-        forecast = modelo.predict(futuro)[["ds", "yhat"]].tail(horizonte_meses)
+        forecast = modelo.predict(futuro)[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail(horizonte_meses)
 
     puntos: list[ForecastPuntoRead] = []
     usa_equivalencias = unidad_base == "kg" and material_nombre == "Cemento Portland"
     for _, fila in forecast.iterrows():
         precio = float(fila["yhat"])
+        precio_optimista = float(fila["yhat_lower"])
+        precio_pesimista = float(fila["yhat_upper"])
         equivalencia_25 = Decimal(f"{precio * 25:.2f}") if usa_equivalencias else None
         equivalencia_50 = Decimal(f"{precio * 50:.2f}") if usa_equivalencias else None
         puntos.append(
             ForecastPuntoRead(
                 fecha=fila["ds"].date(),
                 precio_proyectado=Decimal(f"{precio:.2f}"),
+                precio_optimista=Decimal(f"{precio_optimista:.2f}"),
+                precio_pesimista=Decimal(f"{precio_pesimista:.2f}"),
                 precio_equivalente_25kg=equivalencia_25,
                 precio_equivalente_50kg=equivalencia_50,
             )

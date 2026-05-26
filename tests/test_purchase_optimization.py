@@ -133,7 +133,7 @@ def test_no_compra_mas_que_la_cantidad_objetivo() -> None:
     assert result.items[0].cantidad_recomendada_postergar >= Decimal("0.0000")
 
 
-def test_minimiza_costo_esperado_bajo_presupuesto_restrictivo() -> None:
+def test_prioriza_ahorro_ponderado_por_criticidad_bajo_presupuesto_restrictivo() -> None:
     result = optimizar_compra_items(
         presupuesto_total=Decimal("100.00"),
         horizonte_meses=3,
@@ -160,8 +160,8 @@ def test_minimiza_costo_esperado_bajo_presupuesto_restrictivo() -> None:
     )
 
     cantidades = {item.material_id: item.cantidad_recomendada_comprar_ahora for item in result.items}
-    assert cantidades[1] == Decimal("0.0000")
-    assert cantidades[2] == Decimal("1.0000")
+    assert cantidades[1] == Decimal("1.0000")
+    assert cantidades[2] == Decimal("0.0000")
 
 
 def test_material_con_baja_no_se_prioriza_si_el_beneficio_esperado_es_cero() -> None:
@@ -215,7 +215,7 @@ def test_con_presupuesto_suficiente_compra_toda_la_cantidad_objetivo_con_benefic
     assert cantidades[2] == Decimal("3.0000")
 
 
-def test_con_presupuesto_limitado_asigna_primero_al_mayor_ahorro_de_costo() -> None:
+def test_con_presupuesto_limitado_asigna_primero_al_mayor_ahorro_ponderado() -> None:
     result = optimizar_compra_items(
         presupuesto_total=Decimal("100.00"),
         horizonte_meses=3,
@@ -242,8 +242,8 @@ def test_con_presupuesto_limitado_asigna_primero_al_mayor_ahorro_de_costo() -> N
     )
 
     cantidades = {item.material_id: item.cantidad_recomendada_comprar_ahora for item in result.items}
-    assert cantidades[1] == Decimal("0.0000")
-    assert cantidades[2] == Decimal("1.0000")
+    assert cantidades[1] == Decimal("1.0000")
+    assert cantidades[2] == Decimal("0.0000")
 
 
 def test_respeta_minimo_de_compra_inmediata_por_criticidad_si_se_informa() -> None:
@@ -256,7 +256,7 @@ def test_respeta_minimo_de_compra_inmediata_por_criticidad_si_se_informa() -> No
                 material_key="cemento-portland",
                 cantidad_objetivo="1.0000",
                 precio_actual="100.00",
-                precio_proyectado="130.00",
+                precio_proyectado="110.00",
                 criticidad="alta",
                 peso_criticidad="3.00",
             ),
@@ -280,7 +280,7 @@ def test_respeta_minimo_de_compra_inmediata_por_criticidad_si_se_informa() -> No
                 material_key="cemento-portland",
                 cantidad_objetivo="1.0000",
                 precio_actual="100.00",
-                precio_proyectado="130.00",
+                precio_proyectado="110.00",
                 criticidad="alta",
                 peso_criticidad="3.00",
                 porcentaje_minimo_compra_inmediata=Decimal("1.0000"),

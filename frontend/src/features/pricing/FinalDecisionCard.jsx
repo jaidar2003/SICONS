@@ -319,7 +319,7 @@ export function FinalDecisionCard({ materiales, forecastHorizon, token, showPric
 
           {!result && !loading ? (
             <Alert severity="info">
-              Usá los valores precargados para una demo rápida con presupuesto restrictivo. La salida minimiza costo esperado y respeta presupuesto, cantidades y mínimos configurados.
+              Usá los valores precargados para una demo rápida con presupuesto restrictivo. La salida prioriza ahorro evitado ponderado por criticidad y respeta presupuesto, cantidades y mínimos configurados.
             </Alert>
           ) : null}
 

@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_base_url: str | None = None
     openai_model: str | None = None
+    openai_timeout_seconds: int = 30
+    chat_provider: str = "openai"
+    anthropic_api_key: str | None = None
+    anthropic_base_url: str = "https://api.anthropic.com/v1"
+    anthropic_model: str | None = None
+    anthropic_version: str = "2023-06-01"
+    anthropic_max_tokens: int = 1024
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

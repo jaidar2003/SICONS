@@ -49,6 +49,8 @@ class PurchaseRecommendationResult:
     variacion_esperada_pct: Decimal | None
     precio_actual: Decimal | None
     precio_proyectado_horizonte: Decimal | None
+    precio_proyectado_optimista: Decimal | None = None
+    precio_proyectado_pesimista: Decimal | None = None
     cantidad_objetivo: Decimal | None
     impacto_economico_estimado: Decimal | None
     mape: Decimal | None
@@ -120,6 +122,8 @@ def evaluar_recomendacion_compra(
     no_calibrado: bool,
     precio_actual: Decimal | None = None,
     precio_proyectado_horizonte: Decimal | None = None,
+    precio_proyectado_optimista: Decimal | None = None,
+    precio_proyectado_pesimista: Decimal | None = None,
     mape: Decimal | None = None,
     advertencias: list[str] | tuple[str, ...] | None = None,
 ) -> PurchaseRecommendationResult:
@@ -140,6 +144,8 @@ def evaluar_recomendacion_compra(
             variacion_esperada_pct=None,
             precio_actual=precio_actual,
             precio_proyectado_horizonte=precio_proyectado_horizonte,
+            precio_proyectado_optimista=precio_proyectado_optimista,
+            precio_proyectado_pesimista=precio_proyectado_pesimista,
             cantidad_objetivo=cantidad_objetivo,
             impacto_economico_estimado=impacto_economico_estimado,
             mape=mape,
@@ -164,6 +170,8 @@ def evaluar_recomendacion_compra(
             variacion_esperada_pct=variacion_esperada_pct,
             precio_actual=precio_actual,
             precio_proyectado_horizonte=precio_proyectado_horizonte,
+            precio_proyectado_optimista=precio_proyectado_optimista,
+            precio_proyectado_pesimista=precio_proyectado_pesimista,
             cantidad_objetivo=cantidad_objetivo,
             impacto_economico_estimado=impacto_economico_estimado,
             mape=mape,
@@ -223,6 +231,8 @@ def evaluar_recomendacion_compra(
         variacion_esperada_pct=variacion_esperada_pct,
         precio_actual=precio_actual,
         precio_proyectado_horizonte=precio_proyectado_horizonte,
+        precio_proyectado_optimista=precio_proyectado_optimista,
+        precio_proyectado_pesimista=precio_proyectado_pesimista,
         cantidad_objetivo=cantidad_objetivo,
         impacto_economico_estimado=impacto_economico_estimado,
         mape=mape,
@@ -318,6 +328,8 @@ def recomendar_momento_compra(
         variacion_esperada_pct=variacion_esperada_pct,
         precio_actual=ultimo_precio,
         precio_proyectado_horizonte=punto_objetivo.precio_proyectado,
+        precio_proyectado_optimista=punto_objetivo.precio_optimista,
+        precio_proyectado_pesimista=punto_objetivo.precio_pesimista,
         mape=mape,
         confiabilidad=confiabilidad,
         criticidad=criticidad,

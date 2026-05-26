@@ -8,6 +8,7 @@ from app.modules.auth.infrastructure.models import Usuario
 from app.modules.auth.interfaces.dependencies import get_current_user, require_admin
 from app.modules.catalog.domain.repositories import MaterialRepository
 from app.modules.catalog.interfaces.dependencies import get_material_repository
+from app.modules.pricing.application.alerts import generar_alertas_proactivas
 from app.modules.pricing.application.commercial_margins import (
     actualizar_margen_comercial as actualizar_margen_comercial_service,
 )
@@ -50,9 +51,11 @@ from app.modules.pricing.application.series import (
 )
 from app.modules.pricing.domain.exceptions import MaterialNotFoundException
 from app.modules.pricing.domain.repositories import PricingRepository
-from app.modules.pricing.infrastructure.models import ExternalIndexValue, PrecioHistorico
+from app.modules.pricing.infrastructure.models import Alerta, ExternalIndexValue, PrecioHistorico
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
 from app.modules.pricing.interfaces.schemas import (
+    AlertaBatchUpdate,
+    AlertaRead,
     CommercialMarginCreate,
     CommercialMarginRead,
     CommercialMarginUpdate,
@@ -576,6 +579,56 @@ def actualizar_margen_comercial(
 ) -> CommercialMarginRead:
     margin = actualizar_margen_comercial_service(db, margin_id=margin_id, update_data=payload.model_dump(exclude_unset=True))
     return CommercialMarginRead.model_validate(margin)
+
+
+# --- Alertas Proactivas ---
+
+@router.post("/alertas/generar", status_code=status.HTTP_201_CREATED)
+def ejecutar_generacion_alertas(
+    db: Session = Depends(get_db),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    admin: Usuario = Depends(require_admin),
+):
+    """
+    Ejecuta el motor de alertas proactivas. Solo disponible para administradores.
+    """
+    generadas = generar_alertas_proactivas(db, pricing_repo)
+    return {"mensaje": f"Proceso completado. Se generaron {generadas} alertas nuevas."}
+
+
+@router.get("/alertas", response_model=list[AlertaRead])
+def listar_alertas(
+    solo_no_leidas: bool = False,
+    material_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+) -> list[AlertaRead]:
+    """
+    Lista las alertas proactivas generadas por el sistema.
+    """
+    query = db.query(Alerta)
+    if solo_no_leidas:
+        query = query.filter(Alerta.leida == False)
+    if material_id:
+        query = query.filter(Alerta.material_id == material_id)
+
+    return query.order_by(Alerta.created_at.desc()).all()
+
+
+@router.patch("/alertas/lectura")
+def marcar_alertas_como_leidas(
+    payload: AlertaBatchUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Marca un conjunto de alertas como leidas.
+    """
+    db.query(Alerta).filter(Alerta.id.in_(payload.alerta_ids)).update(
+        {"leida": payload.leida}, synchronize_session=False
+    )
+    db.commit()
+    return {"mensaje": f"{len(payload.alerta_ids)} alertas actualizadas."}
 
 
 @router.get("/materiales/{material_id}/precio-comercial", response_model=CommercialPriceRead)

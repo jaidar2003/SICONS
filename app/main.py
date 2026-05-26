@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.modules.auth.interfaces import routes as auth
 from app.modules.catalog.interfaces import fuentes, materiales, presentaciones
+from app.modules.chat.interfaces import routes as chat
 from app.modules.health.interfaces import routes as health
 from app.modules.pricing.interfaces import routes as precios_historicos
 from app.shared.api.exception_handlers import register_exception_handlers
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
     app.include_router(presentaciones.router)
     app.include_router(fuentes.router)
     app.include_router(precios_historicos.router)
+    app.include_router(chat.router)
     return app
 
 

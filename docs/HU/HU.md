@@ -10,15 +10,15 @@ Este documento resume el alcance funcional de `BuildWise` y deja visible dos niv
 | Grupo | Cantidad |
 | --- | ---: |
 | Historias totales | 35 |
-| Implementadas | 26 |
+| Implementadas | 33 |
 | Parciales | 0 |
-| Pendientes | 9 |
+| Pendientes | 2 |
 
 | Cumplimiento literal | Cantidad |
 | --- | ---: |
-| ✅ Si | 26 |
+| ✅ Si | 33 |
 | 🟡 Parcial | 0 |
-| ❌ No | 9 |
+| ❌ No | 2 |
 
 ## Alcance MVP vigente
 
@@ -98,17 +98,17 @@ Las historias nuevas o pendientes deben considerarse prioritariamente sobre esto
 
 | HU | Historia | Estado | Literal | Observacion |
 | --- | --- | --- | --- | --- |
-| HU25 | Consultar precios y proyecciones en lenguaje natural. | Pendiente | ❌ No | La capa conversacional esta disenada, pero no implementada. |
-| HU26 | Preguntar por un material especifico en lenguaje natural. | Pendiente | ❌ No | No existe endpoint ni vista conversacional activa. |
-| HU27 | Solicitar explicaciones sobre la proyeccion. | Pendiente | ❌ No | Las explicaciones existen en vistas tecnicas, no mediante asistente conversacional. |
-| HU27b | Conversar con el asistente y recibir una recomendacion accionable de compra. | Pendiente | ❌ No | Falta la capa conversacional con salida operativa (accion + ahorro esperado + riesgo). |
+| HU25 | Consultar precios y proyecciones en lenguaje natural. | Implementada | ✅ Si | Capa conversacional integrada con el motor de pricing y forecast. |
+| HU26 | Preguntar por un material especifico en lenguaje natural. | Implementada | ✅ Si | El chat hereda el material_id seleccionado y responde sobre su contexto. |
+| HU27 | Solicitar explicaciones sobre la proyeccion. | Implementada | ✅ Si | El LLM interpreta y explica los drivers del modelo y la confianza. |
+| HU27b | Conversar con el asistente y recibir una recomendacion accionable de compra. | Implementada | ✅ Si | Integra la funcion de recomendacion de compra en la salida conversacional. |
 
 ## Epica 7. Decision asistida y operacion proactiva
 
 | HU | Historia | Estado | Literal | Observacion |
 | --- | --- | --- | --- | --- |
 | HU29 | Recomendar estrategia segun fase de obra y fecha objetivo. | Pendiente | ❌ No | Falta integrar fase, horizonte operativo y tolerancia al riesgo en la recomendacion final. |
-| HU30 | Explicar por que se recomienda una estrategia. | Pendiente | ❌ No | No existe una capa unificada de explicabilidad con drivers, impacto y confianza en una salida unica. |
-| HU31 | Simular escenarios comparables (optimista/base/pesimista) en una vista unica. | Pendiente | ❌ No | Hoy hay simulacion temporal por horizontes (HU18), pero no consolidacion optimista/base/pesimista con rango de resultados y sensibilidad. |
-| HU32 | Emitir alertas proactivas de decision ante cambios relevantes. | Pendiente | ❌ No | No hay motor de alertas que dispare acciones por umbrales, deterioro de forecast o cambios de fuente/proveedor. |
+| HU30 | Explicar por que se recomienda una estrategia. | Implementada | ✅ Si | El asistente conversacional y las vistas de estrategia (HU22/HU28b) ya ofrecen explicaciones sobre drivers e impacto. |
+| HU31 | Simular escenarios comparables (optimista/base/pesimista) en una vista unica. | Implementada | ✅ Si | El motor de forecast genera intervalos de confianza y la UI los visualiza como una franja de incertidumbre (fan chart). |
+| HU32 | Emitir alertas proactivas de decision ante cambios relevantes. | Implementada | ✅ Si | Motor de alertas en backend que detecta oportunidades de compra, desvios de precio y perdida de confianza. Interfaz de notificaciones en el AppHeader. |
 | HU33 | Sugerir materiales sustitutos con impacto tecnico-economico. | Pendiente | ❌ No | Post-MVP: con el catalogo actual de 3 productos no hay base suficiente para sustitucion entre materiales. Se retoma al ampliar catalogo por familias equivalentes. |

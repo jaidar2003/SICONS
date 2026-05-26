@@ -1,0 +1,61 @@
+application {
+  config {
+    baseName store
+    applicationType monolith
+    packageName com.example.store
+    authenticationType jwt
+    prodDatabaseType postgresql
+    devDatabaseType postgresql
+    buildTool maven
+    clientFramework react
+    testFrameworks [cypress]
+    enableSwaggerCodegen true
+  }
+  entities Product, ProductCategory, CustomerDetails, ShoppingCart, ProductOrder
+}
+
+entity Product {
+  name String required minlength(2),
+  price BigDecimal required min(0),
+  stock Integer required min(0)
+}
+
+entity ProductCategory {
+  name String required,
+  description String
+}
+
+entity CustomerDetails {
+  phone String,
+  address String required
+}
+
+entity ShoppingCart {
+  createdDate Instant required,
+  status String required
+}
+
+entity ProductOrder {
+  placedDate Instant required,
+  quantity Integer required min(1)
+}
+
+relationship ManyToOne {
+  Product{category(name)} to ProductCategory,
+  CustomerDetails{user(login)} to User
+}
+
+relationship OneToOne {
+  ShoppingCart{customer(address)} to CustomerDetails
+}
+
+relationship OneToMany {
+  ShoppingCart{orders} to ProductOrder{cart}
+}
+
+relationship ManyToOne {
+  ProductOrder{product(name)} to Product
+}
+
+paginate Product, ProductOrder with pagination
+service all with serviceClass

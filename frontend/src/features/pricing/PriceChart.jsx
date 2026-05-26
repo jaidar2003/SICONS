@@ -52,6 +52,16 @@ export function PriceChart({
   const forecastDataset = showPrices
     ? forecastPoints.map((point) => getDisplayPrice(point.precio_proyectado, selectedMaterial?.nombre, forecast?.unidad_base))
     : projectedVariationSeries;
+  const optimisticForecastDataset = showPrices
+    ? forecastPoints.map((point) => getDisplayPrice(point.precio_optimista ?? point.precio_proyectado, selectedMaterial?.nombre, forecast?.unidad_base))
+    : forecastPoints.map((point) =>
+        baseValue === 0 ? 0 : ((Number(point.precio_optimista ?? point.precio_proyectado) - baseValue) / baseValue) * 100
+      );
+  const pessimisticForecastDataset = showPrices
+    ? forecastPoints.map((point) => getDisplayPrice(point.precio_pesimista ?? point.precio_proyectado, selectedMaterial?.nombre, forecast?.unidad_base))
+    : forecastPoints.map((point) =>
+        baseValue === 0 ? 0 : ((Number(point.precio_pesimista ?? point.precio_proyectado) - baseValue) / baseValue) * 100
+      );
   const commercialHistoricalDataset = showPrices
     ? serie.map((point) => getDisplayPrice(Number(point.precio_promedio_normalizado) * commercialMultiplier, selectedMaterial?.nombre, point.unidad_base))
     : variationSeries;
@@ -62,6 +72,16 @@ export function PriceChart({
     ...Array(Math.max(serie.length - 1, 0)).fill(null),
     ...(serie.length ? [historicalDataset[historicalDataset.length - 1]] : []),
     ...forecastDataset,
+  ];
+  const optimisticForecastLine = [
+    ...Array(Math.max(serie.length - 1, 0)).fill(null),
+    ...(serie.length ? [historicalDataset[historicalDataset.length - 1]] : []),
+    ...optimisticForecastDataset,
+  ];
+  const pessimisticForecastLine = [
+    ...Array(Math.max(serie.length - 1, 0)).fill(null),
+    ...(serie.length ? [historicalDataset[historicalDataset.length - 1]] : []),
+    ...pessimisticForecastDataset,
   ];
   const commercialForecastLine = [
     ...Array(Math.max(serie.length - 1, 0)).fill(null),
@@ -250,11 +270,31 @@ export function PriceChart({
         ...(forecastPoints.length
           ? [
               {
+                label: "Escenario pesimista (alto)",
+                data: pessimisticForecastLine,
+                borderColor: "transparent",
+                backgroundColor: "rgba(237, 41, 57, 0.08)",
+                fill: false,
+                borderWidth: 0,
+                tension: 0.2,
+                pointRadius: 0,
+              },
+              {
+                label: "Escenario optimista (bajo)",
+                data: optimisticForecastLine,
+                borderColor: "transparent",
+                backgroundColor: "rgba(237, 41, 57, 0.08)",
+                fill: "-1",
+                borderWidth: 0,
+                tension: 0.2,
+                pointRadius: 0,
+              },
+              {
                 label: showPrices ? "Forecast" : "Forecast acumulado %",
                 data: forecastLine,
                 borderColor: "#ED2939",
-                backgroundColor: "rgba(237, 41, 57, 0.18)",
-                fill: true,
+                backgroundColor: "transparent",
+                fill: false,
                 borderWidth: 2.5,
                 tension: 0.2,
                 pointRadius: 3,
@@ -339,16 +379,24 @@ export function PriceChart({
       tooltip: {
         callbacks: {
           label(context) {
-            if (context.datasetIndex === 1 && forecastPoints.length) {
+            if (context.datasetIndex >= 1 && forecastPoints.length) {
               const forecastIndex = context.dataIndex - serie.length;
               if (forecastIndex < 0) {
+                if (context.dataset.label === "Escenario pesimista (alto)" || context.dataset.label === "Escenario optimista (bajo)") return null;
                 return showPrices
                   ? [`Ultimo observado: ${formatCurrency(context.parsed.y)}`]
                   : [`Ultimo observado: ${formatNumber(variationSeries[variationSeries.length - 1])}%`];
               }
               if (showPrices) {
-                return [`${context.dataset.label}: ${formatCurrency(context.parsed.y)}`];
+                if (context.dataset.label === "Escenario pesimista (alto)" || context.dataset.label === "Escenario optimista (bajo)") return null;
+                const point = forecastPoints[forecastIndex];
+                return [
+                  `Forecast Base: ${formatCurrency(point.precio_proyectado)}`,
+                  `Escenario Optimista: ${formatCurrency(point.precio_optimista)}`,
+                  `Escenario Pesimista: ${formatCurrency(point.precio_pesimista)}`,
+                ];
               }
+              if (context.dataset.label === "Escenario pesimista (alto)" || context.dataset.label === "Escenario optimista (bajo)") return null;
               return [
                 `Variacion acumulada: ${formatNumber(projectedVariationSeries[forecastIndex])}%`,
                 `Variacion vs ultimo observado: ${formatNumber(projectedVariationVsLastObserved[forecastIndex])}%`,

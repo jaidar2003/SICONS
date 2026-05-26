@@ -102,3 +102,54 @@ No corresponde usar esta capa para sustituir:
 
 - endpoint de chat o consulta conversacional;
 - schema de pregunta y respuesta.
+
+## Conexion base implementada
+
+Se incorpora una primera integracion OpenAI-compatible para habilitar la conversacion sin delegar calculos de negocio al modelo:
+
+- endpoint autenticado `POST /chat/consultas`;
+- proveedor configurado mediante `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` y `OPENAI_TIMEOUT_SECONDS`;
+- llamada HTTP a `{OPENAI_BASE_URL}/chat/completions`;
+- alternativa nativa Claude mediante `CHAT_PROVIDER=anthropic`, con llamada a `{ANTHROPIC_BASE_URL}/messages`;
+- rechazo local de consultas evidentemente ajenas al dominio, sin consumir el proveedor;
+- vista `Chatbot IA` disponible en el frontend.
+
+Ejemplo de request:
+
+```json
+{
+  "pregunta": "Que significa la confiabilidad del forecast de cemento?"
+}
+```
+
+Una consulta fuera de alcance devuelve `aceptada: false` y `proveedor_utilizado: false`.
+
+### Operaciones conversacionales implementadas
+
+El chatbot arma contexto con los servicios internos y permite:
+
+- consultar y explicar forecast y recomendacion del material seleccionado;
+- resumir historial de precios;
+- comparar estrategias de compra y simular horizontes;
+- priorizar materiales y optimizar un presupuesto;
+- generar la decision final multi-material;
+- listar usuarios y margenes unicamente cuando el usuario autenticado es administrador;
+- preparar cargas de precios y cambios administrativos unicamente para administradores, ejecutandolos solo luego de una confirmacion explicita (`CONFIRMAR`);
+- rechazar localmente pedidos administrativos de usuarios cliente, sin enviarlos al proveedor LLM.
+
+El LLM interpreta la solicitud y explica el resultado; los valores, decisiones y transacciones se resuelven en servicios de BuildWise.
+
+### Configuracion con Claude
+
+Para usar una API key de Anthropic, configurar localmente:
+
+```env
+CHAT_PROVIDER=anthropic
+ANTHROPIC_API_KEY=replace-with-your-anthropic-key
+ANTHROPIC_BASE_URL=https://api.anthropic.com/v1
+ANTHROPIC_MODEL=replace-with-an-enabled-claude-model
+ANTHROPIC_VERSION=2023-06-01
+ANTHROPIC_MAX_TOKENS=1024
+```
+
+La clave debe quedar solamente en `.env`, no en archivos versionados.

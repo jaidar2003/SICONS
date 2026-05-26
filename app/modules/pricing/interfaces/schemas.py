@@ -71,6 +71,8 @@ class ForecastMetricasRead(BaseModel):
 class ForecastPuntoRead(BaseModel):
     fecha: date
     precio_proyectado: Decimal
+    precio_optimista: Decimal | None = None
+    precio_pesimista: Decimal | None = None
     precio_equivalente_25kg: Decimal | None = None
     precio_equivalente_50kg: Decimal | None = None
 
@@ -286,6 +288,8 @@ class PurchaseRecommendationRead(BaseModel):
     variacion_esperada_pct: Decimal | None = None
     precio_actual: Decimal | None = None
     precio_proyectado_horizonte: Decimal | None = None
+    precio_proyectado_optimista: Decimal | None = None
+    precio_proyectado_pesimista: Decimal | None = None
     cantidad_objetivo: Decimal | None = None
     impacto_economico_estimado: Decimal | None = None
     mape: Decimal | None = None
@@ -429,14 +433,20 @@ class OperationalPurchaseRecommendationItemRead(BaseModel):
     explicacion: str
 
 
-class OperationalPurchaseRecommendationRead(BaseModel):
-    fecha_calculo: date
-    horizonte_meses: int
-    presupuesto_total: Decimal
-    presupuesto_utilizado: Decimal
-    presupuesto_restante: Decimal
-    ahorro_total_estimado: Decimal
-    decision_resumen: str
-    items: list[OperationalPurchaseRecommendationItemRead]
-    supuestos: list[str]
-    advertencias: list[str]
+class AlertaRead(BaseModel):
+    id: int
+    material_id: int | None
+    tipo: str
+    prioridad: str
+    titulo: str
+    mensaje: str
+    data_context: str | None
+    leida: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AlertaBatchUpdate(BaseModel):
+    alerta_ids: list[int]
+    leida: bool

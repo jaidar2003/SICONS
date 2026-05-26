@@ -24,6 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.shared.database.base import Base
 
 if TYPE_CHECKING:
+    from app.modules.auth.infrastructure.models import Usuario
     from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion
 
 
@@ -142,3 +143,36 @@ class CommercialMargin(Base):
 
     material: Mapped["Material | None"] = relationship(foreign_keys=[material_id])
     presentacion: Mapped["Presentacion | None"] = relationship(foreign_keys=[presentation_id])
+
+
+class Alerta(Base):
+    __tablename__ = "alertas"
+    __table_args__ = (
+        CheckConstraint(
+            "tipo IN ('OPORTUNIDAD_COMPRA', 'DESVIO_PRECIO', 'DETERIORO_CONFIANZA')",
+            name="alertas_tipo_allowed",
+        ),
+        CheckConstraint("prioridad IN ('ALTA', 'MEDIA', 'BAJA')", name="alertas_prioridad_allowed"),
+        Index("idx_alertas_usuario_leida", "usuario_id", "leida"),
+        Index("idx_alertas_material_id", "material_id"),
+        Index("idx_alertas_created_at", text("created_at DESC")),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    usuario_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", name="alertas_usuario_id_fkey", ondelete="CASCADE")
+    )
+    material_id: Mapped[int | None] = mapped_column(
+        ForeignKey("materiales.id", name="alertas_material_id_fkey", ondelete="CASCADE")
+    )
+    tipo: Mapped[str] = mapped_column(String(50), nullable=False)
+    prioridad: Mapped[str] = mapped_column(String(20), nullable=False)
+    titulo: Mapped[str] = mapped_column(String(200), nullable=False)
+    mensaje: Mapped[str] = mapped_column(Text, nullable=False)
+    data_context: Mapped[str | None] = mapped_column(Text)  # JSON con datos tecnicos del trigger
+    leida: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("FALSE"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    usuario: Mapped["Usuario | None"] = relationship(foreign_keys=[usuario_id])
+    material: Mapped["Material | None"] = relationship(foreign_keys=[material_id])
+

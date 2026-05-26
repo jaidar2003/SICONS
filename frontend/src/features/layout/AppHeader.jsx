@@ -4,11 +4,12 @@ import { Box, Button, ButtonGroup, Typography } from "@mui/material";
 import { brand } from "../../app/brand.js";
 import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
 import { StatusBadge } from "../../shared/components/StatusBadge.jsx";
+import { AlertsMenu } from "../chat/AlertsMenu.jsx";
 import bwLogo from "../../../bwlogo.png";
 
 const LogoutIcon = resolveMuiIcon(LogoutIconModule);
 
-export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowPrices }) {
+export function AppHeader({ apiStatus, user, token, onLogout, showPrices, onToggleShowPrices }) {
   return (
     <Box
       component="header"
@@ -37,9 +38,12 @@ export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowP
           <Box className="flex items-center gap-3">
             <StatusBadge mode={apiStatus.mode} label={apiStatus.label} />
             {user && (
-              <Typography fontSize={13} fontWeight={800} sx={{ opacity: 0.9, whiteSpace: "nowrap" }}>
-                {user.nombre} ({user.rol})
-              </Typography>
+              <Box className="flex items-center gap-2">
+                <AlertsMenu token={token} />
+                <Typography fontSize={13} fontWeight={800} sx={{ opacity: 0.9, whiteSpace: "nowrap" }}>
+                  {user.nombre} ({user.rol})
+                </Typography>
+              </Box>
             )}
           </Box>
           {user ? (

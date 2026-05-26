@@ -211,11 +211,15 @@ def optimizar_compra_items(
             upBound=float(candidate.cantidad_objetivo),
         )
 
-    problem += lpSum(
+    # Maximize avoided future cost weighted by operational criticality while
+    # keeping the immediate purchase within budget. The small spending
+    # penalty resolves zero-benefit ties in favor of postponing purchase.
+    problem += -lpSum(
         (
-            float(candidate.precio_actual) * variables_ahora[candidate.material_id]
-            + float(candidate.precio_proyectado_horizonte) * variables_futuro[candidate.material_id]
+            float(candidate.ahorro_unitario_estimado * candidate.peso_criticidad) * 1_000_000
+            - float(candidate.precio_actual)
         )
+        * variables_ahora[candidate.material_id]
         for candidate in candidates
     )
     problem += lpSum(
@@ -290,8 +294,8 @@ def optimizar_compra_items(
         items=tuple(resultados),
         ahorro_total_estimado=ahorro_total_estimado,
         justificacion=(
-            "La optimizacion minimiza el costo total esperado con variables explicitas de compra inmediata "
-            "y postergada, respetando el presupuesto disponible."
+            "La optimizacion prioriza el ahorro futuro evitado ponderado por criticidad, con variables "
+            "explicitas de compra inmediata y postergada, respetando el presupuesto disponible."
         ),
         advertencias=tuple(advertencias_resultado),
     )
