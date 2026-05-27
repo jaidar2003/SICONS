@@ -1,0 +1,71 @@
+import pytest
+from unittest.mock import MagicMock
+from fastapi.testclient import TestClient
+from app.main import app
+from app.shared.config.settings import settings
+from app.modules.auth.interfaces.dependencies import get_current_user
+from app.modules.chat.infrastructure.llm_client import LLMConfigurationError, LLMProviderError
+from app.modules.chat.interfaces.routes import get_chat_client, AnthropicChatClient
+
+def test_get_chat_client_anthropic(monkeypatch):
+    monkeypatch.setattr(settings, "chat_provider", "anthropic")
+    client = get_chat_client()
+    assert isinstance(client, AnthropicChatClient)
+
+def test_interpretar_necesidad_llm_errors(monkeypatch):
+    monkeypatch.setattr("app.modules.chat.interfaces.routes.interpretar_necesidad_comercial", MagicMock(side_effect=LLMConfigurationError("config error")))
+    app.dependency_overrides[get_current_user] = lambda: MagicMock(id=1, rol="cliente")
+    client = TestClient(app)
+    response = client.post("/chat/presupuestacion/interpretar", json={"necesidad": "hola"})
+    assert response.status_code == 503
+    
+    monkeypatch.setattr("app.modules.chat.interfaces.routes.interpretar_necesidad_comercial", MagicMock(side_effect=LLMProviderError("provider error")))
+    response = client.post("/chat/presupuestacion/interpretar", json={"necesidad": "hola"})
+    assert response.status_code == 502
+    app.dependency_overrides.clear()
+
+def test_generar_propuesta_material_not_found():
+    from app.modules.catalog.interfaces.dependencies import get_material_repository
+    mock_repo = MagicMock()
+    mock_repo.get_by_id.return_value = None
+    app.dependency_overrides[get_material_repository] = lambda: mock_repo
+    app.dependency_overrides[get_current_user] = lambda: MagicMock(id=1, rol="cliente")
+    client = TestClient(app)
+    response = client.post("/chat/presupuestacion/propuesta", json={
+        "material_id": 999, 
+        "cantidad": 10.0, 
+        "fase_obra": "general", 
+        "tolerancia_riesgo": "media",
+        "horizonte_meses": 3
+    })
+    assert response.status_code == 404
+    app.dependency_overrides.clear()
+
+def test_generar_propuesta_llm_errors(monkeypatch):
+    from app.modules.catalog.interfaces.dependencies import get_material_repository
+    mock_repo = MagicMock()
+    mock_repo.get_by_id.return_value = MagicMock(id=1, nombre="M1")
+    app.dependency_overrides[get_material_repository] = lambda: mock_repo
+    app.dependency_overrides[get_current_user] = lambda: MagicMock(id=1, rol="cliente")
+    
+    monkeypatch.setattr("app.modules.chat.interfaces.routes.generar_propuesta_comercial", MagicMock(side_effect=LLMConfigurationError("config error")))
+    client = TestClient(app)
+    response = client.post("/chat/presupuestacion/propuesta", json={
+        "material_id": 1, 
+        "cantidad": 10.0, 
+        "fase_obra": "general", 
+        "tolerancia_riesgo": "media",
+        "horizonte_meses": 3
+    })
+    assert response.status_code == 503
+    
+    monkeypatch.setattr("app.modules.chat.interfaces.routes.generar_propuesta_comercial", MagicMock(side_effect=LLMProviderError("provider error")))
+    response = client.post("/chat/presupuestacion/propuesta", json={
+        "material_id": 1, 
+        "cantidad": 10.0, 
+        "fase_obra": "general", 
+        "tolerancia_riesgo": "media",
+        "horizonte_meses": 3
+    })
+    assert response.status_code == 502
+    app.dependency_overrides.clear()
