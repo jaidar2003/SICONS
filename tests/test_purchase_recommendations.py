@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
@@ -336,3 +337,77 @@ def test_evaluar_recomendacion_compra_confianza_media_baja() -> None:
         variacion_esperada_pct=Decimal("4"), confiabilidad="media-baja", criticidad="alta", no_calibrado=False
     )
     assert result.decision == DECISION_MONITOREAR
+
+
+def test_recomendar_momento_compra_empty_forecast(monkeypatch) -> None:
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+    monkeypatch.setattr(
+        purchase_recommendations_module,
+        "forecast_material",
+        lambda *args, **kwargs: SimpleNamespace(forecast=[], dataset=[])
+    )
+    result = recomendar_momento_compra(material, 3, "alta", Decimal("100"), pricing_repo=object())
+    assert result.decision == DECISION_MONITOREAR
+    assert "no devolvio puntos proyectados" in result.advertencias[0]
+
+
+def test_recomendar_momento_compra_empty_dataset(monkeypatch) -> None:
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+    monkeypatch.setattr(
+        purchase_recommendations_module,
+        "forecast_material",
+        lambda *args, **kwargs: SimpleNamespace(forecast=[MagicMock()], dataset=[])
+    )
+    result = recomendar_momento_compra(material, 3, "alta", Decimal("100"), pricing_repo=object())
+    assert result.decision == DECISION_MONITOREAR
+    assert "no devolvio historial suficiente" in result.advertencias[0]
+
+
+def test_evaluar_recomendacion_compra_branches() -> None:
+    # variacion <= umbral_baja and criticidad in {baja, media} -> ESPERAR
+    result = evaluar_recomendacion_compra(
+        material_id=1, material_key="k", horizonte_meses=3, cantidad_objetivo=Decimal("1"),
+        variacion_esperada_pct=Decimal("-10"), confiabilidad="alta", criticidad="baja", no_calibrado=False
+    )
+    assert result.decision == DECISION_ESPERAR
+    
+    # variacion <= umbral_baja and criticidad == alta -> ESPERAR
+    result = evaluar_recomendacion_compra(
+        material_id=1, material_key="k", horizonte_meses=3, cantidad_objetivo=Decimal("1"),
+        variacion_esperada_pct=Decimal("-10"), confiabilidad="alta", criticidad="alta", no_calibrado=False
+    )
+    assert result.decision == DECISION_ESPERAR
+    
+    # decision == MONITOREAR and criticidad == alta and variacion >= umbral -> COMPRAR_AHORA
+    result = evaluar_recomendacion_compra(
+        material_id=1, material_key="k", horizonte_meses=3, cantidad_objetivo=Decimal("1"),
+        variacion_esperada_pct=Decimal("10"), confiabilidad="alta", criticidad="alta", no_calibrado=False
+    )
+    assert result.decision == DECISION_COMPRAR_AHORA
+    
+    # decision == MONITOREAR and criticidad == baja and variacion <= umbral_baja -> ESPERAR
+    result = evaluar_recomendacion_compra(
+        material_id=1, material_key="k", horizonte_meses=3, cantidad_objetivo=Decimal("1"),
+        variacion_esperada_pct=Decimal("-10"), confiabilidad="alta", criticidad="baja", no_calibrado=False
+    )
+    assert result.decision == DECISION_ESPERAR
+
+
+def test_recomendar_momento_compra_material_key_from_selection(monkeypatch) -> None:
+    material = SimpleNamespace(id=1, nombre="Original", unidad_base="kg")
+    selection = ForecastSelectionRead(
+        material_key="key-personalizada",
+        modelo_resuelto="m", regresores_resueltos=[], mape_referencia=Decimal("5"),
+        mae_referencia=Decimal("5"), folds=1, confiabilidad="alta",
+        origen_decision="o", justificacion="j", no_calibrado=False
+    )
+    mock_res = SimpleNamespace(
+        dataset=[SimpleNamespace(ds=date(2024,1,1), y=100.0)],
+        forecast=[SimpleNamespace(fecha=date(2024,2,1), precio_proyectado=Decimal("110"), precio_optimista=Decimal("105"), precio_pesimista=Decimal("115"))],
+        metricas=SimpleNamespace(mape=Decimal("5")),
+        seleccion_modelo=selection
+    )
+    monkeypatch.setattr(purchase_recommendations_module, "forecast_material", lambda *args, **kwargs: mock_res)
+    
+    result = recomendar_momento_compra(material, 3, "alta", Decimal("100"), pricing_repo=object())
+    assert result.material_key == "key-personalizada"

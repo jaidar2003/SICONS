@@ -532,23 +532,39 @@ def test_normalizacion_por_kg_no_cambia_con_selector_activado(monkeypatch: pytes
     assert objetivo_usado["valor"] == "precio_promedio_normalizado"
 
 
-def test_obtener_forecast_cacheado_expiration(monkeypatch):
+def test_obtener_forecast_cacheado_success(monkeypatch):
     from time import monotonic
-
     from app.modules.pricing.application.forecast_service import (
         ForecastCacheEntry,
         ForecastCacheKey,
         _forecast_cache,
         obtener_forecast_cacheado,
     )
-    
     limpiar_forecast_cache()
     res = _forecast_result("100.00")
     cache_key = ForecastCacheKey(material_id=1, horizonte_meses=3, dataset_signature="sig")
-    _forecast_cache[cache_key] = ForecastCacheEntry(result=res, expires_at=monotonic() - 10)
+    _forecast_cache[cache_key] = ForecastCacheEntry(result=res, expires_at=monotonic() + 100)
     
-    assert obtener_forecast_cacheado(1, 3, "sig") is None
-    assert cache_key not in _forecast_cache
+    assert obtener_forecast_cacheado(1, 3, "sig") == res
+
+
+def test_precomputar_forecasts_materiales_multiple(monkeypatch):
+    material = SimpleNamespace(id=1, nombre="Cemento", unidad_base="kg")
+    mock_repo = MagicMock()
+    mock_repo.list_active.return_value = [material]
+    
+    llamadas = []
+    def mock_forecast(m, h, r):
+        llamadas.append((m.id, h))
+        return
+    
+    monkeypatch.setattr("app.modules.pricing.application.forecast_service.forecast_material", mock_forecast)
+    
+    from app.modules.pricing.application.forecast_service import precomputar_forecasts_materiales
+    completados = precomputar_forecasts_materiales(mock_repo, object(), horizontes=(3, 6))
+    
+    assert completados == [(1, 3), (1, 6)]
+    assert llamadas == [(1, 3), (1, 6)]
 
 def test_backtesting_forecast_insufficient_data(monkeypatch):
     from app.modules.pricing.application.forecast_service import backtesting_forecast

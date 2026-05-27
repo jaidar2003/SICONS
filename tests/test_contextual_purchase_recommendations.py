@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -140,3 +142,77 @@ def test_endpoint_recomendacion_contextual_expone_contexto(monkeypatch) -> None:
     assert body["fase_obra"] == "impermeabilizacion"
     assert body["tolerancia_riesgo"] == "baja"
     assert body["criticidad"] == "alta"
+
+
+def test_resolver_horizonte_invalid_dates() -> None:
+    from fastapi import HTTPException
+    # Past date
+    with pytest.raises(HTTPException) as exc:
+        resolver_horizonte_contextual(horizonte_meses=None, fecha_objetivo_uso=date(2024, 1, 1), hoy=date(2024, 2, 1))
+    assert exc.value.status_code == 422
+    
+    # Too far future (> 12 months)
+    with pytest.raises(HTTPException) as exc:
+        resolver_horizonte_contextual(horizonte_meses=None, fecha_objetivo_uso=date(2026, 1, 1), hoy=date(2024, 1, 1))
+    assert exc.value.status_code == 422
+
+
+def test_resolver_horizonte_day_offset() -> None:
+    # 2024-01-01 to 2024-02-02 should be 2 months (1 month + 1 day)
+    assert resolver_horizonte_contextual(horizonte_meses=None, fecha_objetivo_uso=date(2024, 2, 2), hoy=date(2024, 1, 1)) == 2
+    # 2024-01-01 to 2024-02-01 should be 1 month
+    assert resolver_horizonte_contextual(horizonte_meses=None, fecha_objetivo_uso=date(2024, 2, 1), hoy=date(2024, 1, 1)) == 1
+
+
+def test_recomendacion_contextual_no_variacion(monkeypatch) -> None:
+    monkeypatch.setattr(
+        contextual_module,
+        "recomendar_momento_compra",
+        lambda *_args, **_kwargs: replace(_base_recommendation(variacion="0.0000"), variacion_esperada_pct=None),
+    )
+    result = recomendar_estrategia_contextual(
+        SimpleNamespace(id=1, nombre="Pastina"),
+        fase_obra="terminaciones",
+        tolerancia_riesgo="media",
+        cantidad_objetivo=Decimal("10"),
+        horizonte_meses=6,
+        pricing_repo=object(),
+    )
+    assert result.decision == ACCION_SIN_VENTAJA_CLARA
+
+
+def test_recomendacion_contextual_postergar(monkeypatch) -> None:
+    # strong decrease (e.g. -15%) and not critical/risky enough for escalonar
+    monkeypatch.setattr(
+        contextual_module,
+        "recomendar_momento_compra",
+        lambda *_args, **_kwargs: _base_recommendation(variacion="-15.0000"),
+    )
+    result = recomendar_estrategia_contextual(
+        SimpleNamespace(id=1, nombre="Pastina"),
+        fase_obra="terminaciones",
+        tolerancia_riesgo="media",
+        cantidad_objetivo=Decimal("10"),
+        horizonte_meses=6,
+        pricing_repo=object(),
+    )
+    assert result.decision == "POSTERGAR"
+
+
+def test_recomendacion_contextual_escalonar_on_strong_decrease(monkeypatch) -> None:
+    # strong decrease but critical and low risk tolerance -> ESCALONAR
+    monkeypatch.setattr(
+        contextual_module,
+        "recomendar_momento_compra",
+        lambda *_args, **_kwargs: _base_recommendation(variacion="-15.0000"),
+    )
+    result = recomendar_estrategia_contextual(
+        SimpleNamespace(id=1, nombre="Cemento"),
+        fase_obra="estructura",
+        tolerancia_riesgo="baja",
+        cantidad_objetivo=Decimal("100"),
+        horizonte_meses=2,
+        pricing_repo=object(),
+    )
+    assert result.decision == ACCION_ESCALONAR
+    assert "se proyecta una baja de precio" in result.justificacion

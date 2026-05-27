@@ -457,3 +457,101 @@ def test_alertas_lectura_batch():
     payload = AlertaBatchUpdate(alerta_ids=[1, 2], leida=True)
     result = pricing_routes.marcar_alertas_como_leidas(payload=payload, db=mock_db, current_user=None)
     assert "2 alertas actualizadas" in result["mensaje"]
+
+
+def test_obtener_serie_precios_mensual():
+    mock_material = MagicMock(id=1, unidad_base="kg")
+    mock_repo = MagicMock()
+    mock_repo.get_by_id.return_value = mock_material
+    
+    mock_pricing_repo = MagicMock()
+    mock_pricing_repo.get_historical_prices.return_value = []
+    
+    # Agrupacion mensual
+    result = pricing_routes.obtener_serie_precios_material(
+        material_id=1, agrupacion="mensual", material_repo=mock_repo, pricing_repo=mock_pricing_repo, current_user=None
+    )
+    assert result == []
+    
+    # Agrupacion invalida
+    with pytest.raises(HTTPException) as exc:
+        pricing_routes.obtener_serie_precios_material(
+            material_id=1, agrupacion="invalida", material_repo=mock_repo, pricing_repo=mock_pricing_repo, current_user=None
+        )
+    assert exc.value.status_code == 422
+
+
+def test_obtener_variacion_entre_fechas_error():
+    mock_material = MagicMock(id=1, nombre="M", unidad_base="kg")
+    mock_repo = MagicMock()
+    mock_repo.get_by_id.return_value = mock_material
+    mock_pricing_repo = MagicMock()
+    mock_pricing_repo.get_historical_prices.return_value = []
+    
+    with pytest.raises(HTTPException) as exc:
+        pricing_routes.obtener_variacion_entre_fechas_material(
+            material_id=1, fecha_desde=date(2024,1,1), fecha_hasta=date(2024,2,1),
+            material_repo=mock_repo, pricing_repo=mock_pricing_repo, current_user=None
+        )
+    assert exc.value.status_code == 422
+
+
+def test_obtener_forecast_horizonte_invalido():
+    with pytest.raises(HTTPException) as exc:
+        pricing_routes.obtener_forecast_material(material_id=1, horizonte_meses=0, current_user=None)
+    assert exc.value.status_code == 422
+    
+    with pytest.raises(HTTPException) as exc:
+        pricing_routes.obtener_forecast_material(material_id=1, horizonte_meses=13, current_user=None)
+    assert exc.value.status_code == 422
+
+
+def test_obtener_precio_comercial_horizonte_invalido():
+    with pytest.raises(HTTPException) as exc:
+        pricing_routes.obtener_precio_comercial_material(material_id=1, horizonte_meses=0, current_user=None)
+    assert exc.value.status_code == 422
+
+
+def test_priorizar_materiales_alpha_beta_zero():
+    from app.modules.pricing.interfaces.schemas import MaterialCriticidadItemCreate
+    payload = MaterialCriticidadCreate(
+        horizonte_meses=3, 
+        materiales=[MaterialCriticidadItemCreate(material_id=1, cantidad_requerida=10)], 
+        alpha=0, 
+        beta=0
+    )
+    with pytest.raises(HTTPException) as exc:
+        pricing_routes.priorizar_materiales_por_criticidad(payload=payload, material_repo=None, pricing_repo=None, current_user=None)
+    assert "alpha y beta no pueden ser ambos cero" in exc.value.detail
+
+
+def test_listar_alertas_filtros():
+    mock_db = MagicMock()
+    mock_query = mock_db.query.return_value
+    mock_filter = mock_query.filter.return_value
+    mock_order = mock_filter.order_by.return_value
+    mock_order.all.return_value = []
+    
+    pricing_routes.listar_alertas(solo_no_leidas=True, material_id=1, db=mock_db, current_user=None)
+    assert mock_query.filter.called
+
+
+def test_routes_material_not_found():
+    mock_repo = MagicMock()
+    mock_repo.get_by_id.return_value = None
+    
+    routes_to_test = [
+        lambda: pricing_routes.listar_precios_por_material(1, material_repo=mock_repo, pricing_repo=None, current_user=None),
+        lambda: pricing_routes.obtener_serie_precios_material(1, material_repo=mock_repo, pricing_repo=None, current_user=None),
+        lambda: pricing_routes.obtener_variacion_entre_fechas_material(1, date(2024,1,1), date(2024,2,1), material_repo=mock_repo, pricing_repo=None, current_user=None),
+        lambda: pricing_routes.obtener_forecast_material(1, material_repo=mock_repo, pricing_repo=None, current_user=None),
+        lambda: pricing_routes.recomendar_momento_compra_material(1, MagicMock(), material_repo=mock_repo, pricing_repo=None, current_user=None),
+        lambda: pricing_routes.recomendar_estrategia_contextual_material(1, MagicMock(), material_repo=mock_repo, pricing_repo=None, current_user=None),
+        lambda: pricing_routes.comparar_estrategias_compra_material(1, MagicMock(), material_repo=mock_repo, pricing_repo=None, current_user=None),
+        lambda: pricing_routes.simular_escenarios_temporales_compra_material(1, MagicMock(horizontes_meses=[]), material_repo=mock_repo, pricing_repo=None, current_user=None),
+        lambda: pricing_routes.obtener_precio_comercial_material(1, material_repo=mock_repo, pricing_repo=None, db=None, current_user=None),
+    ]
+    
+    for route_call in routes_to_test:
+        with pytest.raises(MaterialNotFoundException):
+            route_call()
