@@ -1,10 +1,10 @@
 from unittest.mock import MagicMock, patch
-from decimal import Decimal
-import pytest
-import smtplib
 
-from app.shared.notifications import email
+import pytest
+
 from app.shared.config.settings import settings
+from app.shared.notifications import email
+
 
 @pytest.fixture
 def mock_settings(monkeypatch):
@@ -86,9 +86,7 @@ def test_send_account_deleted_email_failure(mock_settings):
 
 def test_send_account_deleted_email_ssl(mock_settings, monkeypatch):
     monkeypatch.setattr(settings, "smtp_use_ssl", True)
-    with patch("app.shared.notifications.email.smtplib.SMTP_SSL") as mock_smtp_ssl:
-        mock_server = mock_smtp_ssl.return_value
-        
+    with patch("app.shared.notifications.email.smtplib.SMTP_SSL"):
         result = email.send_account_deleted_email(to_email="user@example.com", nombre="User", username="user")
         
         assert result is True

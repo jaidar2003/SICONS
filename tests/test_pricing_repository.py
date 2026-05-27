@@ -1,12 +1,14 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-import pytest
 from datetime import date
 
-from app.shared.database.base import Base
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.modules.catalog.infrastructure.models import Fuente
 from app.modules.pricing.infrastructure.models import PrecioHistorico
 from app.modules.pricing.infrastructure.repositories import SQLAlchemyPricingRepository
-from app.modules.catalog.infrastructure.models import Fuente
+from app.shared.database.base import Base
+
 
 @pytest.fixture
 def db_session():

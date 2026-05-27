@@ -7,8 +7,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 
-from app.modules.pricing.application import external_indices, historical_prices
-from app.modules.pricing.application import imputation
+from app.modules.pricing.application import external_indices, historical_prices, imputation
 from app.modules.pricing.application.forecast_service import (
     FORECAST_MODEL_NAME,
     _forecast_material,
@@ -20,8 +19,11 @@ from app.modules.pricing.application.forecast_service import (
     serie_mensual_material,
 )
 from app.modules.pricing.application.forecasting import ProphetRow
-from app.modules.pricing.domain.exceptions import ExternalIndexSyncError, InsufficientDataException
-from app.modules.pricing.domain.exceptions import PriceImputationError
+from app.modules.pricing.domain.exceptions import (
+    ExternalIndexSyncError,
+    InsufficientDataException,
+    PriceImputationError,
+)
 from app.modules.pricing.infrastructure import regressors
 from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead
 

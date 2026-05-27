@@ -15,7 +15,7 @@ def generar_alertas_proactivas(db: Session, pricing_repo) -> int:
     Motor de generacion de alertas proactivas.
     Analiza desvios de precio, oportunidades de compra y deterioro de confianza.
     """
-    materiales = db.query(Material).filter(Material.activo == True).all()
+    materiales = db.query(Material).filter(Material.activo.is_(True)).all()
     count = 0
 
     for material in materiales:

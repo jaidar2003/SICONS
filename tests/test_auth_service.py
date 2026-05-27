@@ -1,17 +1,18 @@
+
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from unittest.mock import MagicMock
 
 from app.modules.auth.application.service import (
-    autenticar_usuario, 
-    habilitar_usuario, 
-    registrar_cliente, 
-    eliminar_usuario
+    autenticar_usuario,
+    eliminar_usuario,
+    habilitar_usuario,
+    registrar_cliente,
 )
 from app.modules.auth.infrastructure.models import Usuario
+
 
 def make_session():
     engine = create_engine(

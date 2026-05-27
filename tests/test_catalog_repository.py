@@ -1,10 +1,11 @@
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-import pytest
 
-from app.shared.database.base import Base
 from app.modules.catalog.infrastructure.models import Material
 from app.modules.catalog.infrastructure.repositories import SQLAlchemyMaterialRepository
+from app.shared.database.base import Base
+
 
 @pytest.fixture
 def db_session():

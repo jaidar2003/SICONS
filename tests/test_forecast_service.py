@@ -533,8 +533,14 @@ def test_normalizacion_por_kg_no_cambia_con_selector_activado(monkeypatch: pytes
 
 
 def test_obtener_forecast_cacheado_expiration(monkeypatch):
-    from app.modules.pricing.application.forecast_service import _forecast_cache, ForecastCacheEntry, obtener_forecast_cacheado, ForecastCacheKey
     from time import monotonic
+
+    from app.modules.pricing.application.forecast_service import (
+        ForecastCacheEntry,
+        ForecastCacheKey,
+        _forecast_cache,
+        obtener_forecast_cacheado,
+    )
     
     limpiar_forecast_cache()
     res = _forecast_result("100.00")
@@ -553,8 +559,9 @@ def test_backtesting_forecast_insufficient_data(monkeypatch):
     assert exc.value.status_code == 422
 
 def test_pronosticar_futuro_missing_regressors(monkeypatch):
-    from app.modules.pricing.application.forecast_service import pronosticar_futuro
     import pandas as pd
+
+    from app.modules.pricing.application.forecast_service import pronosticar_futuro
     
     dataset = [ProphetRow(ds=date(2024, 1, 1), y=100.0)]
     # Provide regressor ONLY after the last date in dataset
@@ -595,8 +602,9 @@ def test_precomputar_forecasts_materiales(monkeypatch):
     assert llamadas == [(1, 3)]
 
 def test_backtesting_forecast_with_regressors(monkeypatch):
-    from app.modules.pricing.application.forecast_service import backtesting_forecast
     import pandas as pd
+
+    from app.modules.pricing.application.forecast_service import backtesting_forecast
     
     dataset = [ProphetRow(ds=date(2024, (i % 12) + 1, 1), y=100.0) for i in range(36)]
     regresores_df = pd.DataFrame({

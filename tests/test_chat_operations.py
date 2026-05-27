@@ -1,17 +1,16 @@
-import json
-import pytest
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 from unittest.mock import MagicMock
+
+import pytest
 
 from app.modules.chat.application.operations import (
     execute_operation,
-    plan_operation,
-    needs_operation_plan,
     is_explicit_confirmation,
-    OperationResult,
+    needs_operation_plan,
+    plan_operation,
 )
-from app.modules.pricing.application.purchase_optimization import PurchaseOptimizationInputItem
+
 
 @pytest.fixture
 def mock_material_repo():
@@ -74,10 +73,9 @@ def test_execute_operation_list_users(admin_user):
     user.rol = "admin"
     user.activo = True
     
-    with MagicMock() as mock_list:
+    with MagicMock():
         import app.modules.chat.application.operations as ops
         monkeypatch_list = MagicMock(return_value=[user])
-        from app.modules.auth.application.service import listar_usuarios_registrados
         # Need to monkeypatch the import inside operations.py or use a more direct way
         # Actually it's easier to just mock the function in the module
         ops.listar_usuarios_registrados = monkeypatch_list

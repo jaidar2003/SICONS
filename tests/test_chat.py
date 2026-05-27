@@ -1,14 +1,13 @@
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import httpx
 import pytest
-from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.modules.auth.interfaces.dependencies import get_current_user
 from app.modules.catalog.interfaces.dependencies import get_material_repository
-from app.shared.database.session import get_db
 from app.modules.chat.application.context import build_material_context, resolve_horizon
 from app.modules.chat.application.operations import execute_operation, plan_operation
 from app.modules.chat.application.service import ADMIN_ONLY_RESPONSE, OUT_OF_SCOPE_RESPONSE, answer_question
@@ -21,6 +20,7 @@ from app.modules.chat.infrastructure.llm_client import (
 from app.modules.chat.interfaces import routes as chat_routes
 from app.modules.chat.interfaces.routes import get_chat_client
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
+from app.shared.database.session import get_db
 
 
 class FakeChatClient:

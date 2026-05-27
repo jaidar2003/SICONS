@@ -9,7 +9,6 @@ from collections.abc import Sequence
 
 from alembic import op
 
-
 revision: str = "202604200003"
 down_revision: str | None = "202604200002"
 branch_labels: str | Sequence[str] | None = None

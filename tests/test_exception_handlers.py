@@ -1,16 +1,16 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-import pytest
 
-from app.shared.api.exception_handlers import register_exception_handlers
 from app.modules.pricing.domain.exceptions import (
-    MaterialNotFoundException,
-    InsufficientDataException,
-    ExternalRegressorError,
     ExternalIndexSyncError,
+    ExternalRegressorError,
+    InsufficientDataException,
+    MaterialNotFoundException,
     PriceImputationError,
     PricingDomainException,
 )
+from app.shared.api.exception_handlers import register_exception_handlers
+
 
 def test_exception_handlers():
     app = FastAPI()

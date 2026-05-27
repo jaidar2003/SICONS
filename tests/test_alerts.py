@@ -1,18 +1,17 @@
-import json
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.modules.auth.infrastructure.models import Usuario
-from app.modules.catalog.infrastructure.models import Material, Fuente, Presentacion
-from app.modules.pricing.infrastructure.models import Alerta, PrecioHistorico, CommercialMargin, ExternalIndexValue
+from app.modules.catalog.infrastructure.models import Material
 from app.modules.pricing.application.alerts import generar_alertas_proactivas
 from app.modules.pricing.application.forecast_service import ProphetRow
-from app.modules.pricing.interfaces.schemas import ForecastPuntoRead, ForecastMetricasRead
+from app.modules.pricing.infrastructure.models import Alerta, PrecioHistorico
+from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead
 from app.shared.database.base import Base
+
 
 @pytest.fixture
 def db_session():

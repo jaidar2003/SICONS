@@ -1,8 +1,9 @@
-import pytest
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+
+import pytest
 
 from app.modules.pricing.application import commercial_prices
 from app.modules.pricing.application.commercial_prices import (

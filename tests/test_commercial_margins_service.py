@@ -116,6 +116,7 @@ def test_crear_margen_integrity_error() -> None:
 def test_actualizar_margen_integrity_error() -> None:
     session = MagicMock()
     from sqlalchemy.exc import IntegrityError
+
     from app.modules.pricing.infrastructure.models import CommercialMargin
     
     margin = CommercialMargin(id=1, scope="GLOBAL", margen_ganancia_pct=Decimal("30.00"), activo=True)

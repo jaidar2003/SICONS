@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 INPUT_PATH = PROJECT_ROOT / "data" / "raw" / "icc.xls"
 OUTPUT_PATH = PROJECT_ROOT / "tmp" / "dataset_icc_buildwise.xlsx"
@@ -31,7 +30,7 @@ class LocalIccAdapter:
     def _clean_numeric(value):
         if pd.isna(value):
             return None
-        if isinstance(value, (int, float)):
+        if isinstance(value, int | float):
             return float(value)
 
         text = str(value).strip().replace(".", "").replace(",", ".")

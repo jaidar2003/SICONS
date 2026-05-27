@@ -1,6 +1,9 @@
 from decimal import Decimal
+
 import pytest
+
 from app.modules.pricing.domain import rules
+
 
 def test_calcular_precio_normalizado_error():
     with pytest.raises(ValueError, match="mayor a cero"):

@@ -3,7 +3,6 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = PROJECT_ROOT / ".env"
 OUTPUT_PATH = PROJECT_ROOT / "tmp" / "dataset_cac_buildwise.xlsx"

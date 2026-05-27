@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 IPC_XLS_SHEET = "Índices IPC Cobertura Nacional"
 
 

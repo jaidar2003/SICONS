@@ -1,12 +1,15 @@
-import pytest
-import httpx
 from unittest.mock import MagicMock
+
+import httpx
+import pytest
+
 from app.modules.chat.infrastructure.llm_client import (
-    OpenAICompatibleChatClient,
     AnthropicChatClient,
     LLMConfigurationError,
     LLMProviderError,
+    OpenAICompatibleChatClient,
 )
+
 
 def test_openai_client_config_error():
     client = OpenAICompatibleChatClient(base_url="", api_key="", model="")

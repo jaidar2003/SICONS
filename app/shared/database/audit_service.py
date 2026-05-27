@@ -1,6 +1,9 @@
 from typing import Any
+
 from sqlalchemy.orm import Session
+
 from app.shared.database.audit_models import AuditLog
+
 
 def register_audit_log(
     db: Session,

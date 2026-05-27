@@ -46,6 +46,7 @@ jobs:
       - name: Run tests with coverage
         env:
           DATABASE_URL: postgresql://user:password@localhost:5432/buildwise
+          AUTH_SECRET_KEY: buildwise-ci-test-secret
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           pytest --cov=app --cov-report=xml

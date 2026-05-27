@@ -165,7 +165,7 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
     predictions = model.predict(x_train)
     residuals_pct = [
         abs((actual - predicted) / predicted) * 100 if predicted else 0
-        for actual, predicted in zip(y_train, predictions)
+        for actual, predicted in zip(y_train, predictions, strict=False)
     ]
     if not residuals_pct:
         return {}
@@ -180,7 +180,7 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
     residual_limit = Decimal(f"{q3:.6f}") + (Decimal("1.5") * Decimal(f"{iqr:.6f}"))
 
     anomalies: dict[date, str] = {}
-    for index, residual_pct, predicted in zip(trainable_indexes, residuals_pct, predictions):
+    for index, residual_pct, predicted in zip(trainable_indexes, residuals_pct, predictions, strict=False):
         if Decimal(f"{residual_pct:.6f}") <= residual_limit:
             continue
 
