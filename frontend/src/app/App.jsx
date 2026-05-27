@@ -37,6 +37,7 @@ import { PriceChart } from "../features/pricing/PriceChart.jsx";
 import { CommercialMarginsAdmin } from "../features/admin/CommercialMarginsAdmin.jsx";
 import { UsersAdmin } from "../features/admin/UsersAdmin.jsx";
 import { ChatCard } from "../features/chat/ChatCard.jsx";
+import { CommercialAssistantCard } from "../features/chat/CommercialAssistantCard.jsx";
 import { PriceVariationBetweenDatesCard } from "../features/pricing/PriceVariationBetweenDatesCard.jsx";
 import { PurchaseScenarioSimulationCard } from "../features/pricing/PurchaseScenarioSimulationCard.jsx";
 import { createPrecioHistorico } from "../features/pricing/pricing.api.js";
@@ -106,6 +107,11 @@ const VIEW_TABS = [
 ];
 
 const COST_WORKFLOWS = [
+  {
+    value: "commercial-assistant",
+    label: "Asistente comercial IA",
+    helper: "Convertí una necesidad del cliente en presupuesto y recomendación.",
+  },
   {
     value: "planner",
     label: "Armar presupuesto",
@@ -215,7 +221,7 @@ export function App() {
   const [forecastPriceView, setForecastPriceView] = useState("comparative");
   const [comparisonRows, setComparisonRows] = useState([]);
   const [activeView, setActiveView] = useState("summary");
-  const [costWorkflow, setCostWorkflow] = useState("planner");
+  const [costWorkflow, setCostWorkflow] = useState("commercial-assistant");
   const [forecastWorkflow, setForecastWorkflow] = useState("projection");
   const [historyWorkflow, setHistoryWorkflow] = useState("variation");
   const [adminWorkflow, setAdminWorkflow] = useState("users");
@@ -701,6 +707,10 @@ export function App() {
                     activeValue={costWorkflow}
                     onChange={setCostWorkflow}
                   />
+
+                  {costWorkflow === "commercial-assistant" ? (
+                    <CommercialAssistantCard materiales={materiales} token={token} showPrices={showPrices} />
+                  ) : null}
 
                   {costWorkflow === "planner" ? (
                     <CostPlannerCard

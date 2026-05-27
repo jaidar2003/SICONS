@@ -150,3 +150,34 @@ def test_admin_elimina_usuario_cliente() -> None:
 
     assert response.status_code == 204
     assert remaining is None
+
+
+def test_auth_missing_header() -> None:
+    session, _engine = make_session()
+    with with_test_client(session) as client:
+        response = client.get("/auth/usuarios")
+    assert response.status_code == 401
+    assert response.json()["detail"] == "No autenticado"
+
+
+def test_auth_invalid_token() -> None:
+    session, _engine = make_session()
+    with with_test_client(session) as client:
+        response = client.get("/auth/usuarios", headers={"Authorization": "Bearer invalidtoken"})
+    assert response.status_code == 401
+
+
+def test_auth_user_not_available() -> None:
+    session, _engine = make_session()
+    admin = add_user(session, username="admin", email="admin@example.com", password="admin123", rol="admin")
+    
+    with with_test_client(session) as client:
+        headers = auth_header(client, username="admin", password="admin123")
+        # Deactivate user after login
+        admin.activo = False
+        session.commit()
+        
+        response = client.get("/auth/usuarios", headers=headers)
+        
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Usuario no disponible"

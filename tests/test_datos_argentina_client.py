@@ -57,3 +57,34 @@ def test_fetch_series_propaga_error_http_claro(monkeypatch: pytest.MonkeyPatch) 
 
     with pytest.raises(client.DatosArgentinaClientError, match="HTTP 503"):
         client.fetch_series("SERIE_TEST")
+
+
+def test_fetch_series_falla_con_formato_fila_invalido(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(client, "urlopen", lambda *_args, **_kwargs: FakeResponse('{"data": [["2026-01-01"], [null, 100]]}'))
+    with pytest.raises(client.DatosArgentinaClientError, match="no devolvio puntos validos"):
+        client.fetch_series("SERIE_TEST")
+
+def test_fetch_series_status_400(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(client, "urlopen", lambda *_args, **_kwargs: FakeResponse('{}', status=400))
+    with pytest.raises(client.DatosArgentinaClientError, match="HTTP 400"):
+        client.fetch_series("SERIE_TEST")
+
+def test_fetch_series_url_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    from urllib.error import URLError
+    def fake_urlopen(*_args, **_kwargs):
+        raise URLError("No possible connection")
+    monkeypatch.setattr(client, "urlopen", fake_urlopen)
+    with pytest.raises(client.DatosArgentinaClientError, match="No fue posible conectar"):
+        client.fetch_series("SERIE_TEST")
+
+def test_fetch_series_timeout_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_urlopen(*_args, **_kwargs):
+        raise TimeoutError("Timeout")
+    monkeypatch.setattr(client, "urlopen", fake_urlopen)
+    with pytest.raises(client.DatosArgentinaClientError, match="Timeout"):
+        client.fetch_series("SERIE_TEST")
+
+def test_fetch_series_json_decode_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(client, "urlopen", lambda *_args, **_kwargs: FakeResponse('invalid json'))
+    with pytest.raises(client.DatosArgentinaClientError, match="JSON invalido"):
+        client.fetch_series("SERIE_TEST")

@@ -301,6 +301,46 @@ class PurchaseRecommendationRead(BaseModel):
     advertencias: list[str]
 
 
+class ContextualPurchaseRecommendationCreate(BaseModel):
+    horizonte_meses: int | None = Field(default=None, ge=1, le=12)
+    fecha_objetivo_uso: date | None = None
+    fase_obra: Literal["estructura", "terminaciones", "impermeabilizacion", "general"]
+    tolerancia_riesgo: Literal["baja", "media", "alta"]
+    cantidad_objetivo: Decimal = Field(gt=0, decimal_places=4)
+
+    @model_validator(mode="after")
+    def validate_horizonte_o_fecha(self):
+        if self.horizonte_meses is None and self.fecha_objetivo_uso is None:
+            raise ValueError("Debe informar fecha_objetivo_uso u horizonte_meses")
+        if self.horizonte_meses is not None and self.fecha_objetivo_uso is not None:
+            raise ValueError("Informe fecha_objetivo_uso u horizonte_meses, no ambos")
+        return self
+
+
+class ContextualPurchaseRecommendationRead(BaseModel):
+    material_id: int
+    material_key: str
+    fase_obra: str
+    fecha_objetivo_uso: date | None = None
+    horizonte_meses: int
+    tolerancia_riesgo: str
+    criticidad: str
+    decision: Literal["COMPRAR_AHORA", "POSTERGAR", "ESCALONAR", "SIN_VENTAJA_CLARA"]
+    variacion_esperada_pct: Decimal | None = None
+    precio_actual: Decimal | None = None
+    precio_proyectado_horizonte: Decimal | None = None
+    precio_proyectado_optimista: Decimal | None = None
+    precio_proyectado_pesimista: Decimal | None = None
+    cantidad_objetivo: Decimal | None = None
+    impacto_economico_estimado: Decimal | None = None
+    mape: Decimal | None = None
+    umbral_decision_pct: Decimal | None = None
+    supera_umbral_decision: bool = False
+    confiabilidad: str
+    justificacion: str
+    advertencias: list[str]
+
+
 class PurchaseStrategyComparisonCreate(BaseModel):
     horizonte_meses: int = Field(default=3, ge=1, le=12)
     cantidad_objetivo: Decimal = Field(gt=0, decimal_places=4)
@@ -415,22 +455,6 @@ class PurchaseOptimizationRead(BaseModel):
 
 class OperationalPurchaseRecommendationCreate(PurchaseOptimizationCreate):
     pass
-
-
-class OperationalPurchaseRecommendationItemRead(BaseModel):
-    material_id: int
-    material_key: str
-    accion_recomendada: Literal["COMPRAR_AHORA", "POSTERGAR", "COMPRA_PARCIAL"]
-    cantidad_comprar_ahora: Decimal
-    cantidad_postergar: Decimal
-    impacto_economico_estimado: Decimal
-    impacto_economico_pct: Decimal
-    confianza: str
-    criticidad: str
-    recomendacion_simple: Literal["COMPRAR_AHORA", "ESPERAR", "MONITOREAR"]
-    mejor_estrategia: Literal["COMPRAR_AHORA", "ESPERAR_AL_HORIZONTE", "COMPRA_PARCIAL"]
-    ventaja_estrategia_significativa: bool
-    explicacion: str
 
 
 class OperationalPurchaseRecommendationItemRead(BaseModel):

@@ -1,4 +1,5 @@
 from decimal import Decimal
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
@@ -93,3 +94,34 @@ def test_actualizar_margen_inexistente_devuelve_404() -> None:
 
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail == "Margen comercial no encontrado"
+
+
+def test_crear_margen_integrity_error() -> None:
+    session = MagicMock()
+    from sqlalchemy.exc import IntegrityError
+    session.commit.side_effect = IntegrityError("mock", "mock", "mock")
+    
+    with pytest.raises(HTTPException) as exc_info:
+        crear_margen_comercial(
+            session,
+            scope="GLOBAL",
+            material_id=None,
+            presentation_id=None,
+            product_key=None,
+            margen_ganancia_pct=Decimal("30.00"),
+            activo=True,
+        )
+    assert exc_info.value.status_code == 409
+
+def test_actualizar_margen_integrity_error() -> None:
+    session = MagicMock()
+    from sqlalchemy.exc import IntegrityError
+    from app.modules.pricing.infrastructure.models import CommercialMargin
+    
+    margin = CommercialMargin(id=1, scope="GLOBAL", margen_ganancia_pct=Decimal("30.00"), activo=True)
+    session.get.return_value = margin
+    session.commit.side_effect = IntegrityError("mock", "mock", "mock")
+    
+    with pytest.raises(HTTPException) as exc_info:
+        actualizar_margen_comercial(session, margin_id=1, update_data={"margen_ganancia_pct": Decimal("35.00")})
+    assert exc_info.value.status_code == 409

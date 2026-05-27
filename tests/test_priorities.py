@@ -1,16 +1,23 @@
 from decimal import Decimal
+from unittest.mock import MagicMock
 
 import pytest
 
 from app.modules.pricing.application.priorities import (
     MaterialPriorityInput,
     priorizar_materiales_criticos,
+    priorizar_materiales_desde_forecast,
 )
+from app.modules.pricing.domain.exceptions import MaterialNotFoundException
 from app.modules.pricing.domain.rules import (
     calcular_impacto_absoluto,
     calcular_variacion_esperada_porcentual,
     etiquetar_criticidad,
     normalizar_valores,
+)
+from app.modules.pricing.interfaces.schemas import (
+    MaterialCriticidadCreate,
+    MaterialCriticidadItemCreate,
 )
 
 
@@ -29,6 +36,10 @@ def _material(
         precio_actual_normalizado=Decimal(precio_actual),
         precio_proyectado_normalizado=Decimal(precio_proyectado),
     )
+
+
+def test_priorizar_materiales_criticos_empty() -> None:
+    assert priorizar_materiales_criticos([]) == []
 
 
 def test_calcular_impacto_absoluto() -> None:
@@ -88,3 +99,44 @@ def test_priorizar_materiales_maneja_variacion_cero_e_impacto_cero() -> None:
 def test_priorizar_materiales_rechaza_pesos_invalidos() -> None:
     with pytest.raises(ValueError, match="no pueden ser ambos cero"):
         priorizar_materiales_criticos([_material(1, "Cemento", "100", "100.00", "120.00")], alpha=Decimal("0"), beta=Decimal("0"))
+
+
+def test_priorizar_materiales_desde_forecast(monkeypatch) -> None:
+    mock_material_repo = MagicMock()
+    mock_pricing_repo = MagicMock()
+    
+    material = MagicMock()
+    material.id = 1
+    material.nombre = "Cemento"
+    material.unidad_base = "kg"
+    mock_material_repo.get_by_id.return_value = material
+    
+    mock_forecast = MagicMock()
+    mock_forecast.dataset = [MagicMock(y=100.0)]
+    mock_forecast.forecast = [MagicMock(precio_proyectado=Decimal("110.00"))]
+    
+    monkeypatch.setattr("app.modules.pricing.application.priorities.forecast_material", lambda *args: mock_forecast)
+    
+    payload = MaterialCriticidadCreate(
+        horizonte_meses=3,
+        materiales=[MaterialCriticidadItemCreate(material_id=1, cantidad_requerida=Decimal("50"))]
+    )
+    
+    result = priorizar_materiales_desde_forecast(payload, mock_material_repo, mock_pricing_repo)
+    
+    assert result.horizonte_meses == 3
+    assert len(result.materiales) == 1
+    assert result.materiales[0].material_id == 1
+    assert result.materiales[0].precio_proyectado_normalizado == Decimal("110.00")
+
+
+def test_priorizar_materiales_desde_forecast_material_not_found() -> None:
+    mock_material_repo = MagicMock()
+    mock_material_repo.get_by_id.return_value = None
+    
+    payload = MaterialCriticidadCreate(
+        materiales=[MaterialCriticidadItemCreate(material_id=999, cantidad_requerida=Decimal("50"))]
+    )
+    
+    with pytest.raises(MaterialNotFoundException):
+        priorizar_materiales_desde_forecast(payload, mock_material_repo, MagicMock())

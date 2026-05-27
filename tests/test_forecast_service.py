@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
@@ -529,3 +530,90 @@ def test_normalizacion_por_kg_no_cambia_con_selector_activado(monkeypatch: pytes
     forecast_material(material, 3, object(), usar_selector_modelo=True)
 
     assert objetivo_usado["valor"] == "precio_promedio_normalizado"
+
+
+def test_obtener_forecast_cacheado_expiration(monkeypatch):
+    from app.modules.pricing.application.forecast_service import _forecast_cache, ForecastCacheEntry, obtener_forecast_cacheado, ForecastCacheKey
+    from time import monotonic
+    
+    limpiar_forecast_cache()
+    res = _forecast_result("100.00")
+    cache_key = ForecastCacheKey(material_id=1, horizonte_meses=3, dataset_signature="sig")
+    _forecast_cache[cache_key] = ForecastCacheEntry(result=res, expires_at=monotonic() - 10)
+    
+    assert obtener_forecast_cacheado(1, 3, "sig") is None
+    assert cache_key not in _forecast_cache
+
+def test_backtesting_forecast_insufficient_data(monkeypatch):
+    from app.modules.pricing.application.forecast_service import backtesting_forecast
+    monkeypatch.setattr("app.modules.pricing.application.forecast_service.construir_folds_temporales", lambda *args, **kwargs: [])
+    
+    with pytest.raises(HTTPException) as exc:
+        backtesting_forecast(None, None, [], None, 3, [])
+    assert exc.value.status_code == 422
+
+def test_pronosticar_futuro_missing_regressors(monkeypatch):
+    from app.modules.pricing.application.forecast_service import pronosticar_futuro
+    import pandas as pd
+    
+    dataset = [ProphetRow(ds=date(2024, 1, 1), y=100.0)]
+    # Provide regressor ONLY after the last date in dataset
+    regresores_df = pd.DataFrame({"ds": [pd.to_datetime("2024-02-01")], "r1": [1.0]})
+    
+    with pytest.raises(HTTPException) as exc:
+        pronosticar_futuro(pd, MagicMock(), dataset, regresores_df, ("r1",), 3, "un", "mat")
+    assert "No hay regresores externos alineados" in exc.value.detail
+
+def test_forecast_material_loads_snapshot(monkeypatch):
+    limpiar_forecast_cache()
+    material = SimpleNamespace(id=1, nombre="Cemento", unidad_base="kg")
+    dataset = [ProphetRow(ds=date(2024, 1, 1), y=100.0)] * 30
+    
+    monkeypatch.setattr("app.modules.pricing.application.forecast_service.serie_mensual_material", lambda *args: ["s"])
+    monkeypatch.setattr("app.modules.pricing.application.forecast_service.construir_dataset_prophet", lambda pontos, objetivo: dataset)
+    
+    res = _forecast_result("100.00")
+    monkeypatch.setattr("app.modules.pricing.application.forecast_service.cargar_forecast_snapshot", lambda *args: res)
+    
+    result = forecast_material(material, 3, object())
+    assert result.forecast[0].precio_proyectado == Decimal("100.00")
+
+def test_precomputar_forecasts_materiales(monkeypatch):
+    material = SimpleNamespace(id=1, nombre="Cemento", unidad_base="kg")
+    mock_repo = MagicMock()
+    mock_repo.list_active.return_value = [material]
+    
+    llamadas = []
+    def mock_forecast(m, h, r):
+        llamadas.append((m.id, h))
+    monkeypatch.setattr("app.modules.pricing.application.forecast_service.forecast_material", mock_forecast)
+    
+    from app.modules.pricing.application.forecast_service import precomputar_forecasts_materiales
+    completados = precomputar_forecasts_materiales(mock_repo, object(), horizontes=(3,))
+    
+    assert completados == [(1, 3)]
+    assert llamadas == [(1, 3)]
+
+def test_backtesting_forecast_with_regressors(monkeypatch):
+    from app.modules.pricing.application.forecast_service import backtesting_forecast
+    import pandas as pd
+    
+    dataset = [ProphetRow(ds=date(2024, (i % 12) + 1, 1), y=100.0) for i in range(36)]
+    regresores_df = pd.DataFrame({
+        "ds": [pd.to_datetime(f"2024-{(i % 12) + 1:02d}-01") for i in range(36)],
+        "r1": [1.0] * 36
+    })
+    
+    mock_prophet_instance = MagicMock()
+    mock_prophet_instance.predict.return_value = pd.DataFrame({"ds": regresores_df["ds"], "yhat": [100.0] * 36})
+    mock_prophet_class = MagicMock(return_value=mock_prophet_instance)
+    
+    # Mock construir_folds_temporales to return one fold
+    from app.modules.pricing.application.backtesting import TimeSeriesFold
+    fold = TimeSeriesFold(indice=1, train=dataset[:30], test=dataset[30:])
+    monkeypatch.setattr("app.modules.pricing.application.forecast_service.construir_folds_temporales", lambda *args, **kwargs: [fold])
+    
+    metrics = backtesting_forecast(pd, mock_prophet_class, dataset, regresores_df, 3, ("r1",))
+    assert metrics.mape == Decimal("0.00")
+    assert mock_prophet_instance.add_regressor.called
+    assert mock_prophet_instance.fit.called

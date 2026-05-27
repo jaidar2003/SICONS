@@ -1,6 +1,8 @@
+from datetime import date
+from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ChatHistoryMessageCreate(BaseModel):
@@ -19,3 +21,64 @@ class ChatResponseRead(BaseModel):
     aceptada: bool
     respuesta: str
     proveedor_utilizado: bool
+
+
+class CommercialNeedCreate(BaseModel):
+    necesidad: str = Field(min_length=1, max_length=1500)
+
+
+class CommercialNeedInterpretationRead(BaseModel):
+    solicitud_original: str
+    material_id: int | None = None
+    producto_nombre: str | None = None
+    cantidad: Decimal | None = None
+    fase_obra: str | None = None
+    fecha_objetivo_uso: date | None = None
+    horizonte_meses: int | None = None
+    presupuesto_maximo: Decimal | None = None
+    tolerancia_riesgo: Literal["baja", "media", "alta"]
+    datos_faltantes: list[str]
+    requiere_confirmacion: bool = True
+    proveedor_utilizado: bool = True
+
+
+class CommercialProposalCreate(BaseModel):
+    material_id: int = Field(ge=1)
+    cantidad: Decimal = Field(gt=0, decimal_places=4)
+    fase_obra: Literal["estructura", "terminaciones", "impermeabilizacion", "general"]
+    tolerancia_riesgo: Literal["baja", "media", "alta"] = "media"
+    fecha_objetivo_uso: date | None = None
+    horizonte_meses: int | None = Field(default=None, ge=1, le=12)
+    presupuesto_maximo: Decimal | None = Field(default=None, gt=0, decimal_places=2)
+    solicitud_original: str | None = Field(default=None, max_length=1500)
+
+    @model_validator(mode="after")
+    def validate_horizonte_o_fecha(self):
+        if self.fecha_objetivo_uso is None and self.horizonte_meses is None:
+            raise ValueError("Debe informar fecha_objetivo_uso u horizonte_meses")
+        if self.fecha_objetivo_uso is not None and self.horizonte_meses is not None:
+            raise ValueError("Informe fecha_objetivo_uso u horizonte_meses, no ambos")
+        return self
+
+
+class CommercialProposalRead(BaseModel):
+    material_id: int
+    producto_nombre: str
+    cantidad: Decimal
+    fase_obra: str
+    fecha_objetivo_uso: date | None = None
+    horizonte_meses: int
+    tolerancia_riesgo: str
+    presupuesto_maximo: Decimal | None = None
+    precio_unitario_actual: Decimal | None = None
+    total_actual: Decimal | None = None
+    precio_unitario_proyectado: Decimal | None = None
+    total_proyectado: Decimal | None = None
+    diferencia_estimada: Decimal | None = None
+    decision: str
+    confiabilidad: str
+    mape: Decimal | None = None
+    justificacion: str
+    propuesta: str
+    advertencias: list[str]
+    proveedor_utilizado: bool = True

@@ -3,12 +3,15 @@ import { useEffect, useMemo, useState } from "react";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
-import { comparePurchaseStrategies, recommendPurchase } from "./pricing.api.js";
+import { comparePurchaseStrategies, recommendContextualPurchase } from "./pricing.api.js";
 
 const DECISION_LABELS = {
   COMPRAR_AHORA: "Comprar ahora",
   ESPERAR: "Esperar",
   MONITOREAR: "Monitorear",
+  POSTERGAR: "Postergar",
+  ESCALONAR: "Escalonar",
+  SIN_VENTAJA_CLARA: "Sin ventaja clara",
   COMPRAR_AHORA_AL_HORIZONTE: "Comprar ahora al horizonte",
   ESPERAR_AL_HORIZONTE: "Esperar al horizonte",
 };
@@ -27,12 +30,25 @@ const SHARE_OPTIONS = [
   { label: "100%", value: "1" },
 ];
 const HORIZON_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
+const PHASE_OPTIONS = [
+  { value: "estructura", label: "Estructura" },
+  { value: "terminaciones", label: "Terminaciones" },
+  { value: "impermeabilizacion", label: "Impermeabilización" },
+  { value: "general", label: "General" },
+];
+const RISK_OPTIONS = [
+  { value: "baja", label: "Baja" },
+  { value: "media", label: "Media" },
+  { value: "alta", label: "Alta" },
+];
 
 export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastHorizon, token, showPrices }) {
   const [materialId, setMaterialId] = useState(selectedMaterialId || "");
   const [decisionHorizon, setDecisionHorizon] = useState(forecastHorizon);
   const [quantityInput, setQuantityInput] = useState("100");
-  const [criticidad, setCriticidad] = useState("media");
+  const [faseObra, setFaseObra] = useState("general");
+  const [targetDate, setTargetDate] = useState("");
+  const [toleranciaRiesgo, setToleranciaRiesgo] = useState("media");
   const [recommendation, setRecommendation] = useState(null);
   const [comparison, setComparison] = useState(null);
   const [loadingRecommendation, setLoadingRecommendation] = useState(false);
@@ -49,7 +65,7 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
   useEffect(() => {
     setRecommendation(null);
     setComparison(null);
-  }, [criticidad, decisionHorizon, materialId, quantityInput]);
+  }, [decisionHorizon, faseObra, materialId, quantityInput, targetDate, toleranciaRiesgo]);
 
   const selectedMaterial = useMemo(
     () => materiales.find((material) => String(material.id) === String(materialId)),
@@ -76,11 +92,12 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
 
     setLoadingRecommendation(true);
     try {
-      const result = await recommendPurchase(
+      const result = await recommendContextualPurchase(
         {
-          horizonte_meses: decisionHorizon,
-          criticidad,
           cantidad_objetivo: quantity,
+          fase_obra: faseObra,
+          tolerancia_riesgo: toleranciaRiesgo,
+          ...(targetDate ? { fecha_objetivo_uso: targetDate } : { horizonte_meses: decisionHorizon }),
         },
         token,
         materialId
@@ -133,9 +150,9 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
     return (
       <Card className="mt-3">
         <CardContent>
-        <SectionHeader
-          title="Decisiones por material"
-          description="Recomendacion simple y comparacion de estrategias de compra."
+          <SectionHeader
+            title="Decisiones por material"
+            description="Recomendación contextual por etapa de obra y comparación de estrategias de compra."
         />
           <Alert severity="info">Activá la vista de precios para calcular recomendaciones y comparar estrategias.</Alert>
         </CardContent>
@@ -148,13 +165,13 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
       <CardContent>
         <SectionHeader
           title="Decisiones por material"
-          description="Convierte el forecast en una recomendacion operativa y compara estrategias de compra sobre un material puntual."
+          description="Evalúa fase de obra, fecha objetivo y tolerancia al riesgo para recomendar cuándo comprar un material puntual."
         />
 
         <Stack spacing={2.5}>
           {error ? <Alert severity="error">{error}</Alert> : null}
 
-          <Box className="grid gap-3 lg:grid-cols-[1.2fr_.8fr_.8fr_.8fr] lg:items-end">
+          <Box className="grid gap-3 lg:grid-cols-3 lg:items-end">
             <FormControl size="small">
               <InputLabel id="decision-material">Material</InputLabel>
               <Select
@@ -172,16 +189,16 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
             </FormControl>
 
             <FormControl size="small">
-              <InputLabel id="decision-horizon">Horizonte</InputLabel>
+              <InputLabel id="decision-phase">Fase de obra</InputLabel>
               <Select
-                labelId="decision-horizon"
-                label="Horizonte"
-                value={decisionHorizon}
-                onChange={(event) => setDecisionHorizon(Number(event.target.value))}
+                labelId="decision-phase"
+                label="Fase de obra"
+                value={faseObra}
+                onChange={(event) => setFaseObra(String(event.target.value))}
               >
-                {HORIZON_OPTIONS.map((horizon) => (
-                  <MenuItem key={horizon} value={horizon}>
-                    {horizon} {horizon === 1 ? "mes" : "meses"}
+                {PHASE_OPTIONS.map((phase) => (
+                  <MenuItem key={phase.value} value={phase.value}>
+                    {phase.label}
                   </MenuItem>
                 ))}
               </Select>
@@ -196,19 +213,54 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
               inputProps={{ min: 0, step: "any" }}
             />
 
+          </Box>
+
+          <Box className="grid gap-3 lg:grid-cols-4 lg:items-end">
             <FormControl size="small">
-              <InputLabel id="decision-criticidad">Criticidad</InputLabel>
+              <InputLabel id="decision-horizon">Horizonte sin fecha</InputLabel>
               <Select
-                labelId="decision-criticidad"
-                label="Criticidad"
-                value={criticidad}
-                onChange={(event) => setCriticidad(String(event.target.value))}
+                labelId="decision-horizon"
+                label="Horizonte sin fecha"
+                value={decisionHorizon}
+                onChange={(event) => setDecisionHorizon(Number(event.target.value))}
+                disabled={Boolean(targetDate)}
               >
-                <MenuItem value="alta">Alta</MenuItem>
-                <MenuItem value="media">Media</MenuItem>
-                <MenuItem value="baja">Baja</MenuItem>
+                {HORIZON_OPTIONS.map((horizon) => (
+                  <MenuItem key={horizon} value={horizon}>
+                    {horizon} {horizon === 1 ? "mes" : "meses"}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
+
+            <TextField
+              size="small"
+              label="Fecha objetivo (opcional)"
+              type="date"
+              value={targetDate}
+              onChange={(event) => setTargetDate(event.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+
+            <FormControl size="small">
+              <InputLabel id="decision-risk">Tolerancia al riesgo</InputLabel>
+              <Select
+                labelId="decision-risk"
+                label="Tolerancia al riesgo"
+                value={toleranciaRiesgo}
+                onChange={(event) => setToleranciaRiesgo(String(event.target.value))}
+              >
+                {RISK_OPTIONS.map((risk) => (
+                  <MenuItem key={risk.value} value={risk.value}>
+                    {risk.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Typography variant="body2" color="text.secondary">
+              Si informás fecha objetivo, el sistema calcula el horizonte de evaluación automáticamente.
+            </Typography>
           </Box>
 
           <Box className="grid gap-3 lg:grid-cols-[minmax(320px,1fr)_minmax(0,1.4fr)] lg:items-end">
@@ -253,9 +305,9 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
                 <SummaryMini
                   label="Variacion esperada"
                   value={recommendation.variacion_esperada_pct === null ? "-" : `${formatNumber(recommendation.variacion_esperada_pct)}%`}
-                  helper={`Criticidad ${recommendation.criticidad}`}
+                  helper={`Fase ${recommendation.fase_obra} / criticidad ${recommendation.criticidad}`}
                 />
-                <SummaryMini label="Confiabilidad" value={recommendation.confiabilidad} helper="Lectura metodologica del forecast" />
+                <SummaryMini label="Confiabilidad" value={recommendation.confiabilidad} helper={`Riesgo ${recommendation.tolerancia_riesgo}`} />
                 <SummaryMini label="Material" value={selectedMaterial?.nombre || "-"} helper={selectedMaterial?.unidad_base || "-"} />
               </Box>
 
@@ -332,8 +384,8 @@ export function PurchaseDecisionCard({ materiales, selectedMaterialId, forecastH
 
           {!recommendation && !comparison ? (
             <Alert severity="info">
-              La recomendacion simple responde "que conviene hacer" y la comparacion de estrategias muestra por que. Son dos
-              capas distintas del modulo de decisiones.
+              La recomendación contextual considera fase de obra, fecha u horizonte y tolerancia al riesgo. La comparación de
+              estrategias permite revisar alternativas económicas para el mismo material.
             </Alert>
           ) : null}
         </Stack>

@@ -282,3 +282,57 @@ def test_endpoint_responde_con_contrato_esperado(monkeypatch) -> None:
     assert body["umbral_decision_pct"] == "5"
     assert body["supera_umbral_decision"] is True
     assert body["advertencias"] == []
+
+
+def test_resolver_confiabilidad_derivada() -> None:
+    from app.modules.pricing.application.purchase_recommendations import _resolver_confiabilidad
+    
+    # MAPE <= 5 -> alta
+    res = SimpleNamespace(metricas=SimpleNamespace(mape=Decimal("4")), seleccion_modelo=None)
+    assert _resolver_confiabilidad(res) == "alta"
+    
+    # MAPE <= 8 -> media
+    res = SimpleNamespace(metricas=SimpleNamespace(mape=Decimal("7")), seleccion_modelo=None)
+    assert _resolver_confiabilidad(res) == "media"
+    
+    # MAPE <= 12 -> media-baja
+    res = SimpleNamespace(metricas=SimpleNamespace(mape=Decimal("10")), seleccion_modelo=None)
+    assert _resolver_confiabilidad(res) == "media-baja"
+    
+    # MAPE > 12 -> baja
+    res = SimpleNamespace(metricas=SimpleNamespace(mape=Decimal("15")), seleccion_modelo=None)
+    assert _resolver_confiabilidad(res) == "baja"
+    
+    # MAPE is None -> no_disponible
+    res = SimpleNamespace(metricas=SimpleNamespace(mape=None), seleccion_modelo=None)
+    assert _resolver_confiabilidad(res) == "no_disponible"
+
+
+def test_resolver_umbral_decision() -> None:
+    from app.modules.pricing.application.purchase_recommendations import _resolver_umbral_decision
+    assert _resolver_umbral_decision(None) == Decimal("5")
+    assert _resolver_umbral_decision(Decimal("3")) == Decimal("5")
+    assert _resolver_umbral_decision(Decimal("10")) == Decimal("10")
+
+
+def test_calcular_impacto_economico_missing() -> None:
+    from app.modules.pricing.application.purchase_recommendations import _calcular_impacto_economico
+    assert _calcular_impacto_economico(precio_actual=None, precio_proyectado_horizonte=Decimal("10"), cantidad_objetivo=Decimal("1")) is None
+    assert _calcular_impacto_economico(precio_actual=Decimal("10"), precio_proyectado_horizonte=None, cantidad_objetivo=Decimal("1")) is None
+    assert _calcular_impacto_economico(precio_actual=Decimal("10"), precio_proyectado_horizonte=Decimal("10"), cantidad_objetivo=None) is None
+
+
+def test_evaluar_recomendacion_compra_confianza_media_baja() -> None:
+    # Confianza media-baja and alza fuerte -> COMPRAR_AHORA
+    result = evaluar_recomendacion_compra(
+        material_id=1, material_key="k", horizonte_meses=3, cantidad_objetivo=Decimal("1"),
+        variacion_esperada_pct=Decimal("15"), confiabilidad="media-baja", criticidad="alta", no_calibrado=False
+    )
+    assert result.decision == DECISION_COMPRAR_AHORA
+    
+    # Confianza media-baja and alza moderada -> MONITOREAR
+    result = evaluar_recomendacion_compra(
+        material_id=1, material_key="k", horizonte_meses=3, cantidad_objetivo=Decimal("1"),
+        variacion_esperada_pct=Decimal("4"), confiabilidad="media-baja", criticidad="alta", no_calibrado=False
+    )
+    assert result.decision == DECISION_MONITOREAR

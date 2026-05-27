@@ -7,6 +7,10 @@ from app.modules.auth.interfaces.dependencies import get_current_user
 from app.modules.catalog.domain.repositories import MaterialRepository
 from app.modules.catalog.infrastructure.models import Fuente, Presentacion
 from app.modules.catalog.interfaces.dependencies import get_material_repository
+from app.modules.chat.application.commercial_assistant import (
+    generar_propuesta_comercial,
+    interpretar_necesidad_comercial,
+)
 from app.modules.chat.application.context import build_material_context, resolve_horizon
 from app.modules.chat.application.operations import (
     execute_operation,
@@ -27,7 +31,14 @@ from app.modules.chat.infrastructure.llm_client import (
     LLMProviderError,
     OpenAICompatibleChatClient,
 )
-from app.modules.chat.interfaces.schemas import ChatQueryCreate, ChatResponseRead
+from app.modules.chat.interfaces.schemas import (
+    ChatQueryCreate,
+    ChatResponseRead,
+    CommercialNeedCreate,
+    CommercialNeedInterpretationRead,
+    CommercialProposalCreate,
+    CommercialProposalRead,
+)
 from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.infrastructure.models import CommercialMargin
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
@@ -110,6 +121,90 @@ def consultar_chat(
         aceptada=result.aceptada,
         respuesta=result.respuesta,
         proveedor_utilizado=result.proveedor_utilizado,
+    )
+
+
+@router.post("/presupuestacion/interpretar", response_model=CommercialNeedInterpretationRead)
+def interpretar_necesidad_para_presupuesto(
+    payload: CommercialNeedCreate,
+    client: ChatCompletionClient = Depends(get_chat_client),
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    current_user: Usuario = Depends(get_current_user),
+) -> CommercialNeedInterpretationRead:
+    try:
+        result = interpretar_necesidad_comercial(
+            payload.necesidad,
+            materials=material_repo.list_active(),
+            client=client,
+        )
+    except LLMConfigurationError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    except LLMProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return CommercialNeedInterpretationRead(
+        solicitud_original=result.solicitud_original,
+        material_id=result.material_id,
+        producto_nombre=result.producto_nombre,
+        cantidad=result.cantidad,
+        fase_obra=result.fase_obra,
+        fecha_objetivo_uso=result.fecha_objetivo_uso,
+        horizonte_meses=result.horizonte_meses,
+        presupuesto_maximo=result.presupuesto_maximo,
+        tolerancia_riesgo=result.tolerancia_riesgo,
+        datos_faltantes=list(result.datos_faltantes),
+    )
+
+
+@router.post("/presupuestacion/propuesta", response_model=CommercialProposalRead)
+def generar_propuesta_de_presupuesto(
+    payload: CommercialProposalCreate,
+    client: ChatCompletionClient = Depends(get_chat_client),
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+) -> CommercialProposalRead:
+    material = material_repo.get_by_id(payload.material_id)
+    if material is None:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+    try:
+        result = generar_propuesta_comercial(
+            material=material,
+            cantidad=payload.cantidad,
+            fase_obra=payload.fase_obra,
+            tolerancia_riesgo=payload.tolerancia_riesgo,
+            fecha_objetivo_uso=payload.fecha_objetivo_uso,
+            horizonte_meses=payload.horizonte_meses,
+            presupuesto_maximo=payload.presupuesto_maximo,
+            solicitud_original=payload.solicitud_original,
+            pricing_repo=pricing_repo,
+            db=db,
+            client=client,
+        )
+    except LLMConfigurationError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    except LLMProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    return CommercialProposalRead(
+        material_id=result.material_id,
+        producto_nombre=result.producto_nombre,
+        cantidad=result.cantidad,
+        fase_obra=result.fase_obra,
+        fecha_objetivo_uso=result.fecha_objetivo_uso,
+        horizonte_meses=result.horizonte_meses,
+        tolerancia_riesgo=result.tolerancia_riesgo,
+        presupuesto_maximo=result.presupuesto_maximo,
+        precio_unitario_actual=result.precio_unitario_actual,
+        total_actual=result.total_actual,
+        precio_unitario_proyectado=result.precio_unitario_proyectado,
+        total_proyectado=result.total_proyectado,
+        diferencia_estimada=result.diferencia_estimada,
+        decision=result.recomendacion.decision,
+        confiabilidad=result.recomendacion.confiabilidad,
+        mape=result.recomendacion.mape,
+        justificacion=result.recomendacion.justificacion,
+        propuesta=result.propuesta,
+        advertencias=list(result.advertencias),
     )
 
 

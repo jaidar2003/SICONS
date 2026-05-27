@@ -9,16 +9,16 @@ Este documento resume el alcance funcional de `BuildWise` y deja visible dos niv
 
 | Grupo | Cantidad |
 | --- | ---: |
-| Historias totales | 35 |
-| Implementadas | 33 |
+| Historias totales | 40 |
+| Implementadas | 40 |
 | Parciales | 0 |
-| Pendientes | 2 |
+| Pendientes | 0 |
 
 | Cumplimiento literal | Cantidad |
 | --- | ---: |
-| ✅ Si | 33 |
+| ✅ Si | 40 |
 | 🟡 Parcial | 0 |
-| ❌ No | 2 |
+| ❌ No | 0 |
 
 ## Alcance MVP vigente
 
@@ -30,8 +30,6 @@ Para esta etapa, el alcance funcional y de validacion de historias se concentra 
 
 Las historias nuevas o pendientes deben considerarse prioritariamente sobre estos tres productos. La extension a otros materiales queda fuera del MVP actual.
 
-- `HU33` queda diferida a post-MVP por insuficiencia de universo de sustitucion en el catalogo actual.
-
 ## Criterios
 
 | Campo | Valor | Criterio |
@@ -42,6 +40,8 @@ Las historias nuevas o pendientes deben considerarse prioritariamente sobre esto
 | Cumplimiento literal | ✅ Si | La implementacion coincide de forma directa con la redaccion de la historia. |
 | Cumplimiento literal | 🟡 Parcial | La implementacion cubre la intencion funcional principal, pero no todos los detalles literales. |
 | Cumplimiento literal | ❌ No | La historia no esta implementada o no cubre todavia la conducta pedida. |
+
+# Sprint 1
 
 ## Epica 1. Gestion y preparacion de datos
 
@@ -94,6 +94,8 @@ Las historias nuevas o pendientes deben considerarse prioritariamente sobre esto
 | HU28 | Optimizar presupuesto con criticidad y forecast. | Implementada | ✅ Si | Devuelve asignacion recomendada, presupuesto usado/restante, impacto economico, criticidad, confianza y advertencias. |
 | HU28b | Generar recomendacion operativa trazable. | Implementada | ✅ Si | Consolida accion, cantidades, impacto economico, confianza, supuestos y advertencias en una salida final, incorporando recomendacion simple y mejor estrategia comparativa por material. |
 
+# Sprint 2
+
 ## Epica 6. Asistencia conversacional
 
 | HU | Historia | Estado | Literal | Observacion |
@@ -107,8 +109,18 @@ Las historias nuevas o pendientes deben considerarse prioritariamente sobre esto
 
 | HU | Historia | Estado | Literal | Observacion |
 | --- | --- | --- | --- | --- |
-| HU29 | Recomendar estrategia segun fase de obra y fecha objetivo. | Pendiente | ❌ No | Falta integrar fase, horizonte operativo y tolerancia al riesgo en la recomendacion final. |
+| HU29 | Recomendar estrategia segun fase de obra y fecha objetivo. | Implementada | ✅ Si | Endpoint `recomendacion-contextual` y vista de decision incorporan fase, fecha u horizonte, cantidad y tolerancia al riesgo para devolver una accion justificada. |
 | HU30 | Explicar por que se recomienda una estrategia. | Implementada | ✅ Si | El asistente conversacional y las vistas de estrategia (HU22/HU28b) ya ofrecen explicaciones sobre drivers e impacto. |
 | HU31 | Simular escenarios comparables (optimista/base/pesimista) en una vista unica. | Implementada | ✅ Si | El motor de forecast genera intervalos de confianza y la UI los visualiza como una franja de incertidumbre (fan chart). |
 | HU32 | Emitir alertas proactivas de decision ante cambios relevantes. | Implementada | ✅ Si | Motor de alertas en backend que detecta oportunidades de compra, desvios de precio y perdida de confianza. Interfaz de notificaciones en el AppHeader. |
-| HU33 | Sugerir materiales sustitutos con impacto tecnico-economico. | Pendiente | ❌ No | Post-MVP: con el catalogo actual de 3 productos no hay base suficiente para sustitucion entre materiales. Se retoma al ampliar catalogo por familias equivalentes. |
+
+## Epica 8. Asistente inteligente de presupuestacion y decision de compra
+
+| HU | Historia | Estado | Literal | Observacion |
+| --- | --- | --- | --- | --- |
+| HU33 | Ingresar una necesidad de obra en lenguaje natural para solicitar orientacion comercial. | Implementada | ✅ Si | La vista `Asistente comercial IA` admite el pedido libre para productos del MVP. |
+| HU34 | Interpretar mediante IA la necesidad e identificar producto, cantidad, etapa de obra, fecha objetivo, presupuesto disponible y datos faltantes. | Implementada | ✅ Si | Endpoint `chat/presupuestacion/interpretar` restringe el catalogo a los tres productos y devuelve datos estructurados y faltantes. |
+| HU35 | Validar o corregir los datos interpretados antes de generar un presupuesto o recomendacion. | Implementada | ✅ Si | El frontend presenta un formulario editable y requiere confirmar antes de generar la propuesta. |
+| HU36 | Generar un presupuesto comercial con precios vigentes y cantidades confirmadas para los productos del MVP. | Implementada | ✅ Si | La propuesta utiliza el precio comercial calculado por backend, incluyendo margen configurado y totales por cantidad. |
+| HU37 | Recomendar el momento de compra considerando presupuesto, precio actual, forecast, fecha de uso y confianza del modelo. | Implementada | ✅ Si | El flujo comercial reutiliza `recomendacion-contextual` para combinar fase, fecha/horizonte, tolerancia y forecast. |
+| HU38 | Generar una propuesta comercial explicable que integre presupuesto, recomendacion, supuestos y riesgos. | Implementada | ✅ Si | Endpoint `chat/presupuestacion/propuesta` entrega importes calculados y texto redactado por IA bajo contexto controlado. |

@@ -21,6 +21,7 @@ from app.modules.pricing.application.commercial_margins import (
 from app.modules.pricing.application.commercial_prices import (
     calcular_precio_comercial,
 )
+from app.modules.pricing.application.contextual_purchase_recommendations import recomendar_estrategia_contextual
 from app.modules.pricing.application.external_indices import list_external_indices, sync_external_index
 from app.modules.pricing.application.forecast_service import (
     forecast_material,
@@ -60,6 +61,8 @@ from app.modules.pricing.interfaces.schemas import (
     CommercialMarginRead,
     CommercialMarginUpdate,
     CommercialPriceRead,
+    ContextualPurchaseRecommendationCreate,
+    ContextualPurchaseRecommendationRead,
     ExternalIndexSyncRequest,
     ExternalIndexSyncResponse,
     ExternalIndexValueRead,
@@ -311,6 +314,53 @@ def recomendar_momento_compra_material(
         supera_umbral_decision=getattr(result, "supera_umbral_decision", False),
         confiabilidad=result.confiabilidad,
         criticidad=result.criticidad,
+        justificacion=result.justificacion,
+        advertencias=list(result.advertencias),
+    )
+
+
+@router.post("/materiales/{material_id}/recomendacion-contextual", response_model=ContextualPurchaseRecommendationRead)
+def recomendar_estrategia_contextual_material(
+    material_id: int,
+    payload: ContextualPurchaseRecommendationCreate,
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    current_user: Usuario = Depends(get_current_user),
+) -> ContextualPurchaseRecommendationRead:
+    material = material_repo.get_by_id(material_id)
+    if material is None:
+        raise MaterialNotFoundException(material_id)
+
+    result = recomendar_estrategia_contextual(
+        material,
+        fase_obra=payload.fase_obra,
+        tolerancia_riesgo=payload.tolerancia_riesgo,
+        cantidad_objetivo=payload.cantidad_objetivo,
+        horizonte_meses=payload.horizonte_meses,
+        fecha_objetivo_uso=payload.fecha_objetivo_uso,
+        pricing_repo=pricing_repo,
+        usar_selector_modelo=USAR_SELECTOR_MODELO_FORECAST,
+    )
+    return ContextualPurchaseRecommendationRead(
+        material_id=result.material_id,
+        material_key=result.material_key,
+        fase_obra=result.fase_obra,
+        fecha_objetivo_uso=result.fecha_objetivo_uso,
+        horizonte_meses=result.horizonte_meses,
+        tolerancia_riesgo=result.tolerancia_riesgo,
+        criticidad=result.criticidad,
+        decision=result.decision,
+        variacion_esperada_pct=result.variacion_esperada_pct,
+        precio_actual=result.precio_actual,
+        precio_proyectado_horizonte=result.precio_proyectado_horizonte,
+        precio_proyectado_optimista=result.precio_proyectado_optimista,
+        precio_proyectado_pesimista=result.precio_proyectado_pesimista,
+        cantidad_objetivo=result.cantidad_objetivo,
+        impacto_economico_estimado=result.impacto_economico_estimado,
+        mape=result.mape,
+        umbral_decision_pct=result.umbral_decision_pct,
+        supera_umbral_decision=result.supera_umbral_decision,
+        confiabilidad=result.confiabilidad,
         justificacion=result.justificacion,
         advertencias=list(result.advertencias),
     )
@@ -608,7 +658,7 @@ def listar_alertas(
     """
     query = db.query(Alerta)
     if solo_no_leidas:
-        query = query.filter(Alerta.leida == False)
+        query = query.filter(Alerta.leida.is_(False))
     if material_id:
         query = query.filter(Alerta.material_id == material_id)
 

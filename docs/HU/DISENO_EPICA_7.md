@@ -10,7 +10,6 @@ Este documento define el diseno funcional inicial de la Epica 7 de `BuildWise`, 
 - la salida principal debe ser accionable: recomendar que hacer, cuando hacerlo y por que;
 - toda recomendacion debe exponer incertidumbre del modelo (al menos `MAPE` y umbral de decision);
 - el MVP actual trabaja sobre 3 productos: `Cemento Portland`, `Pastina` y `Membrana Megaflex`;
-- `HU33` queda diferida a post-MVP por falta de universo de sustitucion entre materiales.
 
 ---
 
@@ -43,6 +42,13 @@ Emitir una recomendacion de compra contextualizada por fase de obra, horizonte d
 - ahorro o sobrecosto esperado en ARS y porcentaje;
 - nivel de riesgo asociado;
 - justificacion resumida por fase + horizonte + error del modelo.
+
+### Conexion implementada
+
+- endpoint autenticado `POST /materiales/{material_id}/recomendacion-contextual`;
+- entrada con `fase_obra`, `tolerancia_riesgo`, `cantidad_objetivo` y `fecha_objetivo_uso` o `horizonte_meses`;
+- derivacion de criticidad por fase y umbral contextual segun tolerancia al riesgo;
+- vista `Analizar material` con ingreso del contexto y respuesta justificada.
 
 ---
 
@@ -133,31 +139,6 @@ Disparar alertas accionables cuando cambian condiciones relevantes para comprar 
 
 La alerta debe invitar a una accion concreta y enlazar con la recomendacion vigente, evitando notificaciones descriptivas sin decision asociada.
 
----
-
-## HU33 - Sugerir materiales sustitutos con impacto tecnico-economico
-
-### Estado de alcance
-
-`HU33` queda en **post-MVP**. Con el catalogo actual de 3 productos no existe universo suficiente para sustitucion tecnica entre materiales equivalentes.
-
-### Condicion para activacion futura
-
-Esta HU se retoma cuando exista un catalogo ampliado por familias equivalentes (por ejemplo, mas de una opcion comparable por tipo de material y uso).
-
-### Salida objetivo (post-MVP)
-
-- alternativas tecnicas viables;
-- impacto economico esperado por alternativa;
-- impacto en mantenimiento/diseno;
-- justificacion de trade-offs.
-
-### Nota opcional para MVP extendido
-
-Si se requiere una version acotada antes de ampliar catalogo, solo podria evaluarse una variante comercial del mismo material (marca/presentacion), no una sustitucion tecnica completa.
-
----
-
 ## Dependencias funcionales de Epica 7
 
 - `HU21`, `HU22` y `HU28` como base de recomendacion y comparacion;
@@ -202,5 +183,4 @@ Si se requiere una version acotada antes de ampliar catalogo, solo podria evalua
 - cada recomendacion debe devolver accion, impacto y confianza;
 - los escenarios deben verse en una sola salida comparable;
 - las alertas deben incluir gatillo y accion sugerida;
-- `HU33` debe permanecer marcada como post-MVP mientras el catalogo siga en 3 productos;
 - la epica debe poder alimentar respuestas conversacionales sin recalcular reglas fuera de backend.

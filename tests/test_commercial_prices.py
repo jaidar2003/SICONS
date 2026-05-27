@@ -1,6 +1,8 @@
+import pytest
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from app.modules.pricing.application import commercial_prices
 from app.modules.pricing.application.commercial_prices import (
@@ -176,3 +178,91 @@ def test_calcular_precio_comercial_reutiliza_historico_del_material_si_no_hay_pr
 
     assert result.costo_base_actual == Decimal("520.00")
     assert result.margen_ganancia_pct == Decimal("30.00")
+
+
+def test_derive_product_key_no_presentation() -> None:
+    assert commercial_prices.derive_product_key("Cemento") == "cemento"
+
+
+def test_calcular_precio_comercial_presentation_not_found() -> None:
+    from fastapi import HTTPException
+    material = SimpleNamespace(id=1, nombre="Cemento")
+    db = SimpleNamespace(get=lambda *args: None)
+    with pytest.raises(HTTPException) as exc:
+        calcular_precio_comercial(material=material, pricing_repo=None, db=db, presentation_id=999)
+    assert exc.value.status_code == 404
+
+
+def test_calcular_precio_comercial_presentation_mismatch() -> None:
+    from fastapi import HTTPException
+    material = SimpleNamespace(id=1, nombre="Cemento")
+    presentation = SimpleNamespace(id=2, material_id=2, nombre_presentacion="Bolsa")
+    db = SimpleNamespace(get=lambda *args: presentation)
+    with pytest.raises(HTTPException) as exc:
+        calcular_precio_comercial(material=material, pricing_repo=None, db=db, presentation_id=2)
+    assert exc.value.status_code == 422
+
+
+def test_resolve_commercial_margin_no_match() -> None:
+    assert resolve_commercial_margin([], material_id=1, presentation_id=1, product_key="k") is None
+
+
+def test_calcular_precio_comercial_no_historical_data(monkeypatch) -> None:
+    material = SimpleNamespace(id=1, nombre="Cemento")
+    monkeypatch.setattr(commercial_prices, "_cargar_candidatos", lambda _db: [])
+    monkeypatch.setattr(commercial_prices, "forecast_material", lambda *args, **kwargs: SimpleNamespace(forecast=[]))
+    
+    pricing_repo = SimpleNamespace(get_historical_prices=lambda *args: [])
+    
+    result = calcular_precio_comercial(material=material, pricing_repo=pricing_repo, db=SimpleNamespace(get=lambda *args: None))
+    assert any("No hay precio historico base" in a for a in result.advertencias)
+
+
+def test_calcular_precio_comercial_forecast_error(monkeypatch) -> None:
+    from fastapi import HTTPException
+    material = SimpleNamespace(id=1, nombre="Cemento")
+    monkeypatch.setattr(commercial_prices, "_cargar_candidatos", lambda _db: [])
+    monkeypatch.setattr(commercial_prices, "_cargar_historial_base", lambda *args: None)
+    
+    def mock_forecast(*args, **kwargs):
+        raise HTTPException(status_code=500, detail="Forecast failed")
+    monkeypatch.setattr(commercial_prices, "forecast_material", mock_forecast)
+    
+    result = calcular_precio_comercial(material=material, pricing_repo=None, db=SimpleNamespace(get=lambda *args: None))
+    assert any("No fue posible calcular el costo proyectado" in a for a in result.advertencias)
+
+
+def test_build_margin_candidate() -> None:
+    from app.modules.pricing.infrastructure.models import CommercialMargin
+    margin = CommercialMargin(
+        id=1,
+        scope="GLOBAL",
+        material_id=None,
+        presentation_id=None,
+        product_key=None,
+        margen_ganancia_pct=Decimal("10.00"),
+        activo=True,
+        updated_at=datetime.now()
+    )
+    candidate = commercial_prices.build_margin_candidate(margin)
+    assert candidate.id == 1
+    assert candidate.scope == "GLOBAL"
+
+def test_cargar_candidatos(monkeypatch) -> None:
+    from app.modules.pricing.infrastructure.models import CommercialMargin
+    margin = CommercialMargin(
+        id=1,
+        scope="GLOBAL",
+        material_id=None,
+        presentation_id=None,
+        product_key=None,
+        margen_ganancia_pct=Decimal("10.00"),
+        activo=True,
+        updated_at=datetime.now()
+    )
+    db = MagicMock()
+    db.scalars.return_value = [margin]
+    
+    candidatos = commercial_prices._cargar_candidatos(db)
+    assert len(candidatos) == 1
+    assert candidatos[0].id == 1

@@ -41,6 +41,10 @@ export function recommendPurchase(payload, token, materialId) {
   return apiPost(`/materiales/${materialId}/recomendacion-compra`, payload, token);
 }
 
+export function recommendContextualPurchase(payload, token, materialId) {
+  return apiPost(`/materiales/${materialId}/recomendacion-contextual`, payload, token);
+}
+
 export function comparePurchaseStrategies(payload, token, materialId) {
   return apiPost(`/materiales/${materialId}/comparacion-estrategias-compra`, payload, token);
 }

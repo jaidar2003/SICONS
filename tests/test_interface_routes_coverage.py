@@ -12,6 +12,7 @@ from app.modules.catalog.interfaces.schemas import FuenteCreate, MaterialCreate,
 from app.modules.pricing.domain.exceptions import MaterialNotFoundException
 from app.modules.pricing.interfaces import routes as pricing_routes
 from app.modules.pricing.interfaces.schemas import (
+    AlertaBatchUpdate,
     CommercialMarginCreate,
     CommercialMarginUpdate,
     ExternalIndexSyncRequest,
@@ -436,7 +437,12 @@ def test_obtener_precio_comercial_material_invalid_horizon():
     assert exc.value.status_code == 422
 
 def test_priorizar_materiales_por_criticidad_invalid_payload():
-    payload = MaterialCriticidadCreate(horizonte_meses=3, materiales=[], alpha=0, beta=0)
+    payload = MaterialCriticidadCreate(
+        horizonte_meses=3,
+        materiales=[MaterialCriticidadItemCreate(material_id=1, cantidad_requerida=10)],
+        alpha=0,
+        beta=0
+    )
     with pytest.raises(HTTPException) as exc:
         pricing_routes.priorizar_materiales_por_criticidad(payload=payload, material_repo=None, pricing_repo=None, current_user=None)
     assert exc.value.status_code == 422

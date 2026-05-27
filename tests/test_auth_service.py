@@ -169,7 +169,25 @@ def test_eliminar_usuario_restrictions() -> None:
         eliminar_usuario(session, user_id=999, current_user=admin)
     assert exc.value.status_code == 404
         
-    # Delete admin
+    # Test case: target is admin
+    admin2 = Usuario(username="admin2", email="admin2@example.com", nombre="Admin 2", password_hash="p", rol="admin", activo=True)
+    session.add(admin2)
+    session.commit()
     with pytest.raises(HTTPException) as exc:
-        eliminar_usuario(session, user_id=2, current_user=admin)
+        eliminar_usuario(session, user_id=admin2.id, current_user=admin)
     assert exc.value.status_code == 400
+    assert "No se puede eliminar un usuario admin" in exc.value.detail
+
+
+def test_habilitar_usuario_sin_email() -> None:
+    session, _engine = make_session()
+    # Manual insertion to avoid validation if any
+    from app.modules.auth.infrastructure.models import Usuario
+    user = Usuario(username="noemail", email="", nombre="No Email", password_hash="h", rol="cliente", activo=False)
+    session.add(user)
+    session.commit()
+    
+    with pytest.raises(HTTPException) as exc:
+        habilitar_usuario(session, user_id=user.id)
+    assert exc.value.status_code == 400
+    assert "no tiene email" in exc.value.detail

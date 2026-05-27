@@ -2,11 +2,13 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.modules.auth.interfaces.dependencies import get_current_user
 from app.modules.catalog.interfaces.dependencies import get_material_repository
+from app.shared.database.session import get_db
 from app.modules.chat.application.context import build_material_context, resolve_horizon
 from app.modules.chat.application.operations import execute_operation, plan_operation
 from app.modules.chat.application.service import ADMIN_ONLY_RESPONSE, OUT_OF_SCOPE_RESPONSE, answer_question
@@ -468,6 +470,9 @@ def test_consultar_chat_with_operation_plan(monkeypatch):
     monkeypatch.setattr("app.modules.chat.interfaces.routes.answer_question", 
                         lambda *args, **kwargs: ChatAnswer(aceptada=True, respuesta="Aqui estan los usuarios", proveedor_utilizado=True))
     
+    mock_db = MagicMock()
+    mock_db.scalars.return_value = iter([])
+    app.dependency_overrides[get_db] = lambda: mock_db
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
     app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(get_by_id=lambda _id: SimpleNamespace(id=1), list_active=lambda: [])
     try:
@@ -492,6 +497,9 @@ def test_consultar_chat_operation_plan_value_error(monkeypatch):
     monkeypatch.setattr("app.modules.chat.interfaces.routes.answer_question", 
                         lambda *args, **kwargs: ChatAnswer(aceptada=True, respuesta="Error controlado", proveedor_utilizado=True))
     
+    mock_db = MagicMock()
+    mock_db.scalars.return_value = iter([])
+    app.dependency_overrides[get_db] = lambda: mock_db
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
     app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(get_by_id=lambda _id: SimpleNamespace(id=1), list_active=lambda: [])
     try:
