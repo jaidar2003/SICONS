@@ -49,6 +49,28 @@ Uso recomendado en demo:
 
 La vista `Costos` convierte forecast en decision economica.
 
+### Asistente de compra IA
+
+Convierte una necesidad escrita por un comprador en una propuesta de compra validada.
+
+Incluye:
+
+- interpretacion IA de producto, cantidad, fase, fecha/horizonte y presupuesto;
+- validacion editable antes de calcular;
+- presupuesto actual;
+- comparacion contra forecast;
+- recomendacion `comprar ahora`, `postergar`, `escalonar` o `sin ventaja clara`;
+- propuesta redactada sin alterar los calculos del backend.
+
+Uso recomendado:
+
+1. Elegir `Asistente de compra IA`.
+2. Escribir una necesidad de compra.
+3. Interpretar con IA.
+4. Validar o corregir los campos detectados.
+5. Generar la propuesta.
+6. Explicar total actual, total proyectado, diferencia, decision, confianza y advertencias.
+
 ### Armar presupuesto
 
 Sirve para cargar varios materiales, cantidades, criticidad y presupuesto.
@@ -165,10 +187,11 @@ Solo aparece para usuarios con rol admin.
 
 1. `Resumen`: mostrar lectura general del material.
 2. `Forecast`: mostrar proyeccion, MAPE, MAE, folds y confiabilidad.
-3. `Costos -> Analizar material`: explicar comprar ahora, postergar o monitorear.
-4. `Costos -> Armar presupuesto`: mostrar presupuesto multi-material y optimizacion.
-5. `Costos -> Que comprar`: mostrar recomendacion operativa consolidada.
-6. `Historial -> Variaciones bruscas`: mostrar anomalias con Random Forest.
+3. `Costos -> Asistente de compra IA`: transformar una necesidad de compra en propuesta.
+4. `Costos -> Analizar material`: explicar comprar ahora, postergar o sin ventaja clara.
+5. `Costos -> Armar presupuesto`: mostrar presupuesto multi-material y optimizacion.
+6. `Costos -> Que comprar`: mostrar recomendacion operativa consolidada.
+7. `Historial -> Variaciones bruscas`: mostrar anomalias con Random Forest.
 
 ## Diferencias importantes
 

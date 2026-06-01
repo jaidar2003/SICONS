@@ -27,6 +27,7 @@ from app.modules.chat.application.service import (
 )
 from app.modules.chat.infrastructure.llm_client import (
     AnthropicChatClient,
+    FallbackChatClient,
     LLMConfigurationError,
     LLMProviderError,
     OpenAICompatibleChatClient,
@@ -48,10 +49,19 @@ from app.shared.database.session import get_db
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
+def _resolve_provider_metadata(client) -> tuple[str | None, bool]:
+    default_provider = "claude" if settings.chat_provider.strip().lower() == "anthropic" else "facultad"
+    provider_name = getattr(client, "last_provider_name", getattr(client, "provider_name", default_provider))
+    fallback_used = bool(getattr(client, "last_fallback_used", False))
+    return provider_name, fallback_used
+
+
 def get_chat_client() -> ChatCompletionClient:
     if settings.chat_provider.strip().lower() == "anthropic":
         return AnthropicChatClient()
-    return OpenAICompatibleChatClient()
+    primary = OpenAICompatibleChatClient()
+    fallback = AnthropicChatClient()
+    return FallbackChatClient(primary, fallback)
 
 
 @router.post("/consultas", response_model=ChatResponseRead)
@@ -121,6 +131,8 @@ def consultar_chat(
         aceptada=result.aceptada,
         respuesta=result.respuesta,
         proveedor_utilizado=result.proveedor_utilizado,
+        proveedor_ia=result.proveedor_ia,
+        fallback_usado=result.fallback_usado,
     )
 
 
@@ -142,16 +154,21 @@ def interpretar_necesidad_para_presupuesto(
     except LLMProviderError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return CommercialNeedInterpretationRead(
-        solicitud_original=result.solicitud_original,
-        material_id=result.material_id,
-        producto_nombre=result.producto_nombre,
-        cantidad=result.cantidad,
-        fase_obra=result.fase_obra,
-        fecha_objetivo_uso=result.fecha_objetivo_uso,
-        horizonte_meses=result.horizonte_meses,
-        presupuesto_maximo=result.presupuesto_maximo,
-        tolerancia_riesgo=result.tolerancia_riesgo,
-        datos_faltantes=list(result.datos_faltantes),
+        **{
+            "solicitud_original": result.solicitud_original,
+            "material_id": result.material_id,
+            "producto_nombre": result.producto_nombre,
+            "cantidad": result.cantidad,
+            "fase_obra": result.fase_obra,
+            "fecha_objetivo_uso": result.fecha_objetivo_uso,
+            "horizonte_meses": result.horizonte_meses,
+            "presupuesto_maximo": result.presupuesto_maximo,
+            "tolerancia_riesgo": result.tolerancia_riesgo,
+            "datos_faltantes": list(result.datos_faltantes),
+            "proveedor_utilizado": True,
+            "proveedor_ia": _resolve_provider_metadata(client)[0],
+            "fallback_usado": _resolve_provider_metadata(client)[1],
+        }
     )
 
 
@@ -185,6 +202,7 @@ def generar_propuesta_de_presupuesto(
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except LLMProviderError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    provider_name, fallback_used = _resolve_provider_metadata(client)
     return CommercialProposalRead(
         material_id=result.material_id,
         producto_nombre=result.producto_nombre,
@@ -205,6 +223,11 @@ def generar_propuesta_de_presupuesto(
         justificacion=result.recomendacion.justificacion,
         propuesta=result.propuesta,
         advertencias=list(result.advertencias),
+        fuente_decision=getattr(result, "fuente_decision", "backend_deterministico"),
+        propuesta_generada_por=getattr(result, "propuesta_generada_por", "llm_validado"),
+        proveedor_utilizado=True,
+        proveedor_ia=provider_name,
+        fallback_usado=fallback_used,
     )
 
 

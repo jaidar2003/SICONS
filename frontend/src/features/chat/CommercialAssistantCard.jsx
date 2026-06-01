@@ -1,5 +1,5 @@
 import { Alert, Box, Button, Card, CardContent, FormControl, InputLabel, MenuItem, Select, Stack, TextField, Typography } from "@mui/material";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
@@ -25,6 +25,22 @@ const DECISION_LABELS = {
   SIN_VENTAJA_CLARA: "Sin ventaja clara",
 };
 
+const SUPPORTED_PRODUCT_KEYS = new Set(["cemento-portland", "pastina", "membrana-megaflex"]);
+const PROVIDER_LABELS = {
+  facultad: "API de la facultad",
+  claude: "Claude",
+};
+
+function materialKey(nombre) {
+  return String(nombre || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 function createEmptyDraft() {
   return {
     materialId: "",
@@ -39,6 +55,10 @@ function createEmptyDraft() {
 }
 
 export function CommercialAssistantCard({ materiales, token, showPrices }) {
+  const commercialMaterials = useMemo(
+    () => materiales.filter((material) => SUPPORTED_PRODUCT_KEYS.has(materialKey(material.nombre))),
+    [materiales]
+  );
   const [need, setNeed] = useState("");
   const [draft, setDraft] = useState(createEmptyDraft);
   const [interpretation, setInterpretation] = useState(null);
@@ -50,7 +70,7 @@ export function CommercialAssistantCard({ materiales, token, showPrices }) {
   async function handleInterpret() {
     const trimmed = need.trim();
     if (!trimmed) {
-      setError("Describí la necesidad del cliente antes de interpretar.");
+      setError("Describí la necesidad de compra antes de interpretar.");
       return;
     }
     setError("");
@@ -84,7 +104,7 @@ export function CommercialAssistantCard({ materiales, token, showPrices }) {
   async function handleGenerate() {
     const quantity = Number(draft.quantity);
     if (!draft.materialId || !Number.isFinite(quantity) || quantity <= 0) {
-      setError("Confirmá producto y cantidad antes de generar la propuesta.");
+      setError("Validá producto y cantidad antes de generar la propuesta.");
       return;
     }
     setError("");
@@ -112,8 +132,8 @@ export function CommercialAssistantCard({ materiales, token, showPrices }) {
     return (
       <Card className="mt-3">
         <CardContent>
-          <SectionHeader title="Asistente comercial IA" description="Convierte una necesidad de obra en una propuesta de compra explicable." />
-          <Alert severity="info">Activá la vista de precios para generar presupuestos comerciales.</Alert>
+          <SectionHeader title="Asistente de compra IA" description="Convierte una necesidad de obra en una propuesta de compra explicable." />
+          <Alert severity="info">Activá la vista de precios para generar presupuestos de compra.</Alert>
         </CardContent>
       </Card>
     );
@@ -123,23 +143,26 @@ export function CommercialAssistantCard({ materiales, token, showPrices }) {
     <Card className="mt-3">
       <CardContent>
         <SectionHeader
-          title="Asistente comercial IA"
-          description="Describí la necesidad del cliente. La IA estructura el pedido; vos confirmás los datos y BuildWise calcula la propuesta."
+          title="Asistente de compra IA"
+          description="Describí la necesidad de compra. La IA propone una interpretación editable; BuildWise calcula la propuesta solo con datos validados."
         />
         <Stack spacing={2.5}>
           {error ? <Alert severity="error">{error}</Alert> : null}
+          {!commercialMaterials.length ? (
+            <Alert severity="warning">No hay productos del MVP disponibles para presupuestación de compra.</Alert>
+          ) : null}
 
           <TextField
             multiline
             minRows={3}
-            label="Necesidad del cliente"
+            label="Necesidad de compra"
             value={need}
             onChange={(event) => setNeed(event.target.value)}
             placeholder="Ej.: En septiembre impermeabilizo una terraza y necesito 30 unidades de Membrana Megaflex. ¿Me conviene comprar ahora?"
             inputProps={{ maxLength: 1500 }}
           />
           <Box>
-            <Button variant="contained" onClick={handleInterpret} disabled={loadingInterpretation || !need.trim()}>
+            <Button variant="contained" onClick={handleInterpret} disabled={loadingInterpretation || !need.trim() || !commercialMaterials.length}>
               {loadingInterpretation ? "Interpretando..." : "Interpretar con IA"}
             </Button>
           </Box>
@@ -152,7 +175,7 @@ export function CommercialAssistantCard({ materiales, token, showPrices }) {
                   Faltan o requieren corrección: {interpretation.datos_faltantes.join(", ")}.
                 </Alert>
               ) : (
-                <Alert severity="info">Revisá los campos detectados antes de calcular; la confirmación humana es obligatoria.</Alert>
+                <Alert severity="info">Revisá y corregí los campos detectados antes de calcular; la validación humana es obligatoria.</Alert>
               )}
               <Box className="grid gap-3 md:grid-cols-3">
                 <FormControl size="small">
@@ -163,7 +186,7 @@ export function CommercialAssistantCard({ materiales, token, showPrices }) {
                     value={draft.materialId}
                     onChange={(event) => updateDraft("materialId", String(event.target.value))}
                   >
-                    {materiales.map((material) => (
+                    {commercialMaterials.map((material) => (
                       <MenuItem key={material.id} value={String(material.id)}>
                         {material.nombre}
                       </MenuItem>
@@ -222,7 +245,7 @@ export function CommercialAssistantCard({ materiales, token, showPrices }) {
               </Box>
               <Box>
                 <Button variant="contained" color="secondary" onClick={handleGenerate} disabled={loadingProposal}>
-                  {loadingProposal ? "Generando..." : "Confirmar y generar propuesta"}
+                  {loadingProposal ? "Generando..." : "Validar y generar propuesta"}
                 </Button>
               </Box>
             </Box>
@@ -230,7 +253,7 @@ export function CommercialAssistantCard({ materiales, token, showPrices }) {
 
           {proposal ? (
             <Box className="grid gap-3 rounded-xl border border-teal-200 bg-white p-4">
-              <Typography variant="h3">Propuesta comercial</Typography>
+              <Typography variant="h3">Propuesta de compra</Typography>
               <Box className="grid gap-3 md:grid-cols-4">
                 <ProposalValue label="Total actual" value={proposal.total_actual === null ? "-" : formatCurrency(proposal.total_actual)} />
                 <ProposalValue label="Total proyectado" value={proposal.total_proyectado === null ? "-" : formatCurrency(proposal.total_proyectado)} />
@@ -242,6 +265,13 @@ export function CommercialAssistantCard({ materiales, token, showPrices }) {
               </Alert>
               <Typography variant="body2" color="text.secondary">
                 Confianza: {proposal.confiabilidad}{proposal.mape === null ? "" : ` / MAPE ${formatNumber(proposal.mape)}%`}. {proposal.justificacion}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Fuente de decisión: {proposal.fuente_decision || "backend_deterministico"}. Redacción: {proposal.propuesta_generada_por || "llm_validado"}.
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                IA usada: {PROVIDER_LABELS[proposal.proveedor_ia] || proposal.proveedor_ia || "no disponible"}
+                {proposal.fallback_usado ? " (fallback activado)" : ""}.
               </Typography>
               {proposal.advertencias.length ? <Alert severity="warning">{proposal.advertencias.join(" ")}</Alert> : null}
             </Box>

@@ -111,9 +111,36 @@ Accion conservadora cuando:
 - el modelo no esta suficientemente calibrado;
 - no hay ventaja clara entre comprar ahora y esperar.
 
+## Sin ventaja clara
+
+Accion conservadora usada en la recomendacion contextual y el asistente de compra cuando no corresponde emitir una recomendacion fuerte.
+
+Es equivalente funcional a monitorear en la recomendacion simple, pero se expresa con un lenguaje mas orientado a la decision de compra: no hay evidencia suficiente para afirmar que comprar ahora o postergar sea claramente mejor.
+
+## Escalonar
+
+Accion contextual para necesidades de compra puntuales.
+
+Puede aparecer cuando:
+
+- hay una necesidad critica y cercana, pero la senal economica no justifica comprar todo inmediatamente;
+- conviene comprar ahora, pero el presupuesto informado no alcanza para cubrir la compra completa.
+
+En ese caso el sistema informa cuanto podria comprarse inicialmente y que parte quedaria para mas adelante.
+
 ## Compra parcial
 
 Resultado posible en optimizacion presupuestaria. Indica comprar una parte ahora y postergar el resto, respetando presupuesto, cantidades y restricciones.
+
+## Familias de decisiones
+
+BuildWise usa distintas familias de salida segun el nivel de decision:
+
+- Recomendacion simple: `COMPRAR_AHORA`, `ESPERAR`, `MONITOREAR`.
+- Recomendacion contextual/asistente de compra: `COMPRAR_AHORA`, `POSTERGAR`, `ESCALONAR`, `SIN_VENTAJA_CLARA`.
+- Optimizacion presupuestaria: `COMPRAR_AHORA`, `POSTERGAR`, `COMPRA_PARCIAL`.
+
+La diferencia no es una contradiccion: cada familia responde a una pregunta distinta. La recomendacion simple evalua timing de un material; la contextual incorpora fase, fecha, riesgo y presupuesto; la optimizacion asigna cantidades bajo restriccion presupuestaria.
 
 ## Optimizar presupuesto
 

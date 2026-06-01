@@ -3,6 +3,8 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Protocol
 
+from app.shared.config.settings import settings
+
 OUT_OF_SCOPE_RESPONSE = (
     "Puedo responder consultas sobre materiales, precios, proyecciones y decisiones de compra dentro de BuildWise."
 )
@@ -125,6 +127,8 @@ class ChatAnswer:
     aceptada: bool
     respuesta: str
     proveedor_utilizado: bool
+    proveedor_ia: str | None = None
+    fallback_usado: bool = False
 
 
 def _tokens(text: str) -> set[str]:
@@ -162,6 +166,8 @@ def answer_question(
             aceptada=False,
             respuesta=OUT_OF_SCOPE_RESPONSE,
             proveedor_utilizado=False,
+            proveedor_ia="claude" if settings.chat_provider.strip().lower() == "anthropic" else "facultad",
+            fallback_usado=False,
         )
 
     system_prompt = SYSTEM_PROMPT if not context else f"{SYSTEM_PROMPT}\n\n{context}"
@@ -169,4 +175,14 @@ def answer_question(
     messages.extend((history or [])[-8:])
     messages.append({"role": "user", "content": question.strip()})
     response = client.complete(messages)
-    return ChatAnswer(aceptada=True, respuesta=response, proveedor_utilizado=True)
+    return ChatAnswer(
+        aceptada=True,
+        respuesta=response,
+        proveedor_utilizado=True,
+        proveedor_ia=getattr(
+            client,
+            "last_provider_name",
+            getattr(client, "provider_name", "claude" if settings.chat_provider.strip().lower() == "anthropic" else "facultad"),
+        ),
+        fallback_usado=bool(getattr(client, "last_fallback_used", False)),
+    )

@@ -4,6 +4,11 @@ import { useState } from "react";
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { askChatQuestion } from "./chat.api.js";
 
+const PROVIDER_LABELS = {
+  facultad: "API de la facultad",
+  claude: "Claude",
+};
+
 function initialMessage(isAdmin) {
   return {
     role: "assistant",
@@ -48,6 +53,8 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin }) 
         {
           role: "assistant",
           text: result.respuesta,
+          provider: result.proveedor_ia,
+          fallbackUsed: Boolean(result.fallback_usado),
           rejected: !result.aceptada,
         },
       ]);
@@ -77,6 +84,12 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin }) 
               <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
                 {message.text}
               </Typography>
+              {message.role === "assistant" && !message.rejected ? (
+                <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
+                  IA usada: {PROVIDER_LABELS[message.provider] || message.provider || "no disponible"}
+                  {message.fallbackUsed ? " (fallback activado)" : ""}.
+                </Typography>
+              ) : null}
               {message.rejected ? (
                 <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
                   Consulta fuera del alcance habilitado.

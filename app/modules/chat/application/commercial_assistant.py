@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, replace
 from datetime import date
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
@@ -57,6 +58,8 @@ class CommercialProposalResult:
     recomendacion: ContextualPurchaseRecommendationResult
     propuesta: str
     advertencias: tuple[str, ...]
+    fuente_decision: str = "backend_deterministico"
+    propuesta_generada_por: str = "llm_validado"
 
 
 def _strip_json_fence(content: str) -> str:
@@ -113,7 +116,7 @@ def interpretar_necesidad_comercial(
     supported = _supported_materials(materials)
     catalog = [{"material_id": material.id, "producto": material.nombre} for material in supported]
     prompt = (
-        "Extrae una necesidad comercial para BuildWise. Responde solamente JSON valido con las claves: "
+        "Extrae una necesidad de compra para BuildWise. Responde solamente JSON valido con las claves: "
         "material_id, producto_nombre, cantidad, fase_obra, fecha_objetivo_uso, horizonte_meses, "
         "presupuesto_maximo, tolerancia_riesgo, datos_faltantes. "
         "fase_obra solo puede ser estructura, terminaciones, impermeabilizacion o general; "
@@ -182,6 +185,81 @@ def _total(unit_price: Decimal | None, quantity: Decimal) -> Decimal | None:
     return (unit_price * quantity).quantize(Decimal("0.01"))
 
 
+DECISION_TERMS = {
+    "COMPRAR_AHORA": ("comprar ahora", "comprar inmediatamente", "conviene comprar"),
+    "POSTERGAR": ("postergar", "esperar", "comprar mas adelante", "comprar más adelante"),
+    "ESCALONAR": ("escalonar", "comprar por etapas", "compra escalonada"),
+    "SIN_VENTAJA_CLARA": ("sin ventaja clara", "no hay una ventaja clara", "monitorear"),
+}
+
+
+def _normalize_numeric_token(value: str) -> str | None:
+    cleaned = re.sub(r"[^\d,.-]", "", value)
+    if not cleaned:
+        return None
+    if "," in cleaned and "." in cleaned:
+        cleaned = cleaned.replace(".", "").replace(",", ".")
+    elif "," in cleaned:
+        cleaned = cleaned.replace(",", ".")
+    try:
+        decimal = Decimal(cleaned)
+    except InvalidOperation:
+        return None
+    normalized = format(decimal.normalize(), "f")
+    return normalized.rstrip("0").rstrip(".") if "." in normalized else normalized
+
+
+def _allowed_numeric_values(context: dict) -> set[str]:
+    allowed = set()
+    for value in context.values():
+        if value is None:
+            continue
+        if isinstance(value, str | int | Decimal):
+            normalized = _normalize_numeric_token(str(value))
+            if normalized is not None:
+                allowed.add(normalized)
+    target_date = context.get("fecha_objetivo_uso")
+    if isinstance(target_date, str):
+        for token in target_date.split("-"):
+            normalized = _normalize_numeric_token(token)
+            if normalized is not None:
+                allowed.add(normalized)
+    return allowed
+
+
+def _llm_proposal_is_safe(text: str, context: dict) -> bool:
+    normalized_text = text.lower()
+    expected_decision = str(context["accion_recomendada"])
+    for decision, terms in DECISION_TERMS.items():
+        if decision == expected_decision:
+            continue
+        if any(term in normalized_text for term in terms):
+            return False
+
+    allowed_numbers = _allowed_numeric_values(context)
+    for token in re.findall(r"\d+(?:[.,]\d+)?", text):
+        normalized = _normalize_numeric_token(token)
+        if normalized is not None and normalized not in allowed_numbers:
+            return False
+    return True
+
+
+def _deterministic_proposal(context: dict) -> str:
+    parts = [
+        f"Para {context['cantidad']} unidades de {context['producto']}, BuildWise calculo la decision {context['accion_recomendada']}.",
+    ]
+    if context.get("total_actual") is not None:
+        parts.append(f"El total actual estimado es ARS {context['total_actual']}.")
+    if context.get("total_proyectado") is not None:
+        parts.append(f"El total proyectado para el horizonte evaluado es ARS {context['total_proyectado']}.")
+    if context.get("diferencia_estimada") is not None:
+        parts.append(f"La diferencia estimada es ARS {context['diferencia_estimada']}.")
+    if context.get("mape") is not None:
+        parts.append(f"La confianza se informa como {context['confianza']} con MAPE {context['mape']}%.")
+    parts.append(str(context["justificacion"]))
+    return " ".join(parts)
+
+
 def generar_propuesta_comercial(
     *,
     material,
@@ -198,7 +276,7 @@ def generar_propuesta_comercial(
     usar_selector_modelo: bool = True,
 ) -> CommercialProposalResult:
     if derive_material_key(material.nombre) not in SUPPORTED_PRODUCT_KEYS:
-        raise HTTPException(status_code=422, detail="El producto no pertenece al alcance comercial del MVP.")
+        raise HTTPException(status_code=422, detail="El producto no pertenece al alcance de compra del MVP.")
 
     horizonte = resolver_horizonte_contextual(
         horizonte_meses=horizonte_meses,
@@ -274,13 +352,19 @@ def generar_propuesta_comercial(
         "justificacion": recommendation.justificacion,
     }
     prompt = (
-        "Redacta una propuesta comercial breve en espanol para un cliente de BuildWise. "
+        "Redacta una propuesta de compra breve en espanol para un comprador de BuildWise. "
         "Usa exclusivamente los valores del contexto calculado; no cambies importes, decision ni confianza. "
+        "No agregues numeros que no esten en el contexto. Si falta un valor, indica que no esta disponible. "
         "Menciona que la proyeccion es estimada y depende del forecast. "
         f"CONTEXTO CALCULADO: {json.dumps(calculated_context, ensure_ascii=True)}."
     )
-    user_request = solicitud_original or "Generar propuesta comercial confirmada."
+    user_request = solicitud_original or "Generar propuesta de compra confirmada."
     proposal_text = client.complete([{"role": "system", "content": prompt}, {"role": "user", "content": user_request}])
+    propuesta_generada_por = "llm_validado"
+    if not _llm_proposal_is_safe(proposal_text, calculated_context):
+        proposal_text = _deterministic_proposal(calculated_context)
+        propuesta_generada_por = "backend_deterministico"
+        advertencias.append("La redaccion generativa fue reemplazada por una explicacion deterministica del backend.")
 
     return CommercialProposalResult(
         material_id=material.id,
@@ -299,4 +383,5 @@ def generar_propuesta_comercial(
         recomendacion=recommendation,
         propuesta=proposal_text,
         advertencias=tuple(advertencias),
+        propuesta_generada_por=propuesta_generada_por,
     )

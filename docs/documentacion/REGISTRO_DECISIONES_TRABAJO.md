@@ -191,3 +191,14 @@ La visualizacion es la interfaz; el nucleo metodologico es la decision trazable 
   - `docs/documentacion/GUIA_FLUJOS_UI.md`;
   - `docs/documentacion/ANOMALIAS_RANDOM_FOREST.md`.
 - Impacto: el `README.md` queda como entrada principal y enlaza esos documentos junto con las decisiones metodologicas y operativas.
+
+## RD-16 - Alineación de documentación con lineamientos TIF 3
+
+- Fecha: 29 de mayo de 2026
+- Decision: reestructurar el borrador de tesis y crear guías de referencia basadas en los lineamientos de la cátedra de Trabajo Final (Facultad de Ingeniería - UM).
+- Motivo: asegurar que el Marco Metodológico y el Análisis de Resultados cumplan con el rigor académico exigido por los docentes (Mag. Ing. Diego Navarro / Prof. Dra. Ruth Leiton).
+- Cambios realizados:
+  - Creación de `docs/documentacion/GUIA_MARCO_METODOLOGICO_Y_RESULTADOS.md` como referencia permanente.
+  - Reorganización de `docs/documentacion/TESIS_BORRADOR.md` en tres partes: Marco Teórico, Desarrollo de Ingeniería (Marco Metodológico + Análisis de Resultados) y Cierre (Conclusiones).
+  - Incorporación de justificaciones técnicas explícitas (elección de FastAPI, Prophet, PostgreSQL) y separación de análisis de métricas vs. conclusiones generales.
+- Evidencia: `docs/documentacion/TESIS_BORRADOR.md` actualizado con estructura académica.

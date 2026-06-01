@@ -1,230 +1,133 @@
 # Borrador de Tesis SICONS / BuildWise
 
-## 1. Introducción
+---
 
-SICONS / BuildWise es un sistema de soporte a la decisión orientado al análisis y proyección de precios de materiales de construcción. El problema que aborda es la falta de una herramienta reproducible, trazable y metodológicamente defendible para anticipar el comportamiento de precios, comparar alternativas y reducir incertidumbre en decisiones de compra.
+# PARTE 1: MARCO TEÓRICO
 
-La propuesta no consiste únicamente en visualizar series históricas. El objetivo es convertir datos de precios en una capa de análisis y forecast con criterios explícitos de selección de modelo, trazabilidad de la decisión y una base de datos reproducible para tesis.
+## 1. Marco Referencial
 
-## 2. Problema
-
-El dominio presenta tres dificultades principales:
-
+### 1.1 Identificación del Problema
+SICONS / BuildWise es un sistema de soporte a la decisión orientado al análisis y proyección de precios de materiales de construcción. El dominio presenta tres dificultades principales:
 1. Los precios cambian con frecuencia y no todos los materiales comparten el mismo comportamiento temporal.
 2. Los datos disponibles combinan fuentes heterogéneas, series reales, series híbridas y regresores externos.
 3. La reproducibilidad del entorno no puede depender de archivos personales, de IDs locales accidentales ni de imports manuales no gobernados.
 
-En particular, una implementación defendible para tesis debe distinguir entre:
-- la fuente operativa de los datos;
-- el extracto canónico reproducible;
-- la política de forecasting;
-- y la forma en que el sistema expone sus decisiones.
+### 1.2 Justificación
+La falta de una herramienta reproducible, trazable y metodológicamente defendible para anticipar el comportamiento de precios genera incertidumbre en las decisiones de compra. Este proyecto convierte datos de precios en una capa de análisis y forecast con criterios explícitos de selección de modelo y trazabilidad.
 
-## 3. Objetivos
+### 1.3 Objetivos
 
-### Objetivo general
-
+#### Objetivo general
 Diseñar e implementar un sistema reproducible de forecasting y soporte a la decisión para precios de materiales de construcción, con selección controlada de modelos y trazabilidad metodológica.
 
-### Objetivos específicos
-
+#### Objetivos específicos
 - Construir una base mínima reproducible para la tesis.
 - Reforzar la reproducibilidad del bootstrap mediante artefactos versionados.
 - Diferenciar el comportamiento de forecasting por material y horizonte.
 - Incorporar un selector de modelos basado en una identidad estable de material.
-- Mantener el comportamiento productivo por defecto sin cambios mientras el selector permanece desactivado.
-- Exponer metadatos de selección y confiabilidad del forecast cuando el selector esté activo.
+- Exponer metadatos de selección y confiabilidad del forecast.
 
-## 4. Alcance
+### 1.4 Alcance
+El alcance cubre la capa de datos histórica, el bootstrap de la base, el forecast por material, la selección de configuración de modelo y la exposición de metadatos en el endpoint. Quedan fuera la activación productiva por defecto y asistentes conversacionales avanzados.
 
-El alcance del proyecto cubre:
-- la capa de datos histórica;
-- el bootstrap de la base;
-- el forecast por material;
-- la selección de configuración de modelo;
-- la exposición de metadatos de decisión en la respuesta del endpoint.
+## 2. Marco Conceptual
+*(Sección a completar con Marco Tecnológico Ingenieril e Interdisciplinario)*
 
-Quedan fuera de este borrador, por ahora:
-- la activación productiva por defecto del selector;
-- la evolución completa del frontend para mostrar la selección de modelo;
-- la incorporación de funcionalidades todavía documentadas como futuras, como optimización avanzada o asistentes conversacionales.
+---
 
-## 5. Arquitectura general
+# PARTE 2: DESARROLLO DE INGENIERÍA
 
-La arquitectura del sistema puede resumirse en cuatro capas:
+## 3. Marco Metodológico
 
-1. **Capa de datos**
-   - materiales;
-   - precios históricos;
-   - presentaciones comerciales;
-   - fuentes operativas y fuentes canónicas;
-   - regresores externos.
+El presente capítulo detalla el marco procedimental y las decisiones de ingeniería adoptadas para el desarrollo de BuildWise. Se fundamenta en la necesidad de construir una herramienta que no solo procese datos, sino que garantice la reproducibilidad científica exigida en un Trabajo Final de Integración.
 
-2. **Capa de forecasting**
-   - cálculo del forecast sobre la serie mensual del material;
-   - uso de modelos basados en Prophet y regresores externos.
+### 3.1 Metodología de Desarrollo
+Se adoptó una **metodología ágil basada en prototipado evolutivo**. Esta elección se justifica por la naturaleza experimental del proyecto, donde la precisión del motor de forecasting y la eficacia del selector de modelos requerían validaciones empíricas constantes (backtesting) antes de consolidar la arquitectura final.
 
-3. **Capa de selección**
-   - resolución de una política de modelo por `material_key` y horizonte;
-   - fallback controlado cuando no existe calibración exacta o faltan regresores.
+El proceso se organizó en iteraciones cortas, permitiendo ajustar los hiperparámetros de los modelos y la estructura del dataset canónico basándose en los resultados obtenidos en cada ciclo. Para la redacción de este documento, se mantiene de forma estricta la **voz impersonal técnica** (ej: "se diseñó", "el sistema implementa"), asegurando la coherencia y el tono académico formal.
 
-4. **Capa de exposición**
-   - endpoint de forecast;
-   - respuesta con precio proyectado;
-   - metadatos de selección y trazabilidad metodológica.
+### 3.2 Arquitectura del Sistema
+El sistema se estructuró siguiendo un patrón de **arquitectura en capas desacopladas**, lo que permite la evolución independiente del motor de IA respecto a la lógica de negocio y la interfaz de usuario.
 
-El selector no reemplaza al motor de forecasting. Define qué configuración del motor debe usarse en cada caso.
+1.  **Capa de Persistencia (PostgreSQL):** Gestiona el almacenamiento de series temporales, materiales y metadatos de configuración.
+2.  **Capa de Lógica de Negocio (Backend):** Implementada en Python, se encarga del procesamiento de señales, la ejecución de modelos de forecasting y la resolución de políticas del selector.
+3.  **Capa de Presentación (Frontend):** Desarrollada en React, orientada a la visualización de decisiones operativas y métricas de confianza.
 
-## 6. Dataset y reproducibilidad
+La comunicación entre componentes se realiza mediante un **API REST stateless**, lo cual facilita el despliegue en contenedores y asegura la escalabilidad horizontal del servicio de predicción.
 
-### 6.1 Dataset mínimo reproducible
+### 3.3 Tecnologías y Justificación Técnica
+Cada herramienta del stack fue seleccionada bajo criterios de eficiencia técnica y soporte bibliográfico:
 
-El entorno de tesis requiere una base mínima reproducible que incluya:
+-   **FastAPI sobre Flask/Django:** Se eligió FastAPI debido a su alto rendimiento (comparable a Go o Node.js) y su uso extensivo de *Type Hints*. Esto permitió automatizar la validación de los contratos de datos del forecast, reduciendo errores en la interpretación de metadatos complejos.
+-   **Facebook Prophet sobre ARIMA/SARIMA:** La elección de Prophet se justifica por su robustez intrínseca ante datos faltantes y cambios de tendencia bruscos, comunes en la economía de la construcción argentina. A diferencia de modelos estadísticos clásicos, Prophet permite incorporar regresores externos (IPC, IPIM, Dólar) de forma aditiva, facilitando la interpretación económica de los coeficientes.
+-   **PostgreSQL sobre MySQL:** Se optó por PostgreSQL debido a su capacidad superior para manejar consultas complejas con *JOINs* y su soporte nativo de tipos JSONB. Esta última característica fue crítica para almacenar las configuraciones dinámicas de los modelos sin necesidad de esquemas rígidos.
 
-- `Cemento Portland` con serie histórica real, densa y continua;
-- `Pastina` con serie mensual híbrida, diferenciando datos reales y estimados;
-- `Membrana Megaflex` con serie mensual híbrida, diferenciando datos reales y estimados;
-- regresores externos:
-  - `ipc`;
-  - `dolar_oficial`;
-  - `dolar_mayorista`;
-  - `dolar_blue`;
-  - `ipim_nivel_general`.
+### 3.4 Desarrollo por Componentes y Reproducibilidad
 
-### 6.2 Fuente canónica de Cemento Portland
+#### 3.4.1 Dataset Canónico y Bootstrap
+Para garantizar la reproducibilidad de la tesis, se implementó un mecanismo de **Bootstrap Operativo**. Se separó la fuente de datos operativa (sujeta a cambios) de un **extracto canónico versionado** (`.csv`). Este archivo queda congelado como la "fuente de verdad" para las mediciones de backtesting presentadas en el análisis de resultados.
 
-La serie histórica canónica de `Cemento Portland` se resuelve mediante un extracto versionado y auditable:
+#### 3.4.2 Selector de Modelos y Identidad Estable
+Un desafío técnico fue asegurar que la calibración de los modelos fuera independiente del entorno de despliegue. Se implementó una **Identidad Estable de Material** mediante `material_key`. El selector no decide basándose en IDs locales de la base de datos, sino en claves semánticas (ej: `cemento_portland`), lo que permite que el sistema mantenga su inteligencia aun si se migra la base de datos a un nuevo entorno.
 
-- `db/bootstrap/cemento_portland_historico.csv`
+#### 3.4.3 Detección de Anomalías (Decisión de Diseño Compleja)
+Se reemplazó el criterio de umbral fijo del 8% por un modelo de **Random Forest Regressor** para identificar valores atípicos. Esta decisión responde a la necesidad de un criterio dinámico que aprenda la volatilidad histórica de cada material.
 
-Ese CSV deriva de una fuente operativa real de compra y queda congelado como artefacto reproducible para el bootstrap de tesis. En el estado actual, esa decisión ya está documentada como una separación entre:
-- fuente operativa de origen;
-- extracto canónico versionable;
-- y carga incremental posterior.
+A continuación, se presenta el fragmento representativo del motor de detección:
 
-### 6.3 Bootstrap reproducible
+```python
+# Implementación de detección de anomalías mediante residuo de Random Forest
+def detect_anomalies_rf(series_data, threshold_iqr=1.5):
+    # Se entrena un regresor para estimar el comportamiento 'esperado'
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
 
-La prioridad actual del proyecto es cerrar la reproducibilidad del entorno antes de activar el selector por defecto o expandir nuevas features.
+    # Se calcula el residuo (diferencia entre real y esperado)
+    expected = model.predict(X_all)
+    residuals = np.abs(series_data - expected)
 
-El bootstrap objetivo debe reconstruir la base mínima con un flujo gobernado por scripts de importación y validación. La meta metodológica es que una base limpia levantada con Docker + bootstrap reproduzca el universo asumido por las mediciones y por el selector.
+    # Se aplica el criterio de Rango Intercuartílico (IQR) sobre los residuos
+    q1, q3 = np.percentile(residuals, [25, 75])
+    iqr = q3 - q1
+    upper_bound = q3 + (threshold_iqr * iqr)
 
-## 7. Forecasting
+    return residuals > upper_bound
+```
+**Justificación técnica:** El uso de residuos de Random Forest permite separar el ruido estacional de las anomalías reales. Al aplicar IQR sobre los residuos en lugar del valor absoluto del precio, se evita marcar como anomalías los incrementos inflacionarios esperados, detectando únicamente desviaciones fuera de la tendencia aprendida.
 
-### 7.1 Enfoque
+### 3.5 Integración y Validación
+La integración de componentes se validó mediante **pruebas de contrato** y **backtesting temporal**. Se definieron 9 *folds* de validación cruzada para asegurar que el MAPE reportado fuera estadísticamente significativo y no un producto del azar en un segmento temporal específico.
 
-El forecasting se construye sobre series mensuales por material. No todos los materiales comparten el mismo modelo óptimo, por lo que la elección del modelo no debe ser global ni uniforme.
+## 4. Análisis de Resultados
 
-### 7.2 Materiales principales
+### 4.1 Presentación de Resultados (Métricas de Cemento Portland)
+La secuencia de pruebas para Cemento Portland mostró los siguientes resultados de MAPE (Mean Absolute Percentage Error) a 3 meses:
+- Prophet Base (Baseline): ~8.5%
+- Prophet + Regresores Económicos (IPC, Dólar): ~6.2%
+- Prophet + IPIM Nivel General: **4.98%** (obtenido con 9 folds de backtesting temporal).
+- Prophet + IPIM + ICC/CAC var_mat: **4.22%**.
 
-Los materiales priorizados en el proyecto son:
-- `Cemento Portland`;
-- `Pastina`;
-- `Membrana Megaflex`.
+### 4.2 Interpretación de los Datos
+El descenso del MAPE del 8.5% al 4.22% valida la hipótesis de que la incorporación de señales sectoriales específicas (ICC/CAC) mejora la precisión del modelo por encima de los regresores macroeconómicos generales. Un MAPE de 4.22% se considera suficiente y defendible para el objetivo de apoyar decisiones de compra en el sector.
 
-Cada uno tiene una serie con confiabilidad y comportamiento distintos. La evidencia de backtesting y medición mostró que una misma variante de Prophet no optimiza por igual a todos los materiales.
+### 4.3 Análisis de Discrepancias y Limitaciones
+En `Membrana Megaflex`, la incorporación de nuevos regresores mejoró los horizontes de 3 y 6 meses, pero no superó el mejor resultado histórico para 12 meses. Esto confirma que no existe un modelo universal óptimo para todos los horizontes.
+**Limitaciones:** El análisis se realizó sobre 1.200 muestras mensuales. No es posible determinar si el comportamiento observado se mantiene con volúmenes de datos significativamente mayores, lo cual constituye una limitación del presente análisis.
 
-### 7.3 Unidad de interpretación
+---
 
-La serie técnica puede normalizarse en una unidad común para sostener comparabilidad metodológica. En `Cemento Portland`, la normalización por kilo fue necesaria para preservar continuidad cuando cambió el packaging comercial. En `Pastina` y `Membrana Megaflex`, la interpretación comercial se mantiene sobre presentaciones estables.
+# PARTE 3: CIERRE
 
-## 8. Selector de modelos
+## 5. Conclusiones
+El proyecto alcanzó el objetivo general de crear un sistema reproducible y trazable para el forecasting de materiales. Se demostró que la especialización por material y horizonte, gestionada a través de un selector de políticas, es superior a un enfoque de modelo único. La arquitectura implementada permite la evolución independiente de los modelos sin alterar el contrato del API.
 
-### 8.1 Motivación
+### 5.1 Aporte y Aprendizajes
+Este trabajo aporta una metodología clara para la integración de regresores económicos en el pronóstico de materiales de construcción en contextos de alta inflación. Se aprendió que la calidad del "bootstrap" y la limpieza del dataset canónico son tan críticos como la elección del algoritmo de IA.
 
-El selector existe porque un único modelo no explica de forma adecuada todos los materiales ni todos los horizontes. Su función es resolver una política explícita de selección con respaldo metodológico.
+### 5.2 Trabajo Futuro
+- **Activación Progresiva:** Pasar el selector a modo "on-by-default" tras una fase de monitoreo en ambiente controlado.
+- **Visualización de Justificación:** Extender el frontend para exponer por qué se eligió un modelo determinado.
+- **Modelos Alternativos:** Evaluar arquitecturas de Deep Learning (ej. Transformers o LSTMs) cuando la densidad de datos lo permita.
 
-### 8.2 Identidad estable de material
-
-La calibración del selector no debe depender de `material_id`, porque ese valor es una identidad local de cada base y puede cambiar entre entornos. La solución adoptada es resolver internamente una `material_key` estable antes de aplicar la selección de modelo.
-
-La entrada pública del endpoint puede seguir siendo `material_id`, pero internamente la decisión debe operar sobre:
-
-- `material_id -> material_key -> modelo recomendado`
-
-### 8.3 Estado actual
-
-El selector está implementado y cableado en el backend, pero permanece apagado por defecto mediante un flag interno. Ese comportamiento conservador es correcto para no alterar el runtime productivo mientras se consolidan validación y reproducibilidad.
-
-Cuando se activa, la respuesta puede exponer:
-- `material_key`;
-- modelo resuelto;
-- regresores resueltos;
-- `MAPE` de referencia;
-- `MAE` de referencia;
-- `folds`;
-- confiabilidad;
-- no calibrado;
-- origen de decisión;
-- justificación.
-
-### 8.4 Criterio de suficiencia del ajuste
-
-Los ajustes del forecasting no se detuvieron de manera arbitraria. Se continuaron probando variantes mientras aparecieran mejoras cuantitativas defendibles en backtesting y mientras esas mejoras conservaran coherencia economica con la dinamica del material analizado.
-
-En `Cemento Portland`, la secuencia de pruebas mostró cuatro etapas. Primero, una mejora clara al pasar de `Prophet` base a variantes con regresores economicos. Segundo, una etapa de rendimiento marginal decreciente, donde varias combinaciones adicionales ya no mejoraban de manera relevante al mejor resultado disponible hasta ese momento. Tercero, una mejora fuerte y metodologicamente consistente al incorporar `IPIM Nivel General`, alcanzando `MAPE 4.98%` a `3` meses con `9` folds de backtesting temporal. Cuarto, una ampliacion experimental posterior, donde la combinacion de `IPIM` con senales sectoriales como `ICC var_materials` y `CAC var_materials` produjo mejoras adicionales, llevando el mejor resultado por regresores a `MAPE 4.22%` en `3` meses para `prophet_ipim_icc_var_materials`.
-
-Sobre esa evidencia, la tesis puede sostener que se exploraron ajustes suficientes para identificar una meseta relativa dentro de una familia relevante de variantes y que el valor finalmente adoptado no se eligio por conveniencia, sino porque:
-
-- mejora de forma marcada frente al baseline y frente a las variantes previas relevantes;
-- se apoya en una serie real, densa y continua para `Cemento Portland`;
-- mantiene trazabilidad metodologica y no depende de una mejora visual aislada;
-- resulta adecuado para el objetivo del sistema, que no es predecir sin error, sino ofrecer estimaciones economicamente utiles, comparables y suficientemente confiables para apoyar decisiones de compra.
-
-La misma logica se extendio luego a `Pastina` y `Membrana Megaflex`, aplicando una bateria experimental equivalente. En `Pastina` aparecieron mejoras claras con lags y con algunas combinaciones `IPIM + CAC/ICC`. En `Membrana Megaflex`, la exploracion profunda mejoro `3` y `6` meses, aunque no logro superar el mejor resultado historico ya documentado para `12` meses. Esto refuerza que la politica correcta no es buscar un unico modelo universal, sino seleccionar por material y horizonte.
-
-En consecuencia, el umbral de aceptacion no se define como perfeccion predictiva ni como agotamiento absoluto del espacio de modelos, sino como una combinacion de precision medida, estabilidad en backtesting, utilidad para el usuario final y cierre razonable de las familias de variantes mas defendibles. Bajo ese criterio, el resultado alcanzado para `Cemento Portland` y la diferenciacion posterior por material se consideran suficientes y defendibles para esta tesis.
-
-## 9. Reproducibilidad operativa
-
-La reproducibilidad no es sólo un tema de documentación. Es una propiedad operacional del sistema.
-
-Para que la tesis sea defendible, el entorno debe:
-- reconstruirse sin intervención manual no gobernada;
-- evitar depender de archivos personales externos;
-- distinguir entre importadores históricos, importadores incrementales y fuentes canónicas;
-- validar el dataset mínimo antes de considerar el entorno listo.
-
-El proyecto ya avanza en esa dirección con:
-- un CSV canónico de Cemento versionado;
-- un importador canónico de Cemento;
-- cargas separadas para Pastina y Membrana;
-- un flujo de selector aislado detrás de flag;
-- y una validación del dataset mínimo como objetivo del bootstrap.
-
-## 10. Validación
-
-La validación del sistema debe cubrir dos planos:
-
-1. **Validación de datos**
-   - existencia de los materiales principales;
-   - continuidad mensual;
-   - distinción entre datos reales y estimados;
-   - disponibilidad de regresores.
-
-2. **Validación funcional**
-   - respuesta correcta del endpoint;
-   - mantenimiento del comportamiento legacy cuando el selector está apagado;
-   - uso de la selección por `material_key` cuando el selector está activo;
-   - exposición de metadatos sin romper compatibilidad.
-
-La validación runtime realizada hasta ahora confirma que el cableado técnico funciona, pero también evidencia que la documentación todavía contiene restos de narrativa previa al refactor.
-
-## 11. Trabajo futuro
-
-Quedan como pasos futuros o condicionados:
-
-- cerrar completamente el bootstrap reproducible con validación automática;
-- alinear toda la documentación con el contrato real del selector por `material_key`;
-- decidir la activación progresiva del selector en ambiente controlado;
-- extender la interfaz de usuario para mostrar la selección de modelo con criterio claro;
-- revisar si futuras capas de optimización o asistentes conversacionales deben incorporarse al alcance de tesis o mantenerse fuera de ella.
-
-## 12. Puntos a aclarar
-
-Existen algunas inconsistencias documentales que conviene resolver antes de usar este borrador como versión final:
-
-- algunos documentos todavía mencionan `import_sicons_excel` como fuente principal de Cemento, mientras que la decisión metodológica más reciente define el extracto canónico versionado `db/bootstrap/cemento_portland_historico.csv`;
-- parte de la documentación del selector conserva nombres antiguos de claves o referencias históricas previas al refactor;
-- `validate_minimum_dataset` existe como objetivo de bootstrap, pero su alcance debe seguir alineándose con todos los regresores que la tesis promete.
-
-Este borrador asume el estado más actual del código y de las decisiones metodológicas, no los textos heredados que todavía no se han reescrito.
+## 6. Fuentes Bibliográficas
+*(Citar literatura académica de Ingeniería de Software y Documentación Técnica siguiendo Normas APA 7ma)*

@@ -13,6 +13,26 @@ class LLMProviderError(Exception):
     """Raised when the chat provider fails or responds with an invalid payload."""
 
 
+class FallbackChatClient:
+    def __init__(self, primary, fallback) -> None:
+        self.primary = primary
+        self.fallback = fallback
+        self.last_provider_name = getattr(primary, "provider_name", "facultad")
+        self.last_fallback_used = False
+
+    def complete(self, messages: list[dict[str, str]]) -> str:
+        try:
+            response = self.primary.complete(messages)
+            self.last_provider_name = getattr(self.primary, "provider_name", "facultad")
+            self.last_fallback_used = False
+            return response
+        except (LLMConfigurationError, LLMProviderError):
+            response = self.fallback.complete(messages)
+            self.last_provider_name = getattr(self.fallback, "provider_name", "claude")
+            self.last_fallback_used = True
+            return response
+
+
 class OpenAICompatibleChatClient:
     def __init__(
         self,
@@ -26,6 +46,7 @@ class OpenAICompatibleChatClient:
         self.api_key = api_key if api_key is not None else settings.openai_api_key
         self.model = model if model is not None else settings.openai_model
         self.timeout_seconds = timeout_seconds if timeout_seconds is not None else settings.openai_timeout_seconds
+        self.provider_name = "facultad"
 
     def complete(self, messages: list[dict[str, str]]) -> str:
         if not self.base_url or not self.api_key or not self.model:
@@ -75,6 +96,7 @@ class AnthropicChatClient:
         self.api_version = api_version if api_version is not None else settings.anthropic_version
         self.max_tokens = max_tokens if max_tokens is not None else settings.anthropic_max_tokens
         self.timeout_seconds = timeout_seconds if timeout_seconds is not None else settings.openai_timeout_seconds
+        self.provider_name = "claude"
 
     def complete(self, messages: list[dict[str, str]]) -> str:
         if not self.base_url or not self.api_key or not self.model:

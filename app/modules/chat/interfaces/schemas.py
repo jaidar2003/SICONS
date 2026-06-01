@@ -21,6 +21,8 @@ class ChatResponseRead(BaseModel):
     aceptada: bool
     respuesta: str
     proveedor_utilizado: bool
+    proveedor_ia: str | None = None
+    fallback_usado: bool = False
 
 
 class CommercialNeedCreate(BaseModel):
@@ -38,8 +40,11 @@ class CommercialNeedInterpretationRead(BaseModel):
     presupuesto_maximo: Decimal | None = None
     tolerancia_riesgo: Literal["baja", "media", "alta"]
     datos_faltantes: list[str]
+    requiere_validacion: bool = True
     requiere_confirmacion: bool = True
     proveedor_utilizado: bool = True
+    proveedor_ia: str | None = None
+    fallback_usado: bool = False
 
 
 class CommercialProposalCreate(BaseModel):
@@ -81,4 +86,8 @@ class CommercialProposalRead(BaseModel):
     justificacion: str
     propuesta: str
     advertencias: list[str]
+    fuente_decision: str = "backend_deterministico"
+    propuesta_generada_por: str = "llm_validado"
     proveedor_utilizado: bool = True
+    proveedor_ia: str | None = None
+    fallback_usado: bool = False

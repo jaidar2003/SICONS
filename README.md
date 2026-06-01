@@ -14,6 +14,8 @@ Hoy el proyecto cubre tres frentes:
 - forecasting de materiales;
 - recomendaciones y optimizacion de compra.
 
+El criterio central del proyecto es que la decision economica no la toma un modelo generativo. El sistema calcula forecast, anomalías, presupuesto y recomendacion con datos propios; la IA conversacional solo interpreta pedidos y redacta explicaciones.
+
 ## Que resuelve
 
 Permite responder preguntas como:
@@ -53,6 +55,16 @@ OPENAI_API_KEY=replace-with-your-token
 OPENAI_BASE_URL=https://ai.cloud.um.edu.ar/api/v1
 OPENAI_MODEL=gemma4-26b
 ```
+
+Si se usa Claude como respaldo de la capa conversacional:
+
+```env
+CHAT_PROVIDER=anthropic
+ANTHROPIC_API_KEY=replace-with-your-token
+ANTHROPIC_MODEL=replace-with-your-claude-model
+```
+
+La integracion de IA es intercambiable: `CHAT_PROVIDER=openai` usa un endpoint compatible con `/chat/completions`, mientras que `CHAT_PROVIDER=anthropic` usa la API de Claude. Los calculos de precios, forecast, presupuesto y recomendaciones no dependen del proveedor generativo.
 
 ### 2. Ejecutar
 
@@ -188,6 +200,25 @@ Detalle metodologico:
 - [docs/HU/DISENO_EPICA_5.md](docs/HU/DISENO_EPICA_5.md)
 - [docs/documentacion/DEMO_DSS.md](docs/documentacion/DEMO_DSS.md)
 
+## Asistente de compra
+
+El asistente de compra convierte una necesidad de obra expresada en lenguaje natural en una propuesta de compra para el MVP. El usuario objetivo es quien necesita adquirir materiales para una obra. El dueño o administrador puede usar el sistema para gestionar costos, margenes y precios finales; el comprador ve el precio final o presupuesto estimado. La capa conversacional no calcula la decision por si sola: solo interpreta, valida y redacta sobre resultados ya resueltos por backend.
+
+Alcance implementado:
+
+- productos soportados: `Cemento Portland`, `Pastina` y `Membrana Megaflex`;
+- interpretacion IA de producto, cantidad, fase de obra, fecha/horizonte, presupuesto y tolerancia al riesgo, limitada al catalogo MVP;
+- validacion editable antes de ejecutar calculos de recomendacion;
+- presupuesto actual con precio vigente;
+- comparacion contra forecast y recomendacion contextual;
+- decision `COMPRAR_AHORA`, `POSTERGAR`, `ESCALONAR` o `SIN_VENTAJA_CLARA`;
+- redaccion final asistida por IA sin alterar importes ni decisiones calculadas por backend.
+
+Detalle funcional y demo:
+
+- [docs/HU/DISENO_EPICA_8.md](docs/HU/DISENO_EPICA_8.md)
+- [docs/documentacion/DEMO_ASISTENTE_COMERCIAL.md](docs/documentacion/DEMO_ASISTENTE_COMERCIAL.md)
+
 ## Bootstrap y reproducibilidad
 
 La prioridad actual del proyecto es cerrar un entorno reproducible de tesis con un dataset minimo gobernado desde el repo.
@@ -267,6 +298,7 @@ Verificacion enfocada del DSS:
 - [docs/documentacion/DECISIONES_TESIS.md](docs/documentacion/DECISIONES_TESIS.md): decisiones metodologicas
 - [docs/documentacion/REGISTRO_DECISIONES_TRABAJO.md](docs/documentacion/REGISTRO_DECISIONES_TRABAJO.md): decisiones operativas de cierre MVP
 - [docs/documentacion/DEMO_DSS.md](docs/documentacion/DEMO_DSS.md): guion de demo reproducible del DSS
+- [docs/documentacion/DEMO_ASISTENTE_COMERCIAL.md](docs/documentacion/DEMO_ASISTENTE_COMERCIAL.md): guion de demo del asistente de compra
 - [docs/documentacion/GUIA_FLUJOS_UI.md](docs/documentacion/GUIA_FLUJOS_UI.md): recorrido funcional de la interfaz
 - [docs/documentacion/GLOSARIO_FUNCIONAL.md](docs/documentacion/GLOSARIO_FUNCIONAL.md): terminos principales usados por el sistema
 - [docs/documentacion/ANOMALIAS_RANDOM_FOREST.md](docs/documentacion/ANOMALIAS_RANDOM_FOREST.md): deteccion de anomalias con Random Forest

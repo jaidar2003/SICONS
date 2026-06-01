@@ -5,6 +5,7 @@ import pytest
 
 from app.modules.chat.infrastructure.llm_client import (
     AnthropicChatClient,
+    FallbackChatClient,
     LLMConfigurationError,
     LLMProviderError,
     OpenAICompatibleChatClient,
@@ -84,3 +85,59 @@ def test_anthropic_client_empty_response(monkeypatch):
     monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: mock_resp)
     with pytest.raises(LLMProviderError, match="Claude devolvio una respuesta vacia"):
         client.complete([{"role": "user", "content": "hi"}])
+
+
+def test_fallback_chat_client_usa_fallback_si_falla_el_primario():
+    class FailingClient:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def complete(self, messages):
+            self.calls += 1
+            raise LLMProviderError("primary down")
+
+    class WorkingClient:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def complete(self, messages):
+            self.calls += 1
+            return "Respuesta de fallback"
+
+    primary = FailingClient()
+    fallback = WorkingClient()
+    client = FallbackChatClient(primary, fallback)
+
+    response = client.complete([{"role": "user", "content": "hi"}])
+
+    assert response == "Respuesta de fallback"
+    assert primary.calls == 1
+    assert fallback.calls == 1
+
+
+def test_fallback_chat_client_prefiere_el_primario():
+    class WorkingClient:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def complete(self, messages):
+            self.calls += 1
+            return "Respuesta primaria"
+
+    class FallbackClient:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def complete(self, messages):
+            self.calls += 1
+            return "Respuesta fallback"
+
+    primary = WorkingClient()
+    fallback = FallbackClient()
+    client = FallbackChatClient(primary, fallback)
+
+    response = client.complete([{"role": "user", "content": "hi"}])
+
+    assert response == "Respuesta primaria"
+    assert primary.calls == 1
+    assert fallback.calls == 0

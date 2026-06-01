@@ -109,8 +109,8 @@ const VIEW_TABS = [
 const COST_WORKFLOWS = [
   {
     value: "commercial-assistant",
-    label: "Asistente comercial IA",
-    helper: "Convertí una necesidad del cliente en presupuesto y recomendación.",
+    label: "Asistente de compra IA",
+    helper: "Convertí una necesidad de compra en presupuesto y recomendación.",
   },
   {
     value: "planner",

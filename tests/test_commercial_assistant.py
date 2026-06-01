@@ -106,6 +106,46 @@ def test_generar_propuesta_usa_precio_comercial_y_recomendacion_calculada(monkey
     assert result.diferencia_estimada == Decimal("540.00")
     assert result.recomendacion.decision == "COMPRAR_AHORA"
     assert '"total_actual": "3600.00"' in client.calls[0][0]["content"]
+    assert result.fuente_decision == "backend_deterministico"
+    assert result.propuesta_generada_por == "llm_validado"
+
+
+def test_generar_propuesta_reemplaza_redaccion_llm_si_inventa_valores(monkeypatch) -> None:
+    monkeypatch.setattr(
+        commercial_assistant,
+        "calcular_precio_comercial",
+        lambda **_kwargs: SimpleNamespace(
+            precio_final_actual=Decimal("120.00"),
+            precio_final_proyectado=Decimal("138.00"),
+            advertencias=(),
+        ),
+    )
+    recommendation = SimpleNamespace(
+        decision="COMPRAR_AHORA",
+        confiabilidad="alta",
+        mape=Decimal("4.00"),
+        justificacion="La suba supera el umbral.",
+        advertencias=(),
+    )
+    monkeypatch.setattr(commercial_assistant, "recomendar_estrategia_contextual", lambda *_args, **_kwargs: recommendation)
+    client = FakeClient("Conviene postergar porque el total sera 9999.")
+
+    result = generar_propuesta_comercial(
+        material=SimpleNamespace(id=3, nombre="Membrana Megaflex"),
+        cantidad=Decimal("30"),
+        fase_obra="impermeabilizacion",
+        tolerancia_riesgo="baja",
+        horizonte_meses=3,
+        pricing_repo=object(),
+        db=object(),
+        client=client,
+    )
+
+    assert result.recomendacion.decision == "COMPRAR_AHORA"
+    assert result.propuesta_generada_por == "backend_deterministico"
+    assert "9999" not in result.propuesta
+    assert "COMPRAR_AHORA" in result.propuesta
+    assert result.advertencias == ("La redaccion generativa fue reemplazada por una explicacion deterministica del backend.",)
 
 
 def test_generar_propuesta_escalona_si_presupuesto_no_cubre_compra_inmediata(monkeypatch) -> None:
@@ -219,6 +259,7 @@ def test_endpoints_presupuestacion_interpretan_y_generan_propuesta(monkeypatch) 
 
     assert interpretation.status_code == 200
     assert interpretation.json()["material_id"] == 3
+    assert interpretation.json()["requiere_validacion"] is True
     assert interpretation.json()["requiere_confirmacion"] is True
     assert proposal.status_code == 200
     assert proposal.json()["total_actual"] == "3600.00"

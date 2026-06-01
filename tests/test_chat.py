@@ -27,6 +27,7 @@ class FakeChatClient:
     def __init__(self, response: str = "Respuesta basada en BuildWise.") -> None:
         self.response = response
         self.calls: list[list[dict[str, str]]] = []
+        self.provider_name = "facultad"
 
     def complete(self, messages: list[dict[str, str]]) -> str:
         self.calls.append(messages)
@@ -37,6 +38,7 @@ class ResponseQueueClient:
     def __init__(self, *responses: str) -> None:
         self.responses = list(responses)
         self.calls: list[list[dict[str, str]]] = []
+        self.provider_name = "facultad"
 
     def complete(self, messages: list[dict[str, str]]) -> str:
         self.calls.append(messages)
@@ -327,6 +329,8 @@ def test_endpoint_chat_llama_proveedor_para_consulta_admitida() -> None:
         "aceptada": True,
         "respuesta": "El forecast expresa una proyeccion del sistema.",
         "proveedor_utilizado": True,
+        "proveedor_ia": "facultad",
+        "fallback_usado": False,
     }
     assert len(provider.calls) == 1
 
@@ -409,6 +413,8 @@ def test_endpoint_chat_cliente_rechaza_acciones_admin_sin_proveedor(question: st
         "aceptada": False,
         "respuesta": ADMIN_ONLY_RESPONSE,
         "proveedor_utilizado": False,
+        "proveedor_ia": None,
+        "fallback_usado": False,
     }
     assert provider.calls == []
 

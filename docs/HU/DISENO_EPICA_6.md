@@ -2,13 +2,14 @@
 
 ## Propósito del documento
 
-Este documento resume el diseno funcional inicial de la Epica 6 de `BuildWise`, orientada a la asistencia conversacional. Su objetivo es exponer capacidades del sistema en lenguaje natural sin reemplazar la logica de negocio ya existente.
+Este documento resume el diseno funcional inicial de la Epica 6 de `BuildWise`, orientada a la asistencia conversacional acotada. Su objetivo es exponer capacidades del sistema en lenguaje natural sin reemplazar la logica de negocio ya existente.
 
 ## Marco general
 
 - la capa conversacional no calcula desde cero;
 - consume datos, forecast y reglas ya resueltas en backend;
-- el LLM debe actuar como interfaz y sintetizador, no como fuente unica de verdad.
+- el LLM actua como interfaz y sintetizador, no como fuente unica de verdad;
+- si el material o la consulta quedan fuera del catalogo soportado, el backend corta la respuesta y no delega al modelo una estimacion inventada.
 
 ---
 
@@ -16,7 +17,7 @@ Este documento resume el diseno funcional inicial de la Epica 6 de `BuildWise`, 
 
 ### Objetivo
 
-Permitir preguntas abiertas sobre precios y proyecciones sin navegar manualmente por tablas y graficos.
+Permitir preguntas abiertas sobre precios y proyecciones sin navegar manualmente por tablas y graficos, siempre dentro del universo de datos propios cargados en BuildWise.
 
 ### Salida esperada
 
@@ -62,7 +63,7 @@ Permitir que el usuario consulte en lenguaje natural una decision de compra y re
 
 ### Salida esperada
 
-- accion sugerida: comprar ahora, postergar o compra parcial;
+- accion sugerida segun el flujo ejecutado: comprar ahora, esperar/monitorear, postergar, compra parcial, escalonar o sin ventaja clara;
 - ahorro o sobrecosto estimado;
 - nivel de confianza o advertencia;
 - referencia a los supuestos usados.
@@ -112,7 +113,7 @@ Se incorpora una primera integracion OpenAI-compatible para habilitar la convers
 - llamada HTTP a `{OPENAI_BASE_URL}/chat/completions`;
 - alternativa nativa Claude mediante `CHAT_PROVIDER=anthropic`, con llamada a `{ANTHROPIC_BASE_URL}/messages`;
 - rechazo local de consultas evidentemente ajenas al dominio, sin consumir el proveedor;
-- vista `Chatbot IA` disponible en el frontend.
+- vista de conversacion IA disponible en el frontend.
 
 Ejemplo de request:
 
@@ -126,7 +127,7 @@ Una consulta fuera de alcance devuelve `aceptada: false` y `proveedor_utilizado:
 
 ### Operaciones conversacionales implementadas
 
-El chatbot arma contexto con los servicios internos y permite:
+La capa conversacional arma contexto con los servicios internos y permite:
 
 - consultar y explicar forecast y recomendacion del material seleccionado;
 - resumir historial de precios;
@@ -137,7 +138,7 @@ El chatbot arma contexto con los servicios internos y permite:
 - preparar cargas de precios y cambios administrativos unicamente para administradores, ejecutandolos solo luego de una confirmacion explicita (`CONFIRMAR`);
 - rechazar localmente pedidos administrativos de usuarios cliente, sin enviarlos al proveedor LLM.
 
-El LLM interpreta la solicitud y explica el resultado; los valores, decisiones y transacciones se resuelven en servicios de BuildWise.
+El LLM interpreta la solicitud y explica el resultado; los valores, decisiones y transacciones se resuelven en servicios de BuildWise. Si el pedido refiere a un material fuera del MVP, la consulta se rechaza localmente sin intentar inferir un precio externo.
 
 ### Configuracion con Claude
 

@@ -118,9 +118,9 @@ Las historias nuevas o pendientes deben considerarse prioritariamente sobre esto
 
 | HU | Historia | Estado | Literal | Observacion |
 | --- | --- | --- | --- | --- |
-| HU33 | Ingresar una necesidad de obra en lenguaje natural para solicitar orientacion comercial. | Implementada | ✅ Si | La vista `Asistente comercial IA` admite el pedido libre para productos del MVP. |
+| HU33 | Ingresar una necesidad de obra en lenguaje natural para solicitar orientacion de compra. | Implementada | ✅ Si | La vista `Asistente de compra IA` admite el pedido libre para productos del MVP. |
 | HU34 | Interpretar mediante IA la necesidad e identificar producto, cantidad, etapa de obra, fecha objetivo, presupuesto disponible y datos faltantes. | Implementada | ✅ Si | Endpoint `chat/presupuestacion/interpretar` restringe el catalogo a los tres productos y devuelve datos estructurados y faltantes. |
-| HU35 | Validar o corregir los datos interpretados antes de generar un presupuesto o recomendacion. | Implementada | ✅ Si | El frontend presenta un formulario editable y requiere confirmar antes de generar la propuesta. |
-| HU36 | Generar un presupuesto comercial con precios vigentes y cantidades confirmadas para los productos del MVP. | Implementada | ✅ Si | La propuesta utiliza el precio comercial calculado por backend, incluyendo margen configurado y totales por cantidad. |
-| HU37 | Recomendar el momento de compra considerando presupuesto, precio actual, forecast, fecha de uso y confianza del modelo. | Implementada | ✅ Si | El flujo comercial reutiliza `recomendacion-contextual` para combinar fase, fecha/horizonte, tolerancia y forecast. |
-| HU38 | Generar una propuesta comercial explicable que integre presupuesto, recomendacion, supuestos y riesgos. | Implementada | ✅ Si | Endpoint `chat/presupuestacion/propuesta` entrega importes calculados y texto redactado por IA bajo contexto controlado. |
+| HU35 | Validar o corregir los datos interpretados antes de generar un presupuesto o recomendacion. | Implementada | ✅ Si | El frontend presenta un formulario editable y requiere validar los datos antes de generar la propuesta. |
+| HU36 | Generar un presupuesto estimado con precios vigentes y cantidades confirmadas para los productos del MVP. | Implementada | ✅ Si | La propuesta utiliza el precio vigente calculado por backend y totales por cantidad. |
+| HU37 | Recomendar el momento de compra considerando presupuesto, precio actual, forecast, fecha de uso y confianza del modelo. | Implementada | ✅ Si | El flujo de compra reutiliza `recomendacion-contextual` para combinar fase, fecha/horizonte, tolerancia y forecast. |
+| HU38 | Generar una propuesta de compra explicable que integre presupuesto, recomendacion, supuestos y riesgos. | Implementada | ✅ Si | Endpoint `chat/presupuestacion/propuesta` entrega importes calculados y texto redactado por IA bajo contexto controlado. |
