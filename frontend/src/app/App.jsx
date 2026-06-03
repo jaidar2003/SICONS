@@ -755,7 +755,14 @@ export function App() {
               ) : null}
 
               {activeView === "chatbot" ? (
-                <ChatCard token={token} selectedMaterial={selectedMaterial} forecastHorizon={forecastHorizon} isAdmin={isAdmin} />
+                <ChatCard
+                  token={token}
+                  selectedMaterial={selectedMaterial}
+                  forecastHorizon={forecastHorizon}
+                  isAdmin={isAdmin}
+                  materiales={materiales}
+                  showPrices={showPrices}
+                />
               ) : null}
 
               {activeView === "history" ? (
