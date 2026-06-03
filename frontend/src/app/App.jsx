@@ -35,6 +35,7 @@ import { MetricsGrid } from "../features/pricing/MetricsGrid.jsx";
 import { PurchaseDecisionCard } from "../features/pricing/PurchaseDecisionCard.jsx";
 import { PriceChart } from "../features/pricing/PriceChart.jsx";
 import { CommercialMarginsAdmin } from "../features/admin/CommercialMarginsAdmin.jsx";
+import { ChatAuditAdmin } from "../features/admin/ChatAuditAdmin.jsx";
 import { ChatConfigAdmin } from "../features/admin/ChatConfigAdmin.jsx";
 import { UsersAdmin } from "../features/admin/UsersAdmin.jsx";
 import { ChatCard } from "../features/chat/ChatCard.jsx";
@@ -197,6 +198,11 @@ const ADMIN_WORKFLOWS = [
     value: "margins",
     label: "Márgenes",
     helper: "Configurar márgenes comerciales.",
+  },
+  {
+    value: "audit",
+    label: "Auditoría IA",
+    helper: "Revisar trazabilidad de consultas RAG.",
   },
 ];
 
@@ -842,6 +848,7 @@ export function App() {
                   />
                   {adminWorkflow === "users" ? <UsersAdmin token={token} /> : null}
                   {adminWorkflow === "ai" ? <ChatConfigAdmin token={token} /> : null}
+                  {adminWorkflow === "audit" ? <ChatAuditAdmin token={token} /> : null}
                   {adminWorkflow === "margins" ? (
                     <CommercialMarginsAdmin token={token} materiales={materiales} presentaciones={presentaciones} />
                   ) : null}

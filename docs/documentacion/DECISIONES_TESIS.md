@@ -461,3 +461,18 @@ Cada decision incluye:
 - Justificacion: una recomendacion DSS debe ser trazable y semanticamente consistente. No es lo mismo monitorear por baja confianza, por falta de calibracion o porque la variacion esperada no supera el umbral de decision. Separar esos motivos mejora la defensa metodologica y la comprension del usuario.
 - Impacto en el sistema: las respuestas de compra explican con mayor precision por que no se habilita una accion fuerte. La documentacion funcional y el glosario reflejan los conceptos de confiabilidad, criticidad, umbral y monitoreo.
 - Limitaciones o trabajo futuro: las justificaciones siguen siendo reglas textuales. Si el DSS incorpora perfiles de usuario o politicas configurables, el lenguaje debera parametrizarse junto con esas reglas.
+
+## DT-31
+
+- Fecha aproximada: junio de 2026
+- Area: asistente conversacional y recuperacion de contexto
+- Decision tomada: implementar un RAG operativo estructurado para el asistente IA, basado en recuperacion de datos y calculos del backend, en lugar de usar embeddings/vectorizacion como fuente principal del MVP.
+- Problema que resuelve: evita que el modelo generativo invente precios, forecasts, recomendaciones, margenes o materiales, y permite mostrar trazabilidad directa de las fuentes usadas en cada respuesta.
+- Alternativas consideradas:
+  - usar un chatbot generico sin recuperacion previa;
+  - vectorizar documentacion y responder desde textos;
+  - construir un indice vectorial sobre registros de base;
+  - mantener dos asistentes separados, uno general y otro de compra.
+- Justificacion: para el dominio de `BuildWise`, los datos criticos son estructurados y cambiantes: catalogo, precios historicos, fuentes, indices externos, forecast, recomendaciones y margenes. Consultar esos datos por repositorios y servicios existentes es mas confiable que recuperarlos semanticamente desde texto. La vectorizacion puede ser util a futuro para documentacion metodologica, pero no debe reemplazar al backend como fuente de verdad para decisiones economicas.
+- Impacto en el sistema: `/chat/consultas` recupera contexto operativo, devuelve metadatos (`tipo_intencion`, `contexto_usado`, `fuentes_recuperadas`, `material_resuelto`, `horizonte_resuelto`) y la UI muestra chips de trazabilidad. El asistente IA queda unificado: las consultas generales, el RAG operativo y la presupuestacion guiada conviven en una sola experiencia. Cada consulta queda registrada en `audit_logs` con usuario, pregunta, fuentes, fallback, duracion y respuesta.
+- Limitaciones o trabajo futuro: la resolucion de intencion y alias es suficiente para el MVP, pero sigue siendo deterministica y acotada al catalogo principal. A futuro convendra incorporar analitica de auditoria, persistencia del estado conversacional y, si se necesita consultar documentos largos, una capa documental complementaria separada del RAG operativo.

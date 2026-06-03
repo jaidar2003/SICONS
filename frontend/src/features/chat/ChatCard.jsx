@@ -84,6 +84,14 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
   const [loading, setLoading] = useState(false);
   const [proposalLoading, setProposalLoading] = useState(false);
   const [error, setError] = useState("");
+  const draftQuantity = Number(draft.quantity);
+  const proposalDisabled =
+    proposalLoading ||
+    !commercialMaterials.length ||
+    !draft.materialId ||
+    !Number.isFinite(draftQuantity) ||
+    draftQuantity <= 0 ||
+    (!draft.targetDate && (!Number(draft.horizon) || Number(draft.horizon) < 1 || Number(draft.horizon) > 12));
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -153,6 +161,11 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           text: result.respuesta,
           provider: result.proveedor_ia,
           fallbackUsed: Boolean(result.fallback_usado),
+          contextUsed: Boolean(result.contexto_usado),
+          intent: result.tipo_intencion,
+          sources: result.fuentes_recuperadas || [],
+          resolvedMaterial: result.material_resuelto,
+          resolvedHorizon: result.horizonte_resuelto,
           rejected: !result.aceptada,
         },
       ]);
@@ -168,9 +181,16 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
     setProposal(null);
   }
 
+  function resetCommercialFlow() {
+    setDraft(createEmptyDraft());
+    setInterpretation(null);
+    setProposal(null);
+    setError("");
+  }
+
   async function handleGenerateProposal() {
     const quantity = Number(draft.quantity);
-    if (!draft.materialId || !Number.isFinite(quantity) || quantity <= 0) {
+    if (proposalDisabled) {
       setError("Validá producto y cantidad antes de generar la propuesta.");
       return;
     }
@@ -196,6 +216,11 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           text: result.propuesta,
           provider: result.proveedor_ia,
           fallbackUsed: Boolean(result.fallback_usado),
+          contextUsed: true,
+          intent: "PRESUPUESTO",
+          sources: ["presupuestacion.propuesta", result.fuente_decision || "backend_deterministico"],
+          resolvedMaterial: result.producto_nombre,
+          resolvedHorizon: result.horizonte_meses,
         },
       ]);
     } catch (proposalError) {
@@ -233,6 +258,13 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
                     sx={{ fontWeight: 800 }}
                   />
                   {message.fallbackUsed ? <Chip label="Fallback activado" size="small" color="warning" sx={{ fontWeight: 800 }} /> : null}
+                  {message.intent ? <Chip label={`Intención: ${message.intent}`} size="small" variant="outlined" sx={{ fontWeight: 800 }} /> : null}
+                  {message.contextUsed ? <Chip label="RAG backend" size="small" color="success" variant="outlined" sx={{ fontWeight: 800 }} /> : null}
+                  {message.resolvedMaterial ? <Chip label={`Material: ${message.resolvedMaterial}`} size="small" variant="outlined" sx={{ fontWeight: 800 }} /> : null}
+                  {message.resolvedHorizon ? <Chip label={`Horizonte: ${message.resolvedHorizon} meses`} size="small" variant="outlined" sx={{ fontWeight: 800 }} /> : null}
+                  {(message.sources || []).map((source) => (
+                    <Chip key={source} label={source} size="small" variant="outlined" sx={{ fontWeight: 800 }} />
+                  ))}
                 </Box>
               ) : null}
               {message.rejected ? (
@@ -252,20 +284,38 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
 
         {interpretation ? (
           <Box className="mb-4 grid gap-3 rounded-xl border border-teal-200 bg-white p-4">
-            <Box>
-              <Typography variant="h3">Validar necesidad de compra</Typography>
-              <Typography variant="body2" color="text.secondary" mt={0.5}>
-                La IA interpreta el pedido; BuildWise calcula la propuesta solo con estos datos confirmados.
-              </Typography>
+            <Box className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+              <Box>
+                <Typography variant="h3">Validar necesidad de compra</Typography>
+                <Typography variant="body2" color="text.secondary" mt={0.5}>
+                  La IA interpreta el pedido; BuildWise calcula la propuesta solo con los datos confirmados por el usuario.
+                </Typography>
+              </Box>
+              <Button variant="outlined" color="secondary" onClick={resetCommercialFlow} disabled={proposalLoading}>
+                Cancelar
+              </Button>
             </Box>
             {interpretation.datos_faltantes?.length ? (
-              <Alert severity="warning">Faltan o requieren corrección: {interpretation.datos_faltantes.join(", ")}.</Alert>
+              <Alert severity="warning">Faltantes detectados inicialmente: {interpretation.datos_faltantes.join(", ")}.</Alert>
             ) : (
               <Alert severity="info">Revisá los campos antes de generar la propuesta comercial.</Alert>
             )}
             {!commercialMaterials.length ? (
               <Alert severity="warning">No hay productos del MVP disponibles para presupuestación de compra.</Alert>
             ) : null}
+            <Box className="flex flex-wrap gap-1.5">
+              <Chip label="Interpretado por IA" size="small" color="info" variant="outlined" sx={{ fontWeight: 800 }} />
+              <Chip
+                label={`IA usada: ${PROVIDER_LABELS[interpretation.proveedor_ia] || interpretation.proveedor_ia || "no disponible"}`}
+                size="small"
+                variant="outlined"
+                sx={{ fontWeight: 800 }}
+              />
+              {interpretation.fallback_usado ? <Chip label="Fallback activado" size="small" color="warning" sx={{ fontWeight: 800 }} /> : null}
+            </Box>
+            <Typography variant="body2" fontWeight={900} color="text.secondary">
+              Datos confirmados por el usuario
+            </Typography>
             <Box className="grid gap-3 md:grid-cols-3">
               <TextField select size="small" label="Producto" value={draft.materialId} onChange={(event) => updateDraft("materialId", String(event.target.value))}>
                 {commercialMaterials.map((material) => (
@@ -322,8 +372,11 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
                 ))}
               </TextField>
             </Box>
+            {proposalDisabled ? (
+              <Alert severity="info">Completá producto, cantidad y fecha u horizonte válido para generar la propuesta.</Alert>
+            ) : null}
             <Box>
-              <Button variant="contained" color="secondary" onClick={handleGenerateProposal} disabled={proposalLoading || !commercialMaterials.length}>
+              <Button variant="contained" color="secondary" onClick={handleGenerateProposal} disabled={proposalDisabled}>
                 {proposalLoading ? "Generando..." : "Validar y generar propuesta"}
               </Button>
             </Box>

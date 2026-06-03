@@ -49,28 +49,6 @@ Uso recomendado en demo:
 
 La vista `Costos` convierte forecast en decision economica.
 
-### Asistente de compra IA
-
-Convierte una necesidad escrita por un comprador en una propuesta de compra validada.
-
-Incluye:
-
-- interpretacion IA de producto, cantidad, fase, fecha/horizonte y presupuesto;
-- validacion editable antes de calcular;
-- presupuesto actual;
-- comparacion contra forecast;
-- recomendacion `comprar ahora`, `postergar`, `escalonar` o `sin ventaja clara`;
-- propuesta redactada sin alterar los calculos del backend.
-
-Uso recomendado:
-
-1. Elegir `Asistente de compra IA`.
-2. Escribir una necesidad de compra.
-3. Interpretar con IA.
-4. Validar o corregir los campos detectados.
-5. Generar la propuesta.
-6. Explicar total actual, total proyectado, diferencia, decision, confianza y advertencias.
-
 ### Armar presupuesto
 
 Sirve para cargar varios materiales, cantidades, criticidad y presupuesto.
@@ -183,11 +161,34 @@ Permite:
 
 Solo aparece para usuarios con rol admin.
 
+## Asistente IA
+
+La vista `Asistente IA` concentra la experiencia conversacional. No existe un asistente separado para compras: las consultas generales, el RAG operativo y el flujo de presupuestacion conviven en una unica entrada.
+
+Incluye:
+
+- consultas sobre catalogo, precios historicos, forecast, confiabilidad, recomendaciones y margenes segun rol;
+- RAG operativo sobre datos del backend, con chips de fuentes recuperadas;
+- resolucion de material por nombre, alias y algunos errores frecuentes;
+- interpretacion de necesidades de compra;
+- validacion editable de producto, cantidad, fase, fecha/horizonte, presupuesto y tolerancia al riesgo;
+- generacion de propuesta comercial sin delegar calculos al modelo generativo.
+
+Uso recomendado:
+
+1. Entrar a `Asistente IA`.
+2. Consultar un dato operativo, por ejemplo `cual fue el ultimo precio de cemento?`.
+3. Ver chips de trazabilidad: `RAG backend`, material, horizonte y fuentes usadas.
+4. Escribir una necesidad de compra, por ejemplo `Necesito comprar 500 kg de cemento en 6 meses`.
+5. Revisar el panel de validacion editable.
+6. Generar la propuesta.
+7. Explicar que la IA interpreta y redacta, pero que los precios, forecast, recomendaciones y totales salen del backend.
+
 ## Ruta sugerida de demo completa
 
 1. `Resumen`: mostrar lectura general del material.
 2. `Forecast`: mostrar proyeccion, MAPE, MAE, folds y confiabilidad.
-3. `Costos -> Asistente de compra IA`: transformar una necesidad de compra en propuesta.
+3. `Asistente IA`: mostrar RAG operativo y transformar una necesidad de compra en propuesta.
 4. `Costos -> Analizar material`: explicar comprar ahora, postergar o sin ventaja clara.
 5. `Costos -> Armar presupuesto`: mostrar presupuesto multi-material y optimizacion.
 6. `Costos -> Que comprar`: mostrar recomendacion operativa consolidada.

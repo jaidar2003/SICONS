@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -23,6 +23,52 @@ class ChatResponseRead(BaseModel):
     proveedor_utilizado: bool
     proveedor_ia: str | None = None
     fallback_usado: bool = False
+    tipo_intencion: Literal["HISTORICO", "FORECAST", "RECOMENDACION", "PRESUPUESTO", "CATALOGO", "ADMIN", "FUERA_ALCANCE"] | None = None
+    contexto_usado: bool = False
+    fuentes_recuperadas: list[str] = Field(default_factory=list)
+    material_resuelto: str | None = None
+    horizonte_resuelto: int | None = None
+
+
+class ChatAuditLogRead(BaseModel):
+    id: int
+    created_at: datetime
+    usuario_id: int | None = None
+    username: str | None = None
+    pregunta: str | None = None
+    respuesta: str | None = None
+    aceptada: bool | None = None
+    tipo_intencion: Literal["HISTORICO", "FORECAST", "RECOMENDACION", "PRESUPUESTO", "CATALOGO", "ADMIN", "FUERA_ALCANCE"] | None = None
+    contexto_usado: bool | None = None
+    fuentes_recuperadas: list[str] = Field(default_factory=list)
+    material_resuelto: str | None = None
+    horizonte_resuelto: int | None = None
+    proveedor_ia: str | None = None
+    fallback_usado: bool | None = None
+    duration_ms: int | None = None
+    ip_address: str | None = None
+
+
+class ChatDeterminismGroupRead(BaseModel):
+    pregunta_normalizada: str
+    muestra: int
+    score: float
+    campos_estables: list[str]
+    campos_variables: list[str]
+    pregunta_ejemplo: str | None = None
+    tipo_intencion: str | None = None
+    material_resuelto: str | None = None
+    horizonte_resuelto: int | None = None
+    fuentes_recuperadas: list[str] = Field(default_factory=list)
+
+
+class ChatDeterminismReportRead(BaseModel):
+    total_consultas: int
+    grupos_repetidos: int
+    consultas_evaluadas: int
+    score_promedio: float | None = None
+    campos_evaluados: list[str]
+    grupos: list[ChatDeterminismGroupRead]
 
 
 class ChatProviderConfigRead(BaseModel):

@@ -1,4 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import re
+import unicodedata
+from time import perf_counter
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -19,7 +23,7 @@ from app.modules.chat.application.operations import (
     needs_operation_plan,
     plan_operation,
 )
-from app.modules.chat.application.retrieval import build_backend_retrieval_context
+from app.modules.chat.application.retrieval import build_backend_retrieval_context, classify_chat_intent
 from app.modules.chat.application.service import (
     ADMIN_ONLY_RESPONSE,
     ChatCompletionClient,
@@ -35,6 +39,9 @@ from app.modules.chat.infrastructure.llm_client import (
     OpenAICompatibleChatClient,
 )
 from app.modules.chat.interfaces.schemas import (
+    ChatAuditLogRead,
+    ChatDeterminismGroupRead,
+    ChatDeterminismReportRead,
     ChatProviderConfigRead,
     ChatProviderConfigUpdate,
     ChatQueryCreate,
@@ -44,10 +51,12 @@ from app.modules.chat.interfaces.schemas import (
     CommercialProposalCreate,
     CommercialProposalRead,
 )
+from app.shared.database.audit_models import AuditLog
 from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.infrastructure.models import CommercialMargin
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
 from app.shared.config.settings import settings
+from app.shared.database.audit_service import register_audit_log
 from app.shared.database.session import get_db
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -107,6 +116,151 @@ def _fallback_enabled_from_settings() -> bool:
     return _provider_configured(fallback_key)
 
 
+def _audit_changes(log: AuditLog) -> dict:
+    return log.cambios if isinstance(log.cambios, dict) else {}
+
+
+def _audit_log_read(log: AuditLog, username: str | None) -> ChatAuditLogRead:
+    changes = _audit_changes(log)
+    raw_sources = changes.get("fuentes_recuperadas") or []
+    sources = raw_sources if isinstance(raw_sources, list) else []
+    return ChatAuditLogRead(
+        id=log.id,
+        created_at=log.created_at,
+        usuario_id=log.usuario_id,
+        username=username,
+        pregunta=changes.get("pregunta"),
+        respuesta=changes.get("respuesta"),
+        aceptada=changes.get("aceptada"),
+        tipo_intencion=changes.get("tipo_intencion"),
+        contexto_usado=changes.get("contexto_usado"),
+        fuentes_recuperadas=sources,
+        material_resuelto=changes.get("material_resuelto"),
+        horizonte_resuelto=changes.get("horizonte_resuelto"),
+        proveedor_ia=changes.get("proveedor_ia"),
+        fallback_usado=changes.get("fallback_usado"),
+        duration_ms=changes.get("duration_ms"),
+        ip_address=log.ip_address,
+    )
+
+
+DETERMINISM_FIELDS = (
+    "tipo_intencion",
+    "material_resuelto",
+    "horizonte_resuelto",
+    "fuentes_recuperadas",
+    "contexto_usado",
+    "fallback_usado",
+)
+
+
+def _normalize_audit_question(question: str | None) -> str:
+    normalized = unicodedata.normalize("NFKD", question or "").encode("ascii", "ignore").decode("ascii")
+    normalized = re.sub(r"\s+", " ", normalized.lower()).strip()
+    normalized = re.sub(r"[^\w\s]", "", normalized)
+    return normalized
+
+
+def _determinism_value(changes: dict, field: str):
+    value = changes.get(field)
+    if field == "fuentes_recuperadas":
+        if not isinstance(value, list):
+            return ()
+        return tuple(sorted(str(item) for item in value))
+    return value
+
+
+def _build_determinism_report(logs: list[AuditLog], limit_groups: int = 20) -> ChatDeterminismReportRead:
+    grouped: dict[str, list[AuditLog]] = {}
+    for log in logs:
+        question_key = _normalize_audit_question(_audit_changes(log).get("pregunta"))
+        if question_key:
+            grouped.setdefault(question_key, []).append(log)
+
+    repeated_groups = {question: items for question, items in grouped.items() if len(items) >= 2}
+    groups: list[ChatDeterminismGroupRead] = []
+    total_score = 0.0
+
+    for question, items in repeated_groups.items():
+        stable_fields: list[str] = []
+        variable_fields: list[str] = []
+        first_changes = _audit_changes(items[0])
+        for field in DETERMINISM_FIELDS:
+            values = {_determinism_value(_audit_changes(item), field) for item in items}
+            if len(values) == 1:
+                stable_fields.append(field)
+            else:
+                variable_fields.append(field)
+        score = round(len(stable_fields) / len(DETERMINISM_FIELDS), 4)
+        total_score += score
+        groups.append(
+            ChatDeterminismGroupRead(
+                pregunta_normalizada=question,
+                muestra=len(items),
+                score=score,
+                campos_estables=stable_fields,
+                campos_variables=variable_fields,
+                pregunta_ejemplo=first_changes.get("pregunta"),
+                tipo_intencion=first_changes.get("tipo_intencion"),
+                material_resuelto=first_changes.get("material_resuelto"),
+                horizonte_resuelto=first_changes.get("horizonte_resuelto"),
+                fuentes_recuperadas=list(_determinism_value(first_changes, "fuentes_recuperadas")),
+            )
+        )
+
+    groups.sort(key=lambda item: (item.score, -item.muestra, item.pregunta_normalizada))
+    score_promedio = round(total_score / len(groups), 4) if groups else None
+    return ChatDeterminismReportRead(
+        total_consultas=len(logs),
+        grupos_repetidos=len(repeated_groups),
+        consultas_evaluadas=sum(len(items) for items in repeated_groups.values()),
+        score_promedio=score_promedio,
+        campos_evaluados=list(DETERMINISM_FIELDS),
+        grupos=groups[:limit_groups],
+    )
+
+
+def _append_context_warning(context: str | None, warning: str) -> str:
+    prefix = context or "CONTEXTO RECUPERADO DE BUILDWISE:"
+    return f"{prefix}\n- Advertencia: {warning}"
+
+
+def _register_chat_audit(
+    db: Session,
+    *,
+    current_user: Usuario,
+    pregunta: str,
+    response: ChatResponseRead,
+    duration_ms: int,
+    ip_address: str | None,
+) -> None:
+    try:
+        register_audit_log(
+            db,
+            usuario_id=getattr(current_user, "id", None),
+            accion="CHAT_QUERY",
+            recurso="ChatConsulta",
+            recurso_id=None,
+            cambios={
+                "pregunta": pregunta,
+                "respuesta": response.respuesta,
+                "aceptada": response.aceptada,
+                "tipo_intencion": response.tipo_intencion,
+                "contexto_usado": response.contexto_usado,
+                "fuentes_recuperadas": response.fuentes_recuperadas,
+                "material_resuelto": response.material_resuelto,
+                "horizonte_resuelto": response.horizonte_resuelto,
+                "proveedor_ia": response.proveedor_ia,
+                "fallback_usado": response.fallback_usado,
+                "duration_ms": duration_ms,
+            },
+            ip_address=ip_address,
+        )
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+
+
 @router.get("/config", response_model=ChatProviderConfigRead)
 def obtener_configuracion_chat(
     current_user: Usuario = Depends(get_current_user),
@@ -119,6 +273,58 @@ def obtener_configuracion_chat(
         modelo_claude=settings.anthropic_model,
         fallback_habilitado=_fallback_enabled_from_settings(),
     )
+
+
+@router.get("/auditoria", response_model=list[ChatAuditLogRead])
+def listar_auditoria_chat(
+    limit: int = Query(default=50, ge=1, le=200),
+    tipo_intencion: str | None = Query(default=None),
+    fallback_usado: bool | None = Query(default=None),
+    usuario_id: int | None = Query(default=None, ge=1),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+) -> list[ChatAuditLogRead]:
+    if current_user.rol != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un admin puede ver la auditoria del asistente.")
+
+    stmt = (
+        select(AuditLog, Usuario.username)
+        .outerjoin(Usuario, Usuario.id == AuditLog.usuario_id)
+        .where(AuditLog.accion == "CHAT_QUERY")
+        .where(AuditLog.recurso == "ChatConsulta")
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .limit(limit)
+    )
+    if usuario_id is not None:
+        stmt = stmt.where(AuditLog.usuario_id == usuario_id)
+    if tipo_intencion:
+        stmt = stmt.where(AuditLog.cambios["tipo_intencion"].as_string() == tipo_intencion)
+    if fallback_usado is not None:
+        stmt = stmt.where(AuditLog.cambios["fallback_usado"].as_boolean() == fallback_usado)
+
+    rows = db.execute(stmt).all()
+    return [_audit_log_read(log, username) for log, username in rows]
+
+
+@router.get("/auditoria/determinismo", response_model=ChatDeterminismReportRead)
+def medir_determinismo_rag(
+    limit: int = Query(default=200, ge=2, le=1000),
+    limit_groups: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+) -> ChatDeterminismReportRead:
+    if current_user.rol != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un admin puede medir determinismo del RAG.")
+
+    stmt = (
+        select(AuditLog)
+        .where(AuditLog.accion == "CHAT_QUERY")
+        .where(AuditLog.recurso == "ChatConsulta")
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .limit(limit)
+    )
+    logs = list(db.scalars(stmt))
+    return _build_determinism_report(logs, limit_groups=limit_groups)
 
 
 @router.patch("/config", response_model=ChatProviderConfigRead)
@@ -142,20 +348,46 @@ def actualizar_configuracion_chat(
 @router.post("/consultas", response_model=ChatResponseRead)
 def consultar_chat(
     payload: ChatQueryCreate,
+    request: Request,
     client: ChatCompletionClient = Depends(get_chat_client),
     material_repo: MaterialRepository = Depends(get_material_repository),
     pricing_repo: PricingRepository = Depends(get_pricing_repository),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ) -> ChatResponseRead:
-    if current_user.rol != "admin" and is_admin_only_request(payload.pregunta):
-        return ChatResponseRead(aceptada=False, respuesta=ADMIN_ONLY_RESPONSE, proveedor_utilizado=False)
+    started_at = perf_counter()
+    admin_only = is_admin_only_request(payload.pregunta)
+    should_load_context = is_in_scope(payload.pregunta, has_context=payload.material_id is not None)
+    tipo_intencion = classify_chat_intent(
+        payload.pregunta,
+        accepted_scope=should_load_context,
+        admin_only=admin_only,
+    )
+    if current_user.rol != "admin" and admin_only:
+        response = ChatResponseRead(
+            aceptada=False,
+            respuesta=ADMIN_ONLY_RESPONSE,
+            proveedor_utilizado=False,
+            tipo_intencion=tipo_intencion,
+        )
+        _register_chat_audit(
+            db,
+            current_user=current_user,
+            pregunta=payload.pregunta,
+            response=response,
+            duration_ms=int((perf_counter() - started_at) * 1000),
+            ip_address=request.client.host if request.client else None,
+        )
+        return response
     try:
         context = None
-        should_load_context = is_in_scope(payload.pregunta, has_context=payload.material_id is not None)
+        fuentes_recuperadas: list[str] = []
+        material_resuelto = None
+        horizonte_resuelto = None
         if should_load_context:
             material = material_repo.get_by_id(payload.material_id) if payload.material_id is not None else None
             horizon = resolve_horizon(payload.pregunta, payload.horizonte_meses)
+            horizonte_resuelto = horizon
             if needs_operation_plan(payload.pregunta):
                 plan = plan_operation(
                     payload.pregunta,
@@ -169,7 +401,7 @@ def consultar_chat(
                 )
                 if plan["action"] != "NONE":
                     try:
-                        context = execute_operation(
+                        operation = execute_operation(
                             plan,
                             fallback_material=material,
                             fallback_horizon=horizon,
@@ -178,7 +410,19 @@ def consultar_chat(
                             db=db,
                             current_user=current_user,
                             confirmed=is_explicit_confirmation(payload.pregunta),
-                        ).context
+                        )
+                        context = operation.context
+                        fuentes_recuperadas.append(f"operacion.{plan['action'].lower()}")
+                        operation_material_id = plan.get("material_id") or getattr(material, "id", None)
+                        if operation_material_id is not None:
+                            operation_material = material_repo.get_by_id(int(operation_material_id))
+                            if operation_material is not None:
+                                material_resuelto = getattr(operation_material, "nombre", None)
+                        try:
+                            operation_horizon = int(plan.get("horizonte_meses") or horizon)
+                        except (TypeError, ValueError):
+                            operation_horizon = horizon
+                        horizonte_resuelto = operation_horizon if 1 <= operation_horizon <= 12 else horizon
                     except ValueError as exc:
                         context = (
                             "La operacion solicitada es parte de BuildWise, pero no se puede calcular aun: "
@@ -196,33 +440,55 @@ def consultar_chat(
                         is_admin=current_user.rol == "admin",
                     )
                     context = retrieval.context
+                    fuentes_recuperadas.extend(retrieval.sources)
+                    if retrieval.material is not None:
+                        material_resuelto = getattr(retrieval.material, "nombre", None)
+                    horizonte_resuelto = retrieval.horizon
                 except SQLAlchemyError:
                     retrieval = None
                     context = None
                 retrieval_material = retrieval.material if retrieval is not None else None
                 material_for_calculated_context = material or retrieval_material
                 if context is None and material_for_calculated_context is not None:
-                    context = build_material_context(
-                        material_for_calculated_context,
-                        horizon,
-                        pricing_repo,
-                        is_admin=current_user.rol == "admin",
-                    )
+                    try:
+                        context = build_material_context(
+                            material_for_calculated_context,
+                            horizon,
+                            pricing_repo,
+                            is_admin=current_user.rol == "admin",
+                        )
+                        fuentes_recuperadas.append("purchase_recommendations")
+                    except Exception:
+                        context = _append_context_warning(
+                            context,
+                            "No fue posible calcular forecast/recomendacion en esta consulta; responder con el contexto disponible.",
+                        )
+                    material_resuelto = getattr(material_for_calculated_context, "nombre", None)
+                    horizonte_resuelto = horizon
                 elif (
                     context is not None
                     and material_for_calculated_context is not None
                     and retrieval is not None
                     and _requires_calculated_material_context(payload.pregunta)
                 ):
-                    context = (
-                        f"{context}\n\n"
-                        + build_material_context(
-                            material_for_calculated_context,
-                            retrieval.horizon,
-                            pricing_repo,
-                            is_admin=current_user.rol == "admin",
+                    try:
+                        context = (
+                            f"{context}\n\n"
+                            + build_material_context(
+                                material_for_calculated_context,
+                                retrieval.horizon,
+                                pricing_repo,
+                                is_admin=current_user.rol == "admin",
+                            )
                         )
-                    )
+                        fuentes_recuperadas.append("purchase_recommendations")
+                    except Exception:
+                        context = _append_context_warning(
+                            context,
+                            "No fue posible calcular forecast/recomendacion en esta consulta; responder con el contexto disponible.",
+                        )
+                    material_resuelto = getattr(material_for_calculated_context, "nombre", None)
+                    horizonte_resuelto = retrieval.horizon
         result = answer_question(
             payload.pregunta,
             client,
@@ -233,13 +499,27 @@ def consultar_chat(
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except LLMProviderError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-    return ChatResponseRead(
+    response = ChatResponseRead(
         aceptada=result.aceptada,
         respuesta=result.respuesta,
         proveedor_utilizado=result.proveedor_utilizado,
         proveedor_ia=result.proveedor_ia,
         fallback_usado=result.fallback_usado,
+        tipo_intencion=tipo_intencion if result.aceptada else "FUERA_ALCANCE",
+        contexto_usado=bool(context),
+        fuentes_recuperadas=list(dict.fromkeys(fuentes_recuperadas)),
+        material_resuelto=material_resuelto,
+        horizonte_resuelto=horizonte_resuelto,
     )
+    _register_chat_audit(
+        db,
+        current_user=current_user,
+        pregunta=payload.pregunta,
+        response=response,
+        duration_ms=int((perf_counter() - started_at) * 1000),
+        ip_address=request.client.host if request.client else None,
+    )
+    return response
 
 
 @router.post("/presupuestacion/interpretar", response_model=CommercialNeedInterpretationRead)

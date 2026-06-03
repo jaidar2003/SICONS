@@ -15,6 +15,12 @@ BACKEND_CONTEXT_HEADER = (
     "CONTEXTO RECUPERADO DE BUILDWISE. Estos datos provienen del backend y prevalecen "
     "sobre conocimiento general del modelo:"
 )
+MATERIAL_ALIASES = {
+    "cemento portland": {"cemento", "portland", "cemnto", "cemento loma negra", "bolsa cemento", "bolsas cemento"},
+    "pastina": {"pastina", "pastina klaukol", "klaukol", "pastina blanca"},
+    "membrana megaflex": {"membrana", "megaflex", "membrana asfaltica", "membrana asfáltica", "impermeabilizante"},
+}
+CHAT_INTENTS = {"HISTORICO", "FORECAST", "RECOMENDACION", "PRESUPUESTO", "CATALOGO", "ADMIN", "FUERA_ALCANCE"}
 
 
 @dataclass(frozen=True)
@@ -22,6 +28,7 @@ class BackendRetrievalResult:
     context: str | None
     material: object | None
     horizon: int
+    sources: tuple[str, ...] = ()
 
 
 def _normalized(text: str) -> str:
@@ -30,6 +37,18 @@ def _normalized(text: str) -> str:
 
 def _tokens(text: str) -> set[str]:
     return set(re.findall(r"[a-z0-9]+", _normalized(text)))
+
+
+def _alias_score(question: str, material_name: str) -> int:
+    normalized_question = _normalized(question)
+    normalized_material = _normalized(material_name)
+    aliases = MATERIAL_ALIASES.get(normalized_material, set())
+    score = 0
+    for alias in aliases:
+        normalized_alias = _normalized(alias)
+        if re.search(rf"\b{re.escape(normalized_alias)}\b", normalized_question):
+            score = max(score, len(_tokens(normalized_alias)) + 3)
+    return score
 
 
 def _wants_catalog(question: str) -> bool:
@@ -61,6 +80,28 @@ def _wants_margins(question: str) -> bool:
     return bool(re.search(r"\b(margen|margenes|precio comercial)\b", _normalized(question)))
 
 
+def classify_chat_intent(question: str, *, accepted_scope: bool = True, admin_only: bool = False) -> str:
+    if not accepted_scope:
+        return "FUERA_ALCANCE"
+    normalized = _normalized(question)
+    if admin_only or re.search(
+        r"\b(usuario|usuarios|margen|margenes|registrar|cargar|crear|actualizar|modificar|habilitar|eliminar|borrar)\b",
+        normalized,
+    ):
+        return "ADMIN"
+    if re.search(r"\b(presupuesto|cotizar|cotizacion|propuesta|necesito comprar|necesito\s+\d+|obra)\b", normalized):
+        return "PRESUPUESTO"
+    if re.search(r"\b(estrategia|estrategias|optimizar|priorizar|criticidad|conviene|recomendacion|comprar|esperar|decision)\b", normalized):
+        return "RECOMENDACION"
+    if re.search(r"\b(forecast|proyeccion|proyectado|mape|mae|confiabilidad|modelo)\b", normalized):
+        return "FORECAST"
+    if _wants_history(question):
+        return "HISTORICO"
+    if _wants_catalog(question) or _wants_external_indices(question):
+        return "CATALOGO"
+    return "CATALOGO"
+
+
 def resolve_material_from_question(question: str, material_repo, selected_material_id: int | None = None):
     if selected_material_id is not None:
         material = material_repo.get_by_id(selected_material_id)
@@ -77,6 +118,7 @@ def resolve_material_from_question(question: str, material_repo, selected_materi
         if not name_tokens:
             continue
         overlap = len(question_tokens & name_tokens)
+        overlap += _alias_score(question, material.nombre)
         normalized_name = _normalized(material.nombre)
         normalized_question = _normalized(question)
         if normalized_name in normalized_question:
@@ -274,28 +316,36 @@ def build_backend_retrieval_context(
     wants_margins = _wants_margins(question)
 
     lines: list[str] = [BACKEND_CONTEXT_HEADER]
+    sources: list[str] = []
     retrieved_any = False
 
     if material is not None:
         lines.extend(_material_catalog_context(material, db))
+        sources.append("catalogo.materiales")
         retrieved_any = True
         if wants_history or not wants_forecast:
             lines.extend(_history_context(material, pricing_repo, db))
+            sources.append("precios_historicos")
         if wants_margins:
             lines.extend(_margins_context(db, getattr(material, "id", None), is_admin=is_admin))
+            sources.append("commercial_margins")
     elif wants_catalog:
         materials = material_repo.list_active()
         lines.extend(_catalog_context(materials, db))
+        sources.extend(("catalogo.materiales", "catalogo.presentaciones"))
         retrieved_any = True
 
     if wants_indices:
         lines.extend(_external_indices_context(db))
+        sources.append("external_index_values")
         retrieved_any = True
     if wants_catalog and "fuente" in _normalized(question):
         lines.extend(_sources_context(db))
+        sources.append("catalogo.fuentes")
         retrieved_any = True
     if wants_margins and material is None:
         lines.extend(_margins_context(db, None, is_admin=is_admin))
+        sources.append("commercial_margins")
         retrieved_any = True
 
     if not retrieved_any:
@@ -305,4 +355,5 @@ def build_backend_retrieval_context(
         "REGLA DE RESPUESTA: responde solo con los datos recuperados/calculados. "
         "Si falta un dato en el contexto, indicá exactamente qué falta en BuildWise."
     )
-    return BackendRetrievalResult(context="\n".join(lines), material=material, horizon=horizon)
+    unique_sources = tuple(dict.fromkeys(sources))
+    return BackendRetrievalResult(context="\n".join(lines), material=material, horizon=horizon, sources=unique_sources)

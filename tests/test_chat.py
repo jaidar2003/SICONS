@@ -11,7 +11,7 @@ from app.modules.auth.interfaces.dependencies import get_current_user
 from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.chat.application.context import build_material_context, resolve_horizon
 from app.modules.chat.application.operations import execute_operation, plan_operation
-from app.modules.chat.application.retrieval import build_backend_retrieval_context
+from app.modules.chat.application.retrieval import build_backend_retrieval_context, classify_chat_intent
 from app.modules.chat.application.service import ADMIN_ONLY_RESPONSE, OUT_OF_SCOPE_RESPONSE, answer_question
 from app.modules.chat.infrastructure import llm_client
 from app.modules.chat.infrastructure.llm_client import AnthropicChatClient, FallbackChatClient, LLMConfigurationError, OpenAICompatibleChatClient
@@ -181,6 +181,7 @@ def test_backend_retrieval_resuelve_material_por_nombre_y_usa_historicos() -> No
     assert result.material == material
     assert "FUENTE precios_historicos" in result.context
     assert "Ultimo precio normalizado: ARS 120" in result.context
+    assert result.sources == ("catalogo.materiales", "precios_historicos")
 
 
 def test_backend_retrieval_margenes_no_admin_no_expone_detalle() -> None:
@@ -193,6 +194,48 @@ def test_backend_retrieval_margenes_no_admin_no_expone_detalle() -> None:
     )
 
     assert "solo para usuarios administradores" in result.context
+
+
+def test_backend_retrieval_resuelve_alias_de_materiales() -> None:
+    cemento = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+    pastina = SimpleNamespace(id=2, nombre="Pastina", unidad_base="kg")
+    membrana = SimpleNamespace(id=3, nombre="Membrana Megaflex", unidad_base="unidad")
+    material_repo = SimpleNamespace(list_active=lambda: [cemento, pastina, membrana], get_by_id=lambda _id: None)
+
+    assert build_backend_retrieval_context(
+        "Cuanto sale klaukol?",
+        material_repo=material_repo,
+        pricing_repo=SimpleNamespace(get_historical_prices=lambda *_args: []),
+        db=FakeDb(),
+    ).material == pastina
+    assert build_backend_retrieval_context(
+        "Necesito membrana asfaltica",
+        material_repo=material_repo,
+        pricing_repo=SimpleNamespace(get_historical_prices=lambda *_args: []),
+        db=FakeDb(),
+    ).material == membrana
+    assert build_backend_retrieval_context(
+        "Precio de cemnto en 3 meses",
+        material_repo=material_repo,
+        pricing_repo=SimpleNamespace(get_historical_prices=lambda *_args: []),
+        db=FakeDb(),
+    ).material == cemento
+
+
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("cual fue el ultimo precio de cemento?", "HISTORICO"),
+        ("explicame el forecast de cemento", "FORECAST"),
+        ("me conviene comprar cemento?", "RECOMENDACION"),
+        ("necesito comprar 500 kg de cemento", "PRESUPUESTO"),
+        ("que materiales hay?", "CATALOGO"),
+        ("lista usuarios", "ADMIN"),
+    ],
+)
+def test_classify_chat_intent(question: str, expected: str) -> None:
+    assert classify_chat_intent(question) == expected
+    assert classify_chat_intent("receta de flan", accepted_scope=False) == "FUERA_ALCANCE"
 
 
 def test_plan_operation_extrae_accion_estructurada() -> None:
@@ -450,8 +493,42 @@ def test_endpoint_chat_llama_proveedor_para_consulta_admitida() -> None:
         "proveedor_utilizado": True,
         "proveedor_ia": "facultad",
         "fallback_usado": False,
+        "tipo_intencion": "FORECAST",
+        "contexto_usado": True,
+        "fuentes_recuperadas": ["catalogo.materiales", "purchase_recommendations"],
+        "material_resuelto": "Cemento Portland",
+        "horizonte_resuelto": 3,
     }
     assert len(provider.calls) == 1
+
+
+def test_endpoint_chat_registra_auditoria(monkeypatch: pytest.MonkeyPatch) -> None:
+    audit_calls = []
+
+    def fake_register_audit_log(_db, **kwargs):
+        audit_calls.append(kwargs)
+
+    provider = FakeChatClient(response="Respuesta auditada.")
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+    monkeypatch.setattr(chat_routes, "register_audit_log", fake_register_audit_log)
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=11, rol="cliente")
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(list_active=lambda: [material], get_by_id=lambda _id: None)
+    app.dependency_overrides[get_db] = lambda: MagicMock()
+    try:
+        response = TestClient(app).post("/chat/consultas", json={"pregunta": "Que materiales hay?"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert audit_calls
+    audit = audit_calls[0]
+    assert audit["usuario_id"] == 11
+    assert audit["accion"] == "CHAT_QUERY"
+    assert audit["recurso"] == "ChatConsulta"
+    assert audit["cambios"]["pregunta"] == "Que materiales hay?"
+    assert audit["cambios"]["tipo_intencion"] == "CATALOGO"
+    assert "duration_ms" in audit["cambios"]
 
 
 def test_endpoint_chat_incluye_contexto_calculado_del_material(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -478,6 +555,11 @@ def test_endpoint_chat_incluye_contexto_calculado_del_material(monkeypatch: pyte
     assert response.status_code == 200
     assert "CONTEXTO 6 meses" in provider.calls[0][0]["content"]
     assert provider.calls[0][1] == {"role": "assistant", "content": "Respuesta previa"}
+    assert response.json()["contexto_usado"] is True
+    assert response.json()["tipo_intencion"] == "RECOMENDACION"
+    assert "purchase_recommendations" in response.json()["fuentes_recuperadas"]
+    assert response.json()["material_resuelto"] == "Cemento Portland"
+    assert response.json()["horizonte_resuelto"] == 6
 
 
 def test_endpoint_chat_ejecuta_operacion_analitica_planificada(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -508,6 +590,8 @@ def test_endpoint_chat_ejecuta_operacion_analitica_planificada(monkeypatch: pyte
     assert response.status_code == 200
     assert len(provider.calls) == 2
     assert "RESULTADO REAL DE ESTRATEGIAS" in provider.calls[1][0]["content"]
+    assert response.json()["material_resuelto"] == "Cemento Portland"
+    assert response.json()["horizonte_resuelto"] == 6
 
 
 @pytest.mark.parametrize(
@@ -534,6 +618,11 @@ def test_endpoint_chat_cliente_rechaza_acciones_admin_sin_proveedor(question: st
         "proveedor_utilizado": False,
         "proveedor_ia": None,
         "fallback_usado": False,
+        "tipo_intencion": "ADMIN",
+        "contexto_usado": False,
+        "fuentes_recuperadas": [],
+        "material_resuelto": None,
+        "horizonte_resuelto": None,
     }
     assert provider.calls == []
 
@@ -635,3 +724,51 @@ def test_consultar_chat_operation_plan_value_error(monkeypatch):
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == 200
+
+
+def test_admin_puede_listar_auditoria_chat() -> None:
+    audit_row = SimpleNamespace(
+        id=99,
+        usuario_id=11,
+        accion="CHAT_QUERY",
+        recurso="ChatConsulta",
+        cambios={
+            "pregunta": "cual fue el ultimo precio de cemento?",
+            "respuesta": "Respuesta trazable.",
+            "aceptada": True,
+            "tipo_intencion": "HISTORICO",
+            "contexto_usado": True,
+            "fuentes_recuperadas": ["precios_historicos"],
+            "material_resuelto": "Cemento Portland",
+            "horizonte_resuelto": 3,
+            "proveedor_ia": "facultad",
+            "fallback_usado": False,
+            "duration_ms": 123,
+        },
+        ip_address="127.0.0.1",
+        created_at="2026-06-03T10:00:00",
+    )
+    db = SimpleNamespace(execute=lambda _stmt: SimpleNamespace(all=lambda: [(audit_row, "cliente")]))
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
+    try:
+        response = TestClient(app).get("/chat/auditoria?tipo_intencion=HISTORICO&fallback_usado=false")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body[0]["username"] == "cliente"
+    assert body[0]["tipo_intencion"] == "HISTORICO"
+    assert body[0]["material_resuelto"] == "Cemento Portland"
+    assert body[0]["duration_ms"] == 123
+
+
+def test_cliente_no_puede_listar_auditoria_chat() -> None:
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=2, rol="cliente")
+    try:
+        response = TestClient(app).get("/chat/auditoria")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 403

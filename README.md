@@ -200,12 +200,17 @@ Detalle metodologico:
 - [docs/HU/DISENO_EPICA_5.md](docs/HU/DISENO_EPICA_5.md)
 - [docs/documentacion/DEMO_DSS.md](docs/documentacion/DEMO_DSS.md)
 
-## Asistente de compra
+## Asistente IA unificado
 
-El asistente de compra convierte una necesidad de obra expresada en lenguaje natural en una propuesta de compra para el MVP. El usuario objetivo es quien necesita adquirir materiales para una obra. El dueño o administrador puede usar el sistema para gestionar costos, margenes y precios finales; el comprador ve el precio final o presupuesto estimado. La capa conversacional no calcula la decision por si sola: solo interpreta, valida y redacta sobre resultados ya resueltos por backend.
+El asistente IA unificado concentra consultas generales, RAG operativo y presupuestacion guiada en una sola experiencia. Recupera datos del backend antes de responder y muestra fuentes usadas para que la respuesta sea trazable. Cuando detecta una necesidad de compra, abre un panel de validacion editable y genera una propuesta para el MVP. La capa conversacional no calcula la decision por si sola: interpreta, valida y redacta sobre resultados ya resueltos por backend.
 
 Alcance implementado:
 
+- RAG operativo sobre catalogo, precios historicos, fuentes, indices externos, forecast, recomendaciones y margenes segun rol;
+- chips visibles con `RAG backend`, intencion clasificada, material resuelto, horizonte y fuentes recuperadas;
+- clasificacion formal de intencion: `HISTORICO`, `FORECAST`, `RECOMENDACION`, `PRESUPUESTO`, `CATALOGO`, `ADMIN` o `FUERA_ALCANCE`;
+- auditoria persistente por consulta con usuario, pregunta, fuentes, fallback, duracion y respuesta, visible para admin en `Auditoria IA`;
+- resolucion de materiales por nombre, alias y errores frecuentes del MVP;
 - productos soportados: `Cemento Portland`, `Pastina` y `Membrana Megaflex`;
 - interpretacion IA de producto, cantidad, fase de obra, fecha/horizonte, presupuesto y tolerancia al riesgo, limitada al catalogo MVP;
 - validacion editable antes de ejecutar calculos de recomendacion;
@@ -221,6 +226,7 @@ Detalle funcional y demo:
 
 - [docs/HU/DISENO_EPICA_8.md](docs/HU/DISENO_EPICA_8.md)
 - [docs/documentacion/DEMO_ASISTENTE_COMERCIAL.md](docs/documentacion/DEMO_ASISTENTE_COMERCIAL.md)
+- [docs/documentacion/RAG_OPERATIVO_ASISTENTE.md](docs/documentacion/RAG_OPERATIVO_ASISTENTE.md)
 
 ## Bootstrap y reproducibilidad
 
@@ -298,10 +304,12 @@ Verificacion enfocada del DSS:
 ## Documentacion
 
 - [docs/documentacion/MEDICIONES_FORECASTING.md](docs/documentacion/MEDICIONES_FORECASTING.md): metricas, backtesting y comparativas
+- [docs/documentacion/ESTADO_MVP.md](docs/documentacion/ESTADO_MVP.md): alcance, evidencia y checklist end-to-end del MVP
 - [docs/documentacion/DECISIONES_TESIS.md](docs/documentacion/DECISIONES_TESIS.md): decisiones metodologicas
 - [docs/documentacion/REGISTRO_DECISIONES_TRABAJO.md](docs/documentacion/REGISTRO_DECISIONES_TRABAJO.md): decisiones operativas de cierre MVP
 - [docs/documentacion/DEMO_DSS.md](docs/documentacion/DEMO_DSS.md): guion de demo reproducible del DSS
-- [docs/documentacion/DEMO_ASISTENTE_COMERCIAL.md](docs/documentacion/DEMO_ASISTENTE_COMERCIAL.md): guion de demo del asistente de compra
+- [docs/documentacion/DEMO_ASISTENTE_COMERCIAL.md](docs/documentacion/DEMO_ASISTENTE_COMERCIAL.md): guion de demo del asistente IA unificado
+- [docs/documentacion/RAG_OPERATIVO_ASISTENTE.md](docs/documentacion/RAG_OPERATIVO_ASISTENTE.md): diseno del RAG operativo del asistente
 - [docs/documentacion/GUIA_FLUJOS_UI.md](docs/documentacion/GUIA_FLUJOS_UI.md): recorrido funcional de la interfaz
 - [docs/documentacion/GLOSARIO_FUNCIONAL.md](docs/documentacion/GLOSARIO_FUNCIONAL.md): terminos principales usados por el sistema
 - [docs/documentacion/ANOMALIAS_RANDOM_FOREST.md](docs/documentacion/ANOMALIAS_RANDOM_FOREST.md): deteccion de anomalias con Random Forest

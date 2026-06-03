@@ -1,8 +1,8 @@
-# Demo asistente de compra
+# Demo asistente IA unificado
 
 ## Objetivo
 
-Mostrar que `BuildWise` no se limita a graficos o forecast: toma una necesidad de compra de una persona o empresa que debe adquirir materiales para una obra, la valida y la convierte en presupuesto, comparacion contra precio proyectado y recomendacion accionable.
+Mostrar que `BuildWise` no se limita a graficos o forecast: el asistente unico recupera datos del backend, expone fuentes usadas y, cuando detecta una necesidad de compra, la valida y la convierte en presupuesto, comparacion contra precio proyectado y recomendacion accionable.
 
 ## Alcance defendible
 
@@ -10,19 +10,22 @@ Mostrar que `BuildWise` no se limita a graficos o forecast: toma una necesidad d
 - El dueño o administrador puede ver costos y configurar margenes; el comprador valida su necesidad y recibe precio final o presupuesto estimado.
 - La IA interpreta lenguaje natural y redacta la propuesta final, pero solo sobre datos y calculos ya resueltos por backend.
 - Los precios, forecast, umbrales, totales y decision salen de servicios del backend.
+- El RAG operativo no vectoriza documentos como fuente principal: consulta catalogo, historicos, indices externos, forecast, recomendaciones y margenes segun rol.
+- La respuesta conversacional muestra chips de trazabilidad (`RAG backend`, material, horizonte y fuentes recuperadas).
 - La validacion humana ocurre antes de calcular la propuesta: el usuario puede corregir producto, cantidad, fase, fecha/horizonte, presupuesto y tolerancia al riesgo.
-- El selector de producto de la vista de compra queda limitado al catalogo MVP para evitar propuestas fuera de alcance.
+- El selector de producto del panel de validacion queda limitado al catalogo MVP para evitar propuestas fuera de alcance.
 - Random Forest se usa para detectar anomalias historicas; no se presenta como modelo de forecasting.
 - La integracion generativa puede usar la API de la facultad o Claude como fallback; cambiar de proveedor no cambia los calculos de negocio.
 
 ## Flujo recomendado
 
-1. Entrar a `Costos > Asistente de compra IA`.
-2. Escribir una necesidad de compra.
-3. Ejecutar `Interpretar con IA`.
-4. Revisar los datos detectados y corregirlos si hace falta.
-5. Ejecutar `Validar y generar propuesta`.
-6. Explicar la salida: total actual, total proyectado, diferencia estimada, decision, confianza/MAPE, nivel de calidad del dato y advertencias.
+1. Entrar a `Asistente IA`.
+2. Hacer primero una consulta RAG simple: `cual fue el ultimo precio de cemento?`.
+3. Mostrar los chips de fuentes recuperadas, material resuelto y horizonte.
+4. Escribir una necesidad de compra.
+5. Revisar los datos detectados y corregirlos si hace falta.
+6. Ejecutar `Validar y generar propuesta`.
+7. Explicar la salida: total actual, total proyectado, diferencia estimada, decision, confianza/MAPE, nivel de calidad del dato y advertencias.
 
 ## Casos de demo
 
@@ -46,7 +49,8 @@ Resultado esperado:
 
 - el sistema calcula presupuesto actual;
 - compara contra forecast;
-- devuelve una decision explicada.
+- devuelve una decision explicada;
+- la respuesta y la propuesta muestran trazabilidad de backend.
 
 ### Dato faltante
 
@@ -107,4 +111,4 @@ Objetivo:
 
 ## Frase corta para presentar
 
-El asistente de compra usa IA para transformar lenguaje natural en datos validados, pero no delega la decision economica al modelo generativo. La recomendacion se calcula con precios actuales, forecast, umbrales de decision, confiabilidad y presupuesto disponible. El foco del flujo es ayudar a quien compra materiales a decidir si conviene adquirirlos ahora, postergar o escalonar la compra. Si el material no pertenece al catalogo MVP, la consulta se rechaza y no se pide al modelo que invente una respuesta.
+El asistente unico de BuildWise usa RAG operativo para recuperar datos del backend y usa IA para interpretar lenguaje natural y redactar respuestas. No delega la decision economica al modelo generativo: la recomendacion se calcula con precios actuales, forecast, umbrales de decision, confiabilidad y presupuesto disponible. El foco del flujo es ayudar a quien compra materiales a decidir si conviene adquirirlos ahora, postergar o escalonar la compra. Si el material no pertenece al catalogo MVP, la consulta se rechaza y no se pide al modelo que invente una respuesta.

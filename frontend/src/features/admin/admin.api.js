@@ -31,3 +31,14 @@ export function fetchChatConfig(token) {
 export function updateChatConfig(payload, token) {
   return apiPatch("/chat/config", payload, token);
 }
+
+export function fetchChatAudit(params, token) {
+  const search = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      search.set(key, String(value));
+    }
+  });
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+  return apiGet(`/chat/auditoria${suffix}`, token);
+}
