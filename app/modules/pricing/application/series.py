@@ -26,6 +26,7 @@ class PuntoSeriePrecio:
     fuentes: list[str]
     variacion_porcentual_anterior: Decimal | None
     es_anomalia: bool = False
+    severidad_anomalia: str | None = None
     motivo_anomalia: str | None = None
 
 
@@ -143,7 +144,19 @@ def _features_anomalia_mensual(puntos: list[PuntoSeriePrecio], index: int) -> li
     ]
 
 
-def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[date, str]:
+def _clasificar_severidad_anomalia(residual_pct: Decimal, residual_limit: Decimal) -> str:
+    if residual_limit <= 0:
+        return "media"
+
+    ratio = residual_pct / residual_limit
+    if ratio >= Decimal("2"):
+        return "alta"
+    if ratio >= Decimal("1.4"):
+        return "media"
+    return "leve"
+
+
+def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[date, tuple[str, str]]:
     if len(puntos) < 6:
         return {}
 
@@ -179,20 +192,23 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
     iqr = q3 - q1
     residual_limit = Decimal(f"{q3:.6f}") + (Decimal("1.5") * Decimal(f"{iqr:.6f}"))
 
-    anomalies: dict[date, str] = {}
+    anomalies: dict[date, tuple[str, str]] = {}
     for index, residual_pct, predicted in zip(trainable_indexes, residuals_pct, predictions, strict=False):
-        if Decimal(f"{residual_pct:.6f}") <= residual_limit:
+        residual_decimal = Decimal(f"{residual_pct:.6f}")
+        if residual_decimal <= residual_limit:
             continue
 
         variacion = puntos[index].variacion_porcentual_anterior
         if variacion is None:
             continue
 
+        severidad = _clasificar_severidad_anomalia(residual_decimal, residual_limit)
         anomalies[puntos[index].fecha] = (
             "Anomalia detectada por Random Forest: "
             f"precio esperado {Decimal(f'{predicted:.4f}').quantize(Decimal('0.0001'))}, "
             f"residuo {Decimal(f'{residual_pct:.4f}').quantize(Decimal('0.0001'))}% "
-            f"y variacion mensual {variacion}%"
+            f"y variacion mensual {variacion}%",
+            severidad,
         )
 
     return anomalies
@@ -248,7 +264,8 @@ def construir_serie_mensual(registros: list[PrecioSerieInput]) -> list[PuntoSeri
                 fuentes=punto.fuentes,
                 variacion_porcentual_anterior=punto.variacion_porcentual_anterior,
                 es_anomalia=punto.fecha in anomalies,
-                motivo_anomalia=anomalies.get(punto.fecha),
+                severidad_anomalia=anomalies.get(punto.fecha, (None, None))[1],
+                motivo_anomalia=anomalies.get(punto.fecha, (None, None))[0],
             )
             for punto in puntos
         ]

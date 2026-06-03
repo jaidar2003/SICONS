@@ -233,6 +233,21 @@ La comparación de modelos se realizó con una lógica de competencia controlada
 
 El uso de regresores externos exige una precaución adicional. Un regresor puede estar correlacionado con el precio observado, pero no necesariamente mejorar la capacidad predictiva fuera de muestra. Por esa razón, la metodología no acepta un regresor solo por plausibilidad económica. El regresor se conserva si mejora o sostiene el desempeño medido y si su significado puede explicarse en el dominio del problema.
 
+Para evitar que el proyecto quede defendido solo por comparación entre modelos complejos, también se contrastó el enfoque contra baselines simples. Esto es importante porque una solución metodológicamente sólida no solo debe superar otras variantes del mismo tipo, sino también justificar que aporta más valor que reglas triviales o heurísticas de bajo costo.
+
+**Tabla 1.2.a. Comparación contra baselines simples**
+
+| Baseline | Idea | Limitación principal | Rol en la defensa |
+|---|---|---|---|
+| Promedio móvil | Promediar los últimos meses | No modela tendencia ni estacionalidad de forma flexible | Referencia mínima de comportamiento |
+| Ultimo valor observado | Repetir el último precio | Ignora dinámica temporal y shocks | Baseline más ingenuo |
+| Umbral fijo porcentual | Marcar anomalías por variación absoluta | No distingue materiales ni volatilidad propia | Contraejemplo para anomalías |
+| Comprar siempre ahora | Regla constante | No aprovecha forecast ni contexto | Baseline de decisión trivial |
+| Comprar siempre después | Regla constante | Ignora costo de oportunidad y urgencia | Baseline de postergación trivial |
+| Sin recomendación | Solo mostrar datos | Obliga al usuario a reconstruir la decisión | Baseline de visualización pasiva |
+
+La comparación contra estos baselines no busca reemplazar el backtesting de modelos, sino contextualizar el aporte del sistema. Si BuildWise solo igualara a una media móvil o a una regla fija, su valor metodológico sería débil. El hecho de incorporar selección por material, detección de anomalías, presupuesto y recomendación hace que el sistema supere la simple observación manual y convierta datos históricos en una decisión operativa.
+
 **Tabla 1.2. Criterios de comparación de variantes de forecasting**
 
 | Criterio | Pregunta metodológica | Uso en la decisión |
@@ -456,6 +471,35 @@ El criterio de aceptación de la demo se define de forma observable. La aplicaci
 La calidad también se evaluó desde la mantenibilidad. La separación por módulos reduce el acoplamiento entre decisiones de dominio y tecnología. Por ejemplo, cambiar el proveedor LLM no debería modificar las reglas de optimización; ajustar el selector de modelos no debería romper la interfaz de costos; incorporar un nuevo material no debería requerir reescribir el motor de forecast. Estas propiedades no se miden con una única métrica, pero se sostienen mediante organización de código, contratos claros y pruebas.
 
 Finalmente, se mantuvo una distinción entre verificación y validación. La verificación responde si el sistema fue construido correctamente según sus reglas y contratos. La validación respondería si el sistema resuelve satisfactoriamente el problema para usuarios reales en condiciones productivas. El alcance del TIF3 permite defender principalmente verificación técnica y evidencia funcional del MVP. La validación completa con usuarios finales requeriría un estudio adicional con casos reales de compra, que no se utiliza como base para afirmar resultados en este documento.
+
+La reproducibilidad del MVP se sostuvo con medidas concretas:
+
+**Tabla 1.6. Controles de reproducibilidad**
+
+| Control | Qué asegura | Evidencia en el proyecto |
+|---|---|---|
+| Dataset mínimo versionado | Que la tesis pueda reconstruirse desde el repo | Canon de datos y migraciones |
+| Clave estable por material | Que la política de modelo no dependa de IDs locales | `material_key` y selector por horizonte |
+| Splits temporales fijos | Que el backtesting sea comparable | Evaluación cronológica por folds |
+| Parámetros documentados | Que el modelo pueda repetirse | Configuración de Prophet, Random Forest y optimización |
+| Snapshots / outputs guardados | Que los resultados clave no dependan del azar operativo | Forecast persistido y resultados reproducibles |
+| Seeds y fallback explícitos | Que el comportamiento sea consistente | Random Forest con parámetros estables y degradación controlada |
+
+Además, la demo y la tesis deben asumir que algunos casos requieren respuesta controlada y no recomendación fuerte. Eso no es una falla del sistema, sino una condición metodológica esperable.
+
+**Tabla 1.7. Casos límite y respuesta del sistema**
+
+| Caso límite | Respuesta esperada | Motivo |
+|---|---|---|
+| Material fuera del MVP | Rechazar la consulta y no inventar precio | El LLM no es fuente de verdad |
+| Falta de cantidad | Pedir validación antes de calcular | No hay base para presupuesto |
+| Falta de fecha/horizonte | Pedir validación antes de recomendar | No se puede evaluar timing |
+| Forecast con baja confiabilidad | Devolver advertencia o monitoreo | Evitar recomendaciones fuertes sin evidencia suficiente |
+| Presupuesto insuficiente | Recomendar escalonar o postergar según el caso | Respetar restricción económica |
+| Serie muy corta o híbrida | Bajar confianza y explicar limitación | Evitar sobreinterpretar MAPE |
+| Cambios de proveedor LLM | Mantener cálculo en backend | El núcleo no depende del modelo generativo |
+
+Estos casos límite son importantes porque muestran disciplina metodológica. Un MVP de soporte a la decisión no debe fallar escondiendo la incertidumbre; debe explicitarla. Cuando no hay datos suficientes, la respuesta correcta no es forzar una recomendación sino informar la limitación y pedir validación adicional.
 
 ---
 

@@ -23,3 +23,11 @@ export function activateUser(userId, token) {
 export function deleteUser(userId, token) {
   return apiDelete(`/auth/usuarios/${userId}`, token);
 }
+
+export function fetchChatConfig(token) {
+  return apiGet("/chat/config", token);
+}
+
+export function updateChatConfig(payload, token) {
+  return apiPatch("/chat/config", payload, token);
+}

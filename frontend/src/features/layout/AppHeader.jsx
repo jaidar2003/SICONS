@@ -1,15 +1,10 @@
-import LogoutIconModule from "@mui/icons-material/Logout";
 import { Box, Button, ButtonGroup, Typography } from "@mui/material";
 
 import { brand } from "../../app/brand.js";
-import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
 import { StatusBadge } from "../../shared/components/StatusBadge.jsx";
-import { AlertsMenu } from "../chat/AlertsMenu.jsx";
 import bwLogo from "../../../bwlogo.png";
 
-const LogoutIcon = resolveMuiIcon(LogoutIconModule);
-
-export function AppHeader({ apiStatus, user, token, onLogout, showPrices, onToggleShowPrices }) {
+export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowPrices }) {
   return (
     <Box
       component="header"
@@ -35,14 +30,13 @@ export function AppHeader({ apiStatus, user, token, onLogout, showPrices, onTogg
         </Box>
 
         <Box className="flex flex-col gap-2 rounded-xl border border-white/20 bg-white/10 p-2 shadow-md1 sm:flex-row sm:items-center lg:mt-0">
-          <Box className="flex items-center gap-3">
-            <StatusBadge mode={apiStatus.mode} label={apiStatus.label} />
-            {user && (
-              <Box className="flex items-center gap-2">
-                <AlertsMenu token={token} />
-                <Typography fontSize={13} fontWeight={800} sx={{ opacity: 0.9, whiteSpace: "nowrap" }}>
-                  {user.nombre} ({user.rol})
-                </Typography>
+            <Box className="flex items-center gap-3">
+              <StatusBadge mode={apiStatus.mode} label={apiStatus.label} />
+              {user && (
+                <Box className="flex items-center gap-2">
+                  <Typography fontSize={13} fontWeight={800} sx={{ opacity: 0.9, whiteSpace: "nowrap" }}>
+                    {user.nombre} ({user.rol})
+                  </Typography>
               </Box>
             )}
           </Box>
@@ -90,7 +84,6 @@ export function AppHeader({ apiStatus, user, token, onLogout, showPrices, onTogg
                 color="inherit"
                 size="small"
                 variant="contained"
-                startIcon={<LogoutIcon />}
                 sx={{
                   height: 32,
                   bgcolor: "white",

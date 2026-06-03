@@ -22,6 +22,7 @@ from app.modules.pricing.application.purchase_recommendations import (
     evaluar_recomendacion_compra,
     recomendar_momento_compra,
 )
+from app.modules.pricing.application.series import PuntoSeriePrecio
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
 from app.modules.pricing.interfaces.schemas import ForecastMetricasRead, ForecastPuntoRead, ForecastSelectionRead
 
@@ -33,6 +34,7 @@ def _fake_forecast_result(
     confiabilidad: str = CONFIANZA_ALTA,
     no_calibrado: bool = False,
     seleccion_modelo: ForecastSelectionRead | None = None,
+    serie_mensual: list[PuntoSeriePrecio] | None = None,
 ):
     if seleccion_modelo is None and confiabilidad != "derivada":
         seleccion_modelo = ForecastSelectionRead(
@@ -58,6 +60,7 @@ def _fake_forecast_result(
             efectividad_informal=Decimal("95.02"),
         ),
         seleccion_modelo=seleccion_modelo,
+        serie_mensual=serie_mensual,
     )
 
 
@@ -241,6 +244,59 @@ def test_recomendar_momento_compra_monitorea_si_no_hay_forecast(monkeypatch) -> 
     assert result.decision == DECISION_MONITOREAR
     assert result.variacion_esperada_pct is None
     assert result.advertencias
+
+
+def test_recomendar_momento_compra_monitorea_si_las_anomalias_son_altas(monkeypatch) -> None:
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+    fake_forecast_result = _fake_forecast_result(
+        actual="100.00",
+        proyectado="108.40",
+        serie_mensual=[
+            PuntoSeriePrecio(
+                fecha=date(2024, 1, 1),
+                precio_promedio_normalizado=Decimal("100.0000"),
+                unidad_base="kg",
+                precio_equivalente_25kg=Decimal("2500.0000"),
+                precio_equivalente_50kg=Decimal("5000.0000"),
+                cantidad_registros=1,
+                cantidad_facturas=1,
+                fuentes=["Factura compra"],
+                variacion_porcentual_anterior=None,
+            ),
+            PuntoSeriePrecio(
+                fecha=date(2024, 2, 1),
+                precio_promedio_normalizado=Decimal("180.0000"),
+                unidad_base="kg",
+                precio_equivalente_25kg=Decimal("4500.0000"),
+                precio_equivalente_50kg=Decimal("9000.0000"),
+                cantidad_registros=1,
+                cantidad_facturas=1,
+                fuentes=["Factura compra"],
+                variacion_porcentual_anterior=Decimal("80.0000"),
+                es_anomalia=True,
+                severidad_anomalia="alta",
+                motivo_anomalia="Anomalia detectada por Random Forest: precio esperado 100.0000, residuo 80.0000% y variacion mensual 80.0000%",
+            ),
+        ],
+    )
+
+    monkeypatch.setattr(
+        purchase_recommendations_module,
+        "forecast_material",
+        lambda *args, **kwargs: fake_forecast_result,
+    )
+
+    result = recomendar_momento_compra(
+        material,
+        3,
+        "alta",
+        Decimal("100"),
+        pricing_repo=object(),
+        usar_selector_modelo=False,
+    )
+
+    assert result.decision == DECISION_MONITOREAR
+    assert any("anomali" in advertencia.lower() for advertencia in result.advertencias)
 
 
 def test_endpoint_responde_con_contrato_esperado(monkeypatch) -> None:

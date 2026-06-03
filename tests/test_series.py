@@ -57,6 +57,7 @@ def test_construir_serie_mensual_promedia_y_detecta_anomalias_con_random_forest(
     assert serie[6].fecha == date(2026, 7, 1)
     assert serie[6].variacion_porcentual_anterior == Decimal("41.6667")
     assert serie[6].es_anomalia is True
+    assert serie[6].severidad_anomalia in {"leve", "media", "alta"}
     assert serie[6].motivo_anomalia is not None
     assert "Random Forest" in serie[6].motivo_anomalia
 

@@ -73,6 +73,7 @@ Esto evita marcar puntos atipicos sin evidencia suficiente. En esos casos, la sa
 Cada punto mensual puede incluir:
 
 - `es_anomalia`: indica si el mes fue marcado como atipico;
+- `severidad_anomalia`: clasifica la magnitud relativa de la desviacion detectada;
 - `motivo_anomalia`: describe la deteccion, incluyendo precio esperado, residuo porcentual y variacion mensual.
 
 Ejemplo conceptual:
@@ -95,6 +96,8 @@ Una anomalia puede deberse a:
 - salto normal en una serie muy volatil.
 
 La marca debe interpretarse como una alerta para revisar el mes, no como una prueba automatica de error.
+
+La severidad no reemplaza la revision humana. Solo ayuda a priorizar que meses merecen atencion primero: una anomalia `alta` sugiere una desviacion mucho mas fuerte respecto de la banda aprendida por el modelo, mientras que una `leve` esta apenas por encima del umbral dinamico.
 
 ## Criterio de defensa
 

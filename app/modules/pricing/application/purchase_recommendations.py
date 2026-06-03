@@ -104,10 +104,79 @@ def _es_suficiente_confiabilidad(confiabilidad: str, no_calibrado: bool) -> bool
     return not no_calibrado and confiabilidad not in {CONFIANZA_BAJA, CONFIANZA_NO_CALIBRADA, CONFIANZA_NO_DISPONIBLE}
 
 
+def _evaluar_gate_anomalias(forecast_result) -> tuple[bool, str | None]:
+    serie = getattr(forecast_result, "serie_mensual", None) or []
+    anomalias = [punto for punto in serie if getattr(punto, "es_anomalia", False)]
+    if not anomalias:
+        return False, None
+
+    severidades = [getattr(punto, "severidad_anomalia", None) for punto in anomalias]
+    severidades = [severidad for severidad in severidades if severidad]
+    if not severidades:
+        return False, None
+
+    if "alta" in severidades:
+        return True, "La serie historica presenta anomalias de severidad alta, por lo que la recomendacion se degrada a monitoreo."
+    if severidades.count("media") >= 2:
+        return True, "La serie historica presenta varias anomalias de severidad media, por lo que la recomendacion se degrada a monitoreo."
+    if len(anomalias) >= 4:
+        return True, "La serie historica presenta demasiadas anomalias para habilitar una accion fuerte."
+    return False, None
+
+
 def _justificacion_conservadora_por_confiabilidad(confiabilidad: str, no_calibrado: bool) -> str:
     if no_calibrado:
         return "Se recomienda monitorear porque el modelo no esta calibrado de forma suficiente."
     return f"Se recomienda monitorear porque la confiabilidad del forecast es {confiabilidad}."
+
+
+def _resolver_decision_y_justificacion(
+    *,
+    variacion_esperada_pct: Decimal,
+    umbral_decision_pct: Decimal,
+    criticidad: str,
+    confiabilidad: str,
+) -> tuple[str, str, bool]:
+    decision = DECISION_MONITOREAR
+    supera_umbral_decision = abs(variacion_esperada_pct) >= umbral_decision_pct
+    umbral_baja = -umbral_decision_pct
+
+    if variacion_esperada_pct >= umbral_decision_pct and criticidad in {"alta", "media"}:
+        decision = DECISION_COMPRAR_AHORA
+    elif variacion_esperada_pct <= umbral_baja and criticidad in {"baja", "media"}:
+        decision = DECISION_ESPERAR
+    elif variacion_esperada_pct <= umbral_baja and criticidad == "alta":
+        decision = DECISION_ESPERAR
+
+    if criticidad == "alta" and decision == DECISION_ESPERAR and variacion_esperada_pct > umbral_baja:
+        decision = DECISION_MONITOREAR
+
+    if decision == DECISION_MONITOREAR and criticidad == "alta" and variacion_esperada_pct >= umbral_decision_pct:
+        decision = DECISION_COMPRAR_AHORA
+
+    if decision == DECISION_MONITOREAR and criticidad == "baja" and variacion_esperada_pct <= umbral_baja:
+        decision = DECISION_ESPERAR
+
+    if decision == DECISION_COMPRAR_AHORA:
+        justificacion = (
+            f"Se recomienda comprar ahora porque la variacion esperada es {variacion_esperada_pct}% "
+            f"en el horizonte evaluado, la criticidad es {criticidad}, la confiabilidad es {confiabilidad} "
+            f"y supera el umbral de decision de {umbral_decision_pct}%."
+        )
+    elif decision == DECISION_ESPERAR:
+        justificacion = (
+            f"Se recomienda esperar porque la variacion esperada es {variacion_esperada_pct}% "
+            f"en el horizonte evaluado, la criticidad es {criticidad}, la confiabilidad es {confiabilidad} "
+            f"y supera el umbral de decision de {umbral_decision_pct}%."
+        )
+    else:
+        justificacion = (
+            f"Se recomienda monitorear porque la variacion esperada es {variacion_esperada_pct}% "
+            f"en el horizonte evaluado, la criticidad es {criticidad}, la confiabilidad es {confiabilidad} "
+            f"y no habilita una accion fuerte frente al umbral de decision de {umbral_decision_pct}%."
+        )
+
+    return decision, justificacion, supera_umbral_decision
 
 
 def evaluar_recomendacion_compra(
@@ -184,44 +253,12 @@ def evaluar_recomendacion_compra(
             + ("La recomendacion se marca como conservadora por baja confiabilidad o no calibrado.",),
         )
 
-    decision = DECISION_MONITOREAR
-    supera_umbral_decision = abs(variacion_esperada_pct) >= umbral_decision_pct
-    umbral_baja = -umbral_decision_pct
-
-    if variacion_esperada_pct >= umbral_decision_pct and criticidad in {"alta", "media"}:
-        decision = DECISION_COMPRAR_AHORA
-    elif variacion_esperada_pct <= umbral_baja and criticidad in {"baja", "media"}:
-        decision = DECISION_ESPERAR
-    elif variacion_esperada_pct <= umbral_baja and criticidad == "alta":
-        decision = DECISION_ESPERAR
-
-    if criticidad == "alta" and decision == DECISION_ESPERAR and variacion_esperada_pct > umbral_baja:
-        decision = DECISION_MONITOREAR
-
-    if decision == DECISION_MONITOREAR and criticidad == "alta" and variacion_esperada_pct >= umbral_decision_pct:
-        decision = DECISION_COMPRAR_AHORA
-
-    if decision == DECISION_MONITOREAR and criticidad == "baja" and variacion_esperada_pct <= umbral_baja:
-        decision = DECISION_ESPERAR
-
-    if decision == DECISION_COMPRAR_AHORA:
-        justificacion = (
-            f"Se recomienda comprar ahora porque la variacion esperada es {variacion_esperada_pct}% "
-            f"en el horizonte evaluado, la criticidad es {criticidad}, la confiabilidad es {confiabilidad} "
-            f"y supera el umbral de decision de {umbral_decision_pct}%."
-        )
-    elif decision == DECISION_ESPERAR:
-        justificacion = (
-            f"Se recomienda esperar porque la variacion esperada es {variacion_esperada_pct}% "
-            f"en el horizonte evaluado, la criticidad es {criticidad}, la confiabilidad es {confiabilidad} "
-            f"y supera el umbral de decision de {umbral_decision_pct}%."
-        )
-    else:
-        justificacion = (
-            f"Se recomienda monitorear porque la variacion esperada es {variacion_esperada_pct}% "
-            f"en el horizonte evaluado, la criticidad es {criticidad}, la confiabilidad es {confiabilidad} "
-            f"y no habilita una accion fuerte frente al umbral de decision de {umbral_decision_pct}%."
-        )
+    decision, justificacion, supera_umbral_decision = _resolver_decision_y_justificacion(
+        variacion_esperada_pct=variacion_esperada_pct,
+        umbral_decision_pct=umbral_decision_pct,
+        criticidad=criticidad,
+        confiabilidad=confiabilidad,
+    )
 
     return PurchaseRecommendationResult(
         material_id=material_id,
@@ -317,8 +354,13 @@ def recomendar_momento_compra(
     no_calibrado = bool(getattr(selection, "no_calibrado", False))
     confiabilidad = _resolver_confiabilidad(forecast_result)
     mape = getattr(forecast_result.metricas, "mape", None)
+    anomaly_gate, anomaly_gate_advertencia = _evaluar_gate_anomalias(forecast_result)
+    if anomaly_gate_advertencia:
+        advertencias.append(anomaly_gate_advertencia)
     if no_calibrado:
         advertencias.append("La recomendacion se apoya en un forecast marcado como no calibrado.")
+    if anomaly_gate:
+        no_calibrado = True
 
     return evaluar_recomendacion_compra(
         material_id=material.id,

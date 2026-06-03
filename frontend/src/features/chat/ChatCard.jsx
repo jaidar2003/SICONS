@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Card, CardContent, CircularProgress, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, TextField, Typography } from "@mui/material";
 import { useState } from "react";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
@@ -13,8 +13,8 @@ function initialMessage(isAdmin) {
   return {
     role: "assistant",
     text: isAdmin
-      ? "Podés consultarme precios y forecast, pedirme recomendaciones, comparar estrategias, simular horizontes, priorizar materiales u optimizar un presupuesto. Las operaciones administrativas requieren confirmación."
-      : "Podés consultarme precios y forecast, pedirme recomendaciones, comparar estrategias, simular horizontes, priorizar materiales u optimizar un presupuesto.",
+      ? "Podés consultarme precios, forecast, recomendaciones, estrategias de compra, presupuestos, prioridades y optimización. Las operaciones administrativas requieren confirmación."
+      : "Podés consultarme precios, forecast, recomendaciones, estrategias de compra, presupuestos, prioridades y optimización.",
   };
 }
 
@@ -85,10 +85,15 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin }) 
                 {message.text}
               </Typography>
               {message.role === "assistant" && !message.rejected ? (
-                <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                  IA usada: {PROVIDER_LABELS[message.provider] || message.provider || "no disponible"}
-                  {message.fallbackUsed ? " (fallback activado)" : ""}.
-                </Typography>
+                <Box className="mt-2 flex flex-wrap gap-1.5">
+                  <Chip
+                    label={`IA usada: ${PROVIDER_LABELS[message.provider] || message.provider || "no disponible"}`}
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontWeight: 800 }}
+                  />
+                  {message.fallbackUsed ? <Chip label="Fallback activado" size="small" color="warning" sx={{ fontWeight: 800 }} /> : null}
+                </Box>
               ) : null}
               {message.rejected ? (
                 <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
@@ -112,7 +117,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin }) 
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             label="Pregunta"
-            placeholder="Ej.: Compará estrategias para 500 kg de cemento en 6 meses"
+            placeholder="Ej.: Necesito comprar 500 kg de cemento en 6 meses, ¿qué conviene?"
             inputProps={{ maxLength: 1000 }}
             disabled={loading}
           />

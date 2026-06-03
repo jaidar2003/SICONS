@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.modules.auth.infrastructure.models import Usuario
@@ -18,6 +19,7 @@ from app.modules.chat.application.operations import (
     needs_operation_plan,
     plan_operation,
 )
+from app.modules.chat.application.retrieval import build_backend_retrieval_context
 from app.modules.chat.application.service import (
     ADMIN_ONLY_RESPONSE,
     ChatCompletionClient,
@@ -33,6 +35,8 @@ from app.modules.chat.infrastructure.llm_client import (
     OpenAICompatibleChatClient,
 )
 from app.modules.chat.interfaces.schemas import (
+    ChatProviderConfigRead,
+    ChatProviderConfigUpdate,
     ChatQueryCreate,
     ChatResponseRead,
     CommercialNeedCreate,
@@ -49,6 +53,27 @@ from app.shared.database.session import get_db
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
+def _requires_calculated_material_context(question: str) -> bool:
+    normalized = question.lower()
+    triggers = (
+        "forecast",
+        "proyeccion",
+        "proyección",
+        "proyectado",
+        "conviene",
+        "recomendacion",
+        "recomendación",
+        "comprar",
+        "esperar",
+        "mape",
+        "mae",
+        "confiabilidad",
+        "decision",
+        "decisión",
+    )
+    return any(trigger in normalized for trigger in triggers)
+
+
 def _resolve_provider_metadata(client) -> tuple[str | None, bool]:
     default_provider = "claude" if settings.chat_provider.strip().lower() == "anthropic" else "facultad"
     provider_name = getattr(client, "last_provider_name", getattr(client, "provider_name", default_provider))
@@ -58,10 +83,60 @@ def _resolve_provider_metadata(client) -> tuple[str | None, bool]:
 
 def get_chat_client() -> ChatCompletionClient:
     if settings.chat_provider.strip().lower() == "anthropic":
-        return AnthropicChatClient()
+        primary = AnthropicChatClient()
+        fallback = OpenAICompatibleChatClient()
+        return FallbackChatClient(primary, fallback)
     primary = OpenAICompatibleChatClient()
     fallback = AnthropicChatClient()
     return FallbackChatClient(primary, fallback)
+
+
+def _provider_key_from_settings() -> str:
+    return "claude" if settings.chat_provider.strip().lower() == "anthropic" else "facultad"
+
+
+def _provider_configured(provider_key: str) -> bool:
+    if provider_key == "claude":
+        return bool(settings.anthropic_base_url and settings.anthropic_api_key and settings.anthropic_model)
+    return bool(settings.openai_base_url and settings.openai_api_key and settings.openai_model)
+
+
+def _fallback_enabled_from_settings() -> bool:
+    primary_key = _provider_key_from_settings()
+    fallback_key = "facultad" if primary_key == "claude" else "claude"
+    return _provider_configured(fallback_key)
+
+
+@router.get("/config", response_model=ChatProviderConfigRead)
+def obtener_configuracion_chat(
+    current_user: Usuario = Depends(get_current_user),
+) -> ChatProviderConfigRead:
+    if current_user.rol != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un admin puede ver la configuracion de IA.")
+    return ChatProviderConfigRead(
+        proveedor_activo=_provider_key_from_settings(),
+        modelo_facultad=settings.openai_model,
+        modelo_claude=settings.anthropic_model,
+        fallback_habilitado=_fallback_enabled_from_settings(),
+    )
+
+
+@router.patch("/config", response_model=ChatProviderConfigRead)
+def actualizar_configuracion_chat(
+    payload: ChatProviderConfigUpdate,
+    current_user: Usuario = Depends(get_current_user),
+) -> ChatProviderConfigRead:
+    if current_user.rol != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un admin puede modificar la configuracion de IA.")
+    settings.chat_provider = "anthropic" if payload.proveedor_activo == "claude" else "openai"
+    settings.openai_model = payload.modelo_facultad
+    settings.anthropic_model = payload.modelo_claude
+    return ChatProviderConfigRead(
+        proveedor_activo=_provider_key_from_settings(),
+        modelo_facultad=settings.openai_model,
+        modelo_claude=settings.anthropic_model,
+        fallback_habilitado=_fallback_enabled_from_settings(),
+    )
 
 
 @router.post("/consultas", response_model=ChatResponseRead)
@@ -78,44 +153,75 @@ def consultar_chat(
     try:
         context = None
         should_load_context = is_in_scope(payload.pregunta, has_context=payload.material_id is not None)
-        if should_load_context and payload.material_id is not None:
-            material = material_repo.get_by_id(payload.material_id)
-            if material is not None:
-                horizon = resolve_horizon(payload.pregunta, payload.horizonte_meses)
-                if needs_operation_plan(payload.pregunta):
-                    plan = plan_operation(
+        if should_load_context:
+            material = material_repo.get_by_id(payload.material_id) if payload.material_id is not None else None
+            horizon = resolve_horizon(payload.pregunta, payload.horizonte_meses)
+            if needs_operation_plan(payload.pregunta):
+                plan = plan_operation(
+                    payload.pregunta,
+                    client,
+                    materials=material_repo.list_active(),
+                    selected_material_id=material.id if material is not None else None,
+                    horizon=horizon,
+                    history=[message.model_dump() for message in payload.historial],
+                    administrative_catalog=_administrative_catalog(db) if current_user.rol == "admin" else None,
+                    allow_admin=current_user.rol == "admin",
+                )
+                if plan["action"] != "NONE":
+                    try:
+                        context = execute_operation(
+                            plan,
+                            fallback_material=material,
+                            fallback_horizon=horizon,
+                            material_repo=material_repo,
+                            pricing_repo=pricing_repo,
+                            db=db,
+                            current_user=current_user,
+                            confirmed=is_explicit_confirmation(payload.pregunta),
+                        ).context
+                    except ValueError as exc:
+                        context = (
+                            "La operacion solicitada es parte de BuildWise, pero no se puede calcular aun: "
+                            f"{exc} Pedi el dato faltante de manera concreta."
+                        )
+            if context is None:
+                try:
+                    retrieval = build_backend_retrieval_context(
                         payload.pregunta,
-                        client,
-                        materials=material_repo.list_active(),
-                        selected_material_id=material.id,
-                        horizon=horizon,
-                        history=[message.model_dump() for message in payload.historial],
-                        administrative_catalog=_administrative_catalog(db) if current_user.rol == "admin" else None,
-                        allow_admin=current_user.rol == "admin",
+                        material_repo=material_repo,
+                        pricing_repo=pricing_repo,
+                        db=db,
+                        selected_material_id=payload.material_id,
+                        fallback_horizon=payload.horizonte_meses,
+                        is_admin=current_user.rol == "admin",
                     )
-                    if plan["action"] != "NONE":
-                        try:
-                            context = execute_operation(
-                                plan,
-                                fallback_material=material,
-                                fallback_horizon=horizon,
-                                material_repo=material_repo,
-                                pricing_repo=pricing_repo,
-                                db=db,
-                                current_user=current_user,
-                                confirmed=is_explicit_confirmation(payload.pregunta),
-                            ).context
-                        except ValueError as exc:
-                            context = (
-                                "La operacion solicitada es parte de BuildWise, pero no se puede calcular aun: "
-                                f"{exc} Pedi el dato faltante de manera concreta."
-                            )
-                if context is None:
+                    context = retrieval.context
+                except SQLAlchemyError:
+                    retrieval = None
+                    context = None
+                retrieval_material = retrieval.material if retrieval is not None else None
+                material_for_calculated_context = material or retrieval_material
+                if context is None and material_for_calculated_context is not None:
                     context = build_material_context(
-                        material,
+                        material_for_calculated_context,
                         horizon,
                         pricing_repo,
                         is_admin=current_user.rol == "admin",
+                    )
+                elif (
+                    context is not None
+                    and material_for_calculated_context is not None
+                    and retrieval is not None
+                    and _requires_calculated_material_context(payload.pregunta)
+                ):
+                    context = (
+                        f"{context}\n\n"
+                        + build_material_context(
+                            material_for_calculated_context,
+                            retrieval.horizon,
+                            pricing_repo,
+                            is_admin=current_user.rol == "admin",
+                        )
                     )
         result = answer_question(
             payload.pregunta,

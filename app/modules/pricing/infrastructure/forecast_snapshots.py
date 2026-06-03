@@ -1,5 +1,6 @@
 import json
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 from app.modules.pricing.application.forecast_cache import ForecastCacheKey
@@ -10,6 +11,7 @@ from app.shared.config.settings import settings
 
 class ForecastMaterialResultProtocol:
     dataset: list
+    serie_mensual: list | None
     metricas: ForecastMetricasRead
     forecast: list[ForecastPuntoRead]
 
@@ -37,9 +39,27 @@ def _serializar_key(cache_key: ForecastCacheKey) -> str:
     return f"{cache_key.material_id}:{cache_key.horizonte_meses}:{cache_key.dataset_signature}"
 
 
+def _serializar_punto_mensual(punto) -> dict:
+    return {
+        "fecha": punto.fecha.isoformat(),
+        "precio_promedio_normalizado": str(punto.precio_promedio_normalizado),
+        "unidad_base": punto.unidad_base,
+        "precio_equivalente_25kg": None if punto.precio_equivalente_25kg is None else str(punto.precio_equivalente_25kg),
+        "precio_equivalente_50kg": None if punto.precio_equivalente_50kg is None else str(punto.precio_equivalente_50kg),
+        "cantidad_registros": punto.cantidad_registros,
+        "cantidad_facturas": punto.cantidad_facturas,
+        "fuentes": list(punto.fuentes),
+        "variacion_porcentual_anterior": None if punto.variacion_porcentual_anterior is None else str(punto.variacion_porcentual_anterior),
+        "es_anomalia": punto.es_anomalia,
+        "severidad_anomalia": getattr(punto, "severidad_anomalia", None),
+        "motivo_anomalia": punto.motivo_anomalia,
+    }
+
+
 def _serializar_result(result: ForecastMaterialResultProtocol) -> dict:
     return {
         "dataset": [{"ds": fila.ds.isoformat(), "y": fila.y} for fila in result.dataset],
+        "serie_mensual": [_serializar_punto_mensual(punto) for punto in getattr(result, "serie_mensual", None) or []],
         "metricas": result.metricas.model_dump(mode="json"),
         "forecast": [punto.model_dump(mode="json") for punto in result.forecast],
         "modelo": getattr(result, "modelo", None),
@@ -54,9 +74,27 @@ def _deserializar_result(data: dict):
         FORECAST_REGRESSOR_NOTE,
         ForecastMaterialResult,
     )
+    from app.modules.pricing.application.series import PuntoSeriePrecio
 
     return ForecastMaterialResult(
         dataset=[ProphetRow(ds=date.fromisoformat(fila["ds"]), y=float(fila["y"])) for fila in data["dataset"]],
+        serie_mensual=[
+            PuntoSeriePrecio(
+                fecha=date.fromisoformat(punto["fecha"]),
+                precio_promedio_normalizado=Decimal(punto["precio_promedio_normalizado"]),
+                unidad_base=punto["unidad_base"],
+                precio_equivalente_25kg=None if punto.get("precio_equivalente_25kg") is None else Decimal(punto["precio_equivalente_25kg"]),
+                precio_equivalente_50kg=None if punto.get("precio_equivalente_50kg") is None else Decimal(punto["precio_equivalente_50kg"]),
+                cantidad_registros=int(punto["cantidad_registros"]),
+                cantidad_facturas=int(punto["cantidad_facturas"]),
+                fuentes=list(punto["fuentes"]),
+                variacion_porcentual_anterior=None if punto.get("variacion_porcentual_anterior") is None else Decimal(punto["variacion_porcentual_anterior"]),
+                es_anomalia=bool(punto.get("es_anomalia", False)),
+                severidad_anomalia=punto.get("severidad_anomalia"),
+                motivo_anomalia=punto.get("motivo_anomalia"),
+            )
+            for punto in data.get("serie_mensual", [])
+        ],
         metricas=ForecastMetricasRead.model_validate(data["metricas"]),
         forecast=[ForecastPuntoRead.model_validate(punto) for punto in data["forecast"]],
         modelo=data.get("modelo") or FORECAST_MODEL_NAME,

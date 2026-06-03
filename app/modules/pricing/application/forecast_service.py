@@ -19,7 +19,7 @@ from app.modules.pricing.application.forecasting import (
     inicio_mes_siguiente,
 )
 from app.modules.pricing.application.model_selector import ForecastModelSelection, resolve_model_selection
-from app.modules.pricing.application.series import PrecioSerieInput, construir_serie_mensual
+from app.modules.pricing.application.series import PrecioSerieInput, PuntoSeriePrecio, construir_serie_mensual
 from app.modules.pricing.domain.exceptions import InsufficientDataException
 from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.infrastructure.forecast_runtime import configurar_cmdstan, importar_dependencias_forecast
@@ -44,6 +44,7 @@ class ForecastMaterialResult:
     modelo: str = FORECAST_MODEL_NAME
     supuesto_regresores: str = FORECAST_REGRESSOR_NOTE
     seleccion_modelo: ForecastSelectionRead | None = None
+    serie_mensual: list[PuntoSeriePrecio] | None = None
 
 
 @dataclass(frozen=True)
@@ -222,6 +223,32 @@ def limpiar_forecast_cache() -> None:
     _forecast_cache.clear()
 
 
+def _cargar_forecast_cacheado_o_snapshot(
+    *,
+    material_id: int,
+    horizonte_meses: int,
+    dataset_signature: str,
+) -> ForecastMaterialResult | None:
+    forecast_cacheado = obtener_forecast_cacheado(material_id, horizonte_meses, dataset_signature)
+    if forecast_cacheado is not None:
+        return forecast_cacheado
+
+    cache_key = ForecastCacheKey(
+        material_id=material_id,
+        horizonte_meses=horizonte_meses,
+        dataset_signature=dataset_signature,
+    )
+    forecast_persistido = cargar_forecast_snapshot(cache_key)
+    if forecast_persistido is None:
+        return None
+
+    _forecast_cache[cache_key] = ForecastCacheEntry(
+        result=deepcopy(forecast_persistido),
+        expires_at=monotonic() + settings.forecast_cache_ttl_seconds,
+    )
+    return deepcopy(forecast_persistido)
+
+
 def serie_mensual_material(material: Material, pricing_repo: PricingRepository):
     registros = [
         PrecioSerieInput(
@@ -376,27 +403,27 @@ def forecast_material(
     signature_base = construir_firma_dataset(dataset)
     if not usar_selector_modelo:
         dataset_signature = f"{signature_base}:{FORECAST_SELECTOR_DISABLED_SIGNATURE}:{FORECAST_MODEL_NAME}"
-        forecast_cacheado = obtener_forecast_cacheado(material.id, horizonte_meses, dataset_signature)
-        if forecast_cacheado is not None:
-            return forecast_cacheado
-
-        cache_key = ForecastCacheKey(
+        forecast_cacheado = _cargar_forecast_cacheado_o_snapshot(
             material_id=material.id,
             horizonte_meses=horizonte_meses,
             dataset_signature=dataset_signature,
         )
-        forecast_persistido = cargar_forecast_snapshot(cache_key)
-        if forecast_persistido is not None:
-            _forecast_cache[cache_key] = ForecastCacheEntry(
-                result=deepcopy(forecast_persistido),
-                expires_at=monotonic() + settings.forecast_cache_ttl_seconds,
-            )
-            return deepcopy(forecast_persistido)
+        if forecast_cacheado is not None:
+            return forecast_cacheado
 
         cmdstanpy, pd, Prophet, CmdStanPyBackend, IStanBackend = importar_dependencias_forecast()
         configurar_cmdstan(cmdstanpy, CmdStanPyBackend, IStanBackend)
         plan = _resolver_plan_legacy(pd)
         forecast_result = _forecast_material(material, horizonte_meses, dataset, pd, Prophet, plan)
+        forecast_result = ForecastMaterialResult(
+            dataset=forecast_result.dataset,
+            metricas=forecast_result.metricas,
+            forecast=forecast_result.forecast,
+            modelo=forecast_result.modelo,
+            supuesto_regresores=forecast_result.supuesto_regresores,
+            seleccion_modelo=forecast_result.seleccion_modelo,
+            serie_mensual=puntos,
+        )
         return guardar_forecast_cacheado(material.id, horizonte_meses, dataset_signature, forecast_result)
 
     cmdstanpy, pd, Prophet, CmdStanPyBackend, IStanBackend = importar_dependencias_forecast()
@@ -405,24 +432,24 @@ def forecast_material(
     plan = _resolver_plan_ejecucion(material_key, horizonte_meses, usar_selector_modelo, pd)
 
     dataset_signature = f"{signature_base}:{plan.cache_signature}"
-    forecast_cacheado = obtener_forecast_cacheado(material.id, horizonte_meses, dataset_signature)
-    if forecast_cacheado is not None:
-        return forecast_cacheado
-
-    cache_key = ForecastCacheKey(
+    forecast_cacheado = _cargar_forecast_cacheado_o_snapshot(
         material_id=material.id,
         horizonte_meses=horizonte_meses,
         dataset_signature=dataset_signature,
     )
-    forecast_persistido = cargar_forecast_snapshot(cache_key)
-    if forecast_persistido is not None:
-        _forecast_cache[cache_key] = ForecastCacheEntry(
-            result=deepcopy(forecast_persistido),
-            expires_at=monotonic() + settings.forecast_cache_ttl_seconds,
-        )
-        return deepcopy(forecast_persistido)
+    if forecast_cacheado is not None:
+        return forecast_cacheado
 
     forecast_result = _forecast_material(material, horizonte_meses, dataset, pd, Prophet, plan)
+    forecast_result = ForecastMaterialResult(
+        dataset=forecast_result.dataset,
+        metricas=forecast_result.metricas,
+        forecast=forecast_result.forecast,
+        modelo=forecast_result.modelo,
+        supuesto_regresores=forecast_result.supuesto_regresores,
+        seleccion_modelo=forecast_result.seleccion_modelo,
+        serie_mensual=puntos,
+    )
     return guardar_forecast_cacheado(material.id, horizonte_meses, dataset_signature, forecast_result)
 
 

@@ -18,6 +18,11 @@ import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
 export function AnomaliesCard({ serie, showPrices, selectedMaterial, className = "" }) {
+  const severityConfig = {
+    leve: { label: "Leve", color: "warning" },
+    media: { label: "Media", color: "error" },
+    alta: { label: "Alta", color: "error" },
+  };
   const anomalies = serie.filter((point) => point.es_anomalia);
   const presentation = getMaterialPresentation(selectedMaterial?.nombre, serie[0]?.unidad_base);
   const labels = serie.map((point) => point.fecha.slice(0, 7));
@@ -116,7 +121,17 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, className =
             {anomalies.map((point) => (
               <Box key={point.fecha} className="rounded-md border border-slate-200 bg-white px-3 py-2">
                 <Typography fontWeight={800}>{point.fecha.slice(0, 7)}</Typography>
-                <Chip label={formatPercentChange(point.variacion_porcentual_anterior)} size="small" sx={{ color: variationTone(point.variacion_porcentual_anterior), fontWeight: 800 }} />
+                <Box className="mt-1 flex flex-wrap gap-1.5">
+                  <Chip label={formatPercentChange(point.variacion_porcentual_anterior)} size="small" sx={{ color: variationTone(point.variacion_porcentual_anterior), fontWeight: 800 }} />
+                  {point.severidad_anomalia ? (
+                    <Chip
+                      label={`Severidad ${severityConfig[point.severidad_anomalia]?.label || point.severidad_anomalia}`}
+                      color={severityConfig[point.severidad_anomalia]?.color || "default"}
+                      size="small"
+                      sx={{ fontWeight: 800 }}
+                    />
+                  ) : null}
+                </Box>
                 {showPrices ? (
                   <Typography color="text.secondary" fontSize={12} mt={0.75}>
                     {formatCurrency(getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))} · {presentation.displayUnitLabel}

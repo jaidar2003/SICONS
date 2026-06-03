@@ -1,0 +1,308 @@
+import re
+import unicodedata
+from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.modules.catalog.infrastructure.models import Fuente, Presentacion
+from app.modules.chat.application.context import resolve_horizon
+from app.modules.pricing.infrastructure.models import CommercialMargin, ExternalIndexValue, PrecioHistorico
+
+BACKEND_CONTEXT_HEADER = (
+    "CONTEXTO RECUPERADO DE BUILDWISE. Estos datos provienen del backend y prevalecen "
+    "sobre conocimiento general del modelo:"
+)
+
+
+@dataclass(frozen=True)
+class BackendRetrievalResult:
+    context: str | None
+    material: object | None
+    horizon: int
+
+
+def _normalized(text: str) -> str:
+    return unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode("ascii")
+
+
+def _tokens(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", _normalized(text)))
+
+
+def _wants_catalog(question: str) -> bool:
+    normalized = _normalized(question)
+    return bool(re.search(r"\b(materiales|catalogo|catalogo|productos|presentaciones|fuentes)\b", normalized))
+
+
+def _wants_history(question: str) -> bool:
+    normalized = _normalized(question)
+    return bool(re.search(r"\b(precio|precios|historico|historial|serie|ultimo|ultima|fuente|factura)\b", normalized))
+
+
+def _wants_forecast_or_decision(question: str) -> bool:
+    normalized = _normalized(question)
+    return bool(
+        re.search(
+            r"\b(forecast|proyeccion|proyectado|conviene|recomendacion|comprar|esperar|mape|mae|confiabilidad|decision)\b",
+            normalized,
+        )
+    )
+
+
+def _wants_external_indices(question: str) -> bool:
+    normalized = _normalized(question)
+    return bool(re.search(r"\b(ipc|dolar|mayorista|blue|oficial|ipim|indice|indices|regresor|regresores)\b", normalized))
+
+
+def _wants_margins(question: str) -> bool:
+    return bool(re.search(r"\b(margen|margenes|precio comercial)\b", _normalized(question)))
+
+
+def resolve_material_from_question(question: str, material_repo, selected_material_id: int | None = None):
+    if selected_material_id is not None:
+        material = material_repo.get_by_id(selected_material_id)
+        if material is not None:
+            return material
+
+    if not hasattr(material_repo, "list_active"):
+        return None
+
+    question_tokens = _tokens(question)
+    candidates = []
+    for material in material_repo.list_active():
+        name_tokens = _tokens(material.nombre)
+        if not name_tokens:
+            continue
+        overlap = len(question_tokens & name_tokens)
+        normalized_name = _normalized(material.nombre)
+        normalized_question = _normalized(question)
+        if normalized_name in normalized_question:
+            overlap += len(name_tokens) + 2
+        if overlap:
+            candidates.append((overlap, material))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (-item[0], item[1].id))
+    return candidates[0][1]
+
+
+def _format_decimal(value) -> str:
+    if isinstance(value, Decimal):
+        return str(value.normalize())
+    return str(value)
+
+
+def _catalog_context(materials: list, db: Session) -> list[str]:
+    lines = ["FUENTE catalogo.materiales:"]
+    lines.append(f"- Materiales activos disponibles: {len(materials)}.")
+    for material in materials[:8]:
+        lines.append(f"- ID {material.id}: {material.nombre}; unidad base {material.unidad_base}.")
+    if len(materials) > 8:
+        lines.append(f"- Hay {len(materials) - 8} materiales activos adicionales no listados en este contexto.")
+
+    presentations = list(
+        db.scalars(
+            select(Presentacion)
+            .where(Presentacion.activa.is_(True))
+            .order_by(Presentacion.material_id.asc(), Presentacion.id.asc())
+            .limit(12)
+        )
+    )
+    if presentations:
+        lines.append("FUENTE catalogo.presentaciones:")
+        for presentation in presentations:
+            lines.append(
+                f"- ID {presentation.id}; material_id {presentation.material_id}; "
+                f"{presentation.nombre_presentacion}; {presentation.cantidad_base} {presentation.unidad_presentacion}."
+            )
+    return lines
+
+
+def _material_catalog_context(material, db: Session) -> list[str]:
+    lines = ["FUENTE catalogo.materiales:"]
+    material_id = getattr(material, "id", None)
+    lines.append(f"- Material resuelto: ID {material_id or 'sin id'}; {material.nombre}; unidad base {material.unidad_base}.")
+    if getattr(material, "categoria", None):
+        lines.append(f"- Categoria: {material.categoria}.")
+    if getattr(material, "marca", None):
+        lines.append(f"- Marca: {material.marca}.")
+    if getattr(material, "descripcion", None):
+        lines.append(f"- Descripcion: {material.descripcion}.")
+
+    presentations = (
+        list(
+            db.scalars(
+                select(Presentacion)
+                .where(Presentacion.material_id == material_id, Presentacion.activa.is_(True))
+                .order_by(Presentacion.id.asc())
+            )
+        )
+        if material_id is not None
+        else []
+    )
+    if presentations:
+        lines.append("FUENTE catalogo.presentaciones:")
+        for presentation in presentations:
+            lines.append(
+                f"- ID {presentation.id}: {presentation.nombre_presentacion}; "
+                f"{presentation.cantidad_base} {presentation.unidad_presentacion}."
+            )
+    return lines
+
+
+def _history_context(material, pricing_repo, db: Session) -> list[str]:
+    prices = pricing_repo.get_historical_prices(material.id, date(2000, 1, 1))
+    if not prices:
+        return ["FUENTE precios_historicos:", "- No hay precios historicos registrados para este material."]
+
+    latest = max(prices, key=lambda price: (price.fecha, price.id))
+    first = min(prices, key=lambda price: (price.fecha, price.id))
+    min_price = min(prices, key=lambda price: price.precio_normalizado)
+    max_price = max(prices, key=lambda price: price.precio_normalizado)
+    real_count = db.scalar(
+        select(func.count())
+        .select_from(PrecioHistorico)
+        .where(PrecioHistorico.material_id == material.id, PrecioHistorico.origen_dato == "REAL")
+    )
+    estimated_count = db.scalar(
+        select(func.count())
+        .select_from(PrecioHistorico)
+        .where(PrecioHistorico.material_id == material.id, PrecioHistorico.origen_dato == "ESTIMADO")
+    )
+    source_names = sorted({price.fuente.nombre for price in prices if getattr(price, "fuente", None) is not None})
+
+    lines = ["FUENTE precios_historicos:"]
+    lines.append(f"- Registros disponibles: {len(prices)}; reales: {real_count or 0}; estimados: {estimated_count or 0}.")
+    lines.append(
+        f"- Rango temporal: {first.fecha.isoformat()} a {latest.fecha.isoformat()}."
+    )
+    lines.append(
+        f"- Ultimo precio normalizado: ARS {_format_decimal(latest.precio_normalizado)} por {material.unidad_base} "
+        f"en {latest.fecha.isoformat()}; fuente {latest.fuente.nombre if latest.fuente else 'sin fuente'}."
+    )
+    lines.append(
+        f"- Precio minimo observado: ARS {_format_decimal(min_price.precio_normalizado)} "
+        f"en {min_price.fecha.isoformat()}."
+    )
+    lines.append(
+        f"- Precio maximo observado: ARS {_format_decimal(max_price.precio_normalizado)} "
+        f"en {max_price.fecha.isoformat()}."
+    )
+    if source_names:
+        lines.append(f"- Fuentes presentes: {', '.join(source_names[:8])}.")
+
+    recent = sorted(prices, key=lambda price: (price.fecha, price.id), reverse=True)[:5]
+    lines.append("- Ultimos registros:")
+    for price in recent:
+        lines.append(
+            f"  - {price.fecha.isoformat()}: ARS {_format_decimal(price.precio_normalizado)} por {material.unidad_base}; "
+            f"fuente {price.fuente.nombre if price.fuente else 'sin fuente'}; comprobante {price.numero_comprobante or 'sin comprobante'}."
+        )
+    return lines
+
+
+def _external_indices_context(db: Session) -> list[str]:
+    rows = list(
+        db.execute(
+            select(
+                ExternalIndexValue.source_name,
+                ExternalIndexValue.series_id,
+                func.count(ExternalIndexValue.id),
+                func.min(ExternalIndexValue.date),
+                func.max(ExternalIndexValue.date),
+            )
+            .group_by(ExternalIndexValue.source_name, ExternalIndexValue.series_id)
+            .order_by(ExternalIndexValue.source_name.asc(), ExternalIndexValue.series_id.asc())
+            .limit(12)
+        )
+    )
+    if not rows:
+        return ["FUENTE external_index_values:", "- No hay indices externos cargados."]
+    lines = ["FUENTE external_index_values:"]
+    for source_name, series_id, count, min_date, max_date in rows:
+        lines.append(f"- {source_name}/{series_id}: {count} registros; rango {min_date} a {max_date}.")
+    return lines
+
+
+def _sources_context(db: Session) -> list[str]:
+    sources = list(db.scalars(select(Fuente).order_by(Fuente.id.asc()).limit(12)))
+    if not sources:
+        return ["FUENTE catalogo.fuentes:", "- No hay fuentes registradas."]
+    lines = ["FUENTE catalogo.fuentes:"]
+    for source in sources:
+        lines.append(f"- ID {source.id}: {source.nombre}; tipo {source.tipo_fuente or 'sin tipo'}.")
+    return lines
+
+
+def _margins_context(db: Session, material_id: int | None, *, is_admin: bool) -> list[str]:
+    if not is_admin:
+        return ["FUENTE commercial_margins:", "- Los margenes comerciales detallados estan disponibles solo para usuarios administradores."]
+    stmt = select(CommercialMargin).where(CommercialMargin.activo.is_(True)).order_by(CommercialMargin.id.asc())
+    if material_id is not None:
+        stmt = stmt.where((CommercialMargin.material_id == material_id) | (CommercialMargin.scope == "GLOBAL"))
+    margins = list(db.scalars(stmt.limit(12)))
+    if not margins:
+        return ["FUENTE commercial_margins:", "- No hay margenes comerciales activos para el alcance solicitado."]
+    lines = ["FUENTE commercial_margins:"]
+    for margin in margins:
+        lines.append(
+            f"- ID {margin.id}: scope {margin.scope}; material_id {margin.material_id}; "
+            f"presentation_id {margin.presentation_id}; margen {margin.margen_ganancia_pct}%."
+        )
+    return lines
+
+
+def build_backend_retrieval_context(
+    question: str,
+    *,
+    material_repo,
+    pricing_repo,
+    db: Session,
+    selected_material_id: int | None = None,
+    fallback_horizon: int = 3,
+    is_admin: bool = False,
+) -> BackendRetrievalResult:
+    horizon = resolve_horizon(question, fallback_horizon)
+    material = resolve_material_from_question(question, material_repo, selected_material_id)
+    wants_catalog = _wants_catalog(question)
+    wants_history = _wants_history(question)
+    wants_forecast = _wants_forecast_or_decision(question)
+    wants_indices = _wants_external_indices(question)
+    wants_margins = _wants_margins(question)
+
+    lines: list[str] = [BACKEND_CONTEXT_HEADER]
+    retrieved_any = False
+
+    if material is not None:
+        lines.extend(_material_catalog_context(material, db))
+        retrieved_any = True
+        if wants_history or not wants_forecast:
+            lines.extend(_history_context(material, pricing_repo, db))
+        if wants_margins:
+            lines.extend(_margins_context(db, getattr(material, "id", None), is_admin=is_admin))
+    elif wants_catalog:
+        materials = material_repo.list_active()
+        lines.extend(_catalog_context(materials, db))
+        retrieved_any = True
+
+    if wants_indices:
+        lines.extend(_external_indices_context(db))
+        retrieved_any = True
+    if wants_catalog and "fuente" in _normalized(question):
+        lines.extend(_sources_context(db))
+        retrieved_any = True
+    if wants_margins and material is None:
+        lines.extend(_margins_context(db, None, is_admin=is_admin))
+        retrieved_any = True
+
+    if not retrieved_any:
+        return BackendRetrievalResult(context=None, material=material, horizon=horizon)
+
+    lines.append(
+        "REGLA DE RESPUESTA: responde solo con los datos recuperados/calculados. "
+        "Si falta un dato en el contexto, indicá exactamente qué falta en BuildWise."
+    )
+    return BackendRetrievalResult(context="\n".join(lines), material=material, horizon=horizon)

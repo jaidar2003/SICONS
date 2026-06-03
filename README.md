@@ -212,7 +212,10 @@ Alcance implementado:
 - presupuesto actual con precio vigente;
 - comparacion contra forecast y recomendacion contextual;
 - decision `COMPRAR_AHORA`, `POSTERGAR`, `ESCALONAR` o `SIN_VENTAJA_CLARA`;
-- redaccion final asistida por IA sin alterar importes ni decisiones calculadas por backend.
+- redaccion final asistida por IA sin alterar importes ni decisiones calculadas por backend;
+- salida auditable con precio actual, precio proyectado, diferencia, MAPE, umbral, fuente de datos y advertencias.
+
+El presupuesto del MVP parte de precios registrados y cantidades confirmadas. Impuestos, flete, descuentos comerciales y stock minimo quedan fuera del calculo base salvo que se formalicen explicitamente como regla del dominio.
 
 Detalle funcional y demo:
 

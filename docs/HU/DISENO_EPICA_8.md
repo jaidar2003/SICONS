@@ -13,6 +13,8 @@ Este documento define el diseno funcional inicial de la Epica 8 de `BuildWise`, 
 - la IA interpreta lenguaje natural, identifica faltantes y puede redactar explicaciones orientadas a la decision de compra, pero no decide ni calcula importes por su cuenta;
 - los precios, calculos de presupuesto, forecast, umbrales y acciones recomendadas deben provenir de servicios auditables del backend;
 - la informacion interpretada debe ser validada o corregida por el usuario antes de generar una recomendacion.
+- el presupuesto del MVP se calcula con precios registrados y cantidades confirmadas; impuestos, flete, descuentos y stock minimo quedan fuera del calculo base hasta que se formalicen como reglas del dominio;
+- la salida debe dejar visible el nivel de calidad o confiabilidad del dato cuando el material tenga una serie historica debil o hibrida.
 
 ## Criterio metodologico
 

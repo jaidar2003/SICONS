@@ -25,6 +25,19 @@ class ChatResponseRead(BaseModel):
     fallback_usado: bool = False
 
 
+class ChatProviderConfigRead(BaseModel):
+    proveedor_activo: str
+    modelo_facultad: str | None = None
+    modelo_claude: str | None = None
+    fallback_habilitado: bool = True
+
+
+class ChatProviderConfigUpdate(BaseModel):
+    proveedor_activo: Literal["facultad", "claude"]
+    modelo_facultad: str | None = Field(default=None, max_length=200)
+    modelo_claude: str | None = Field(default=None, max_length=200)
+
+
 class CommercialNeedCreate(BaseModel):
     necesidad: str = Field(min_length=1, max_length=1500)
 

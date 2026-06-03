@@ -12,6 +12,18 @@ Frase corta para defensa:
 La visualizacion es la interfaz; el nucleo metodologico es la decision trazable de compra.
 ```
 
+## Contraste con baselines
+
+Antes de mostrar la demo principal, conviene remarcar que el sistema supera reglas simples que no alcanzan para justificar una decision economica:
+
+- promedio movil;
+- ultimo valor observado;
+- umbral fijo porcentual;
+- comprar siempre ahora;
+- comprar siempre despues.
+
+La demo gana fuerza si se explica que `BuildWise` no solo muestra la curva, sino que supera esas heuristicas porque incorpora forecast, criticidad, presupuesto y una regla de decision explicitamente trazable.
+
 ## Preparacion
 
 1. Levantar backend y frontend.

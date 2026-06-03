@@ -35,11 +35,12 @@ import { MetricsGrid } from "../features/pricing/MetricsGrid.jsx";
 import { PurchaseDecisionCard } from "../features/pricing/PurchaseDecisionCard.jsx";
 import { PriceChart } from "../features/pricing/PriceChart.jsx";
 import { CommercialMarginsAdmin } from "../features/admin/CommercialMarginsAdmin.jsx";
+import { ChatConfigAdmin } from "../features/admin/ChatConfigAdmin.jsx";
 import { UsersAdmin } from "../features/admin/UsersAdmin.jsx";
 import { ChatCard } from "../features/chat/ChatCard.jsx";
-import { CommercialAssistantCard } from "../features/chat/CommercialAssistantCard.jsx";
 import { PriceVariationBetweenDatesCard } from "../features/pricing/PriceVariationBetweenDatesCard.jsx";
 import { PurchaseScenarioSimulationCard } from "../features/pricing/PurchaseScenarioSimulationCard.jsx";
+import { DecisionSummaryCard } from "../features/pricing/DecisionSummaryCard.jsx";
 import { createPrecioHistorico } from "../features/pricing/pricing.api.js";
 import { getDisplayPrice } from "../features/pricing/materialPresentation.js";
 import { apiGet } from "../shared/api/http.js";
@@ -82,8 +83,8 @@ const VIEW_TABS = [
   },
   {
     value: "chatbot",
-    label: "Chatbot IA",
-    description: "Asistente conversacional restringido a consultas del proyecto.",
+    label: "Asistente IA",
+    description: "Interfaz conversacional restringida a consultas del proyecto.",
     accent: brand.sections.chatbot.accent,
     eyebrow: "Asistencia conversacional",
     icon: AdminPanelSettingsOutlinedIcon,
@@ -107,11 +108,6 @@ const VIEW_TABS = [
 ];
 
 const COST_WORKFLOWS = [
-  {
-    value: "commercial-assistant",
-    label: "Asistente de compra IA",
-    helper: "Convertí una necesidad de compra en presupuesto y recomendación.",
-  },
   {
     value: "planner",
     label: "Armar presupuesto",
@@ -188,6 +184,11 @@ const HISTORY_WORKFLOWS = [
 
 const ADMIN_WORKFLOWS = [
   {
+    value: "ai",
+    label: "IA",
+    helper: "Seleccionar el proveedor primario y revisar modelos configurados.",
+  },
+  {
     value: "users",
     label: "Usuarios",
     helper: "Administrar accesos y roles.",
@@ -221,10 +222,10 @@ export function App() {
   const [forecastPriceView, setForecastPriceView] = useState("comparative");
   const [comparisonRows, setComparisonRows] = useState([]);
   const [activeView, setActiveView] = useState("summary");
-  const [costWorkflow, setCostWorkflow] = useState("commercial-assistant");
+  const [costWorkflow, setCostWorkflow] = useState("planner");
   const [forecastWorkflow, setForecastWorkflow] = useState("projection");
   const [historyWorkflow, setHistoryWorkflow] = useState("variation");
-  const [adminWorkflow, setAdminWorkflow] = useState("users");
+  const [adminWorkflow, setAdminWorkflow] = useState("ai");
   const forecastRequestRef = useRef(0);
   const clientDefaultStart = useMemo(() => dayjs("2026-01-01"), []);
 
@@ -495,6 +496,7 @@ export function App() {
                     onHastaChange={setHasta}
                     onRefresh={handleRefresh}
                   />
+                  <DecisionSummaryCard forecast={forecast} serie={serie} selectedMaterial={selectedMaterial} showPrices={showPrices} />
                   <MetricsGrid serie={serie} showPrices={showPrices} selectedMaterial={selectedMaterial} />
                   <InsightStrip serie={serie} selectedMaterial={selectedMaterial} showPrices={showPrices} />
                   {forecast ? (
@@ -708,10 +710,6 @@ export function App() {
                     onChange={setCostWorkflow}
                   />
 
-                  {costWorkflow === "commercial-assistant" ? (
-                    <CommercialAssistantCard materiales={materiales} token={token} showPrices={showPrices} />
-                  ) : null}
-
                   {costWorkflow === "planner" ? (
                     <CostPlannerCard
                       materiales={materiales}
@@ -836,6 +834,7 @@ export function App() {
                     onChange={setAdminWorkflow}
                   />
                   {adminWorkflow === "users" ? <UsersAdmin token={token} /> : null}
+                  {adminWorkflow === "ai" ? <ChatConfigAdmin token={token} /> : null}
                   {adminWorkflow === "margins" ? (
                     <CommercialMarginsAdmin token={token} materiales={materiales} presentaciones={presentaciones} />
                   ) : null}

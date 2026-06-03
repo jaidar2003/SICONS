@@ -22,7 +22,7 @@ Mostrar que `BuildWise` no se limita a graficos o forecast: toma una necesidad d
 3. Ejecutar `Interpretar con IA`.
 4. Revisar los datos detectados y corregirlos si hace falta.
 5. Ejecutar `Validar y generar propuesta`.
-6. Explicar la salida: total actual, total proyectado, diferencia estimada, decision, confianza/MAPE y advertencias.
+6. Explicar la salida: total actual, total proyectado, diferencia estimada, decision, confianza/MAPE, nivel de calidad del dato y advertencias.
 
 ## Casos de demo
 
@@ -84,6 +84,26 @@ Resultado esperado:
 
 - decision `SIN_VENTAJA_CLARA`;
 - explicacion asociada a umbral, MAPE/confiabilidad o diferencia marginal.
+
+### Misma necesidad, distinta decisión
+
+Repetir una consulta ya resuelta cambiando solo el presupuesto maximo o el horizonte.
+
+Ejemplo:
+
+```text
+Necesito 30 unidades de Membrana Megaflex para impermeabilizacion dentro de 3 meses.
+```
+
+Probar dos variantes:
+
+- presupuesto maximo suficiente: el sistema puede recomendar `COMPRAR_AHORA` o `ESCALONAR` segun la proyeccion;
+- presupuesto maximo insuficiente o horizonte mas lejano: el sistema puede pasar a `POSTERGAR` o `SIN_VENTAJA_CLARA`.
+
+Objetivo:
+
+- mostrar que la decision no es decorativa y cambia con los datos de entrada;
+- demostrar que el valor del MVP no esta en el texto del chat, sino en el calculo deterministico que responde a cambios reales de contexto.
 
 ## Frase corta para presentar
 

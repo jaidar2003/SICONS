@@ -57,7 +57,7 @@ export const brand = {
     summary: { accent: "#002395", label: "Resumen" },
     forecast: { accent: "#ED2939", label: "Forecast" },
     costs: { accent: "#2563EB", label: "Costos" },
-    chatbot: { accent: "#0EA5A4", label: "Chatbot IA" },
+    chatbot: { accent: "#0EA5A4", label: "Asistente IA" },
     history: { accent: "#4F46E5", label: "Historial" },
     admin: { accent: "#334155", label: "Admin" },
   },

@@ -13,7 +13,8 @@ from app.shared.config.settings import settings
 def test_get_chat_client_anthropic(monkeypatch):
     monkeypatch.setattr(settings, "chat_provider", "anthropic")
     client = get_chat_client()
-    assert isinstance(client, AnthropicChatClient)
+    assert isinstance(client, FallbackChatClient)
+    assert isinstance(client.primary, AnthropicChatClient)
 
 
 def test_get_chat_client_default_usa_fallback(monkeypatch):

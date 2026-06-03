@@ -45,6 +45,7 @@ class PuntoSeriePrecioRead(BaseModel):
     fuentes: list[str]
     variacion_porcentual_anterior: Decimal | None
     es_anomalia: bool = False
+    severidad_anomalia: str | None = None
     motivo_anomalia: str | None = None
 
 

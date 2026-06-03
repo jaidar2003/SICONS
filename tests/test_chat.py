@@ -1,3 +1,4 @@
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -10,13 +11,10 @@ from app.modules.auth.interfaces.dependencies import get_current_user
 from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.chat.application.context import build_material_context, resolve_horizon
 from app.modules.chat.application.operations import execute_operation, plan_operation
+from app.modules.chat.application.retrieval import build_backend_retrieval_context
 from app.modules.chat.application.service import ADMIN_ONLY_RESPONSE, OUT_OF_SCOPE_RESPONSE, answer_question
 from app.modules.chat.infrastructure import llm_client
-from app.modules.chat.infrastructure.llm_client import (
-    AnthropicChatClient,
-    LLMConfigurationError,
-    OpenAICompatibleChatClient,
-)
+from app.modules.chat.infrastructure.llm_client import AnthropicChatClient, FallbackChatClient, LLMConfigurationError, OpenAICompatibleChatClient
 from app.modules.chat.interfaces import routes as chat_routes
 from app.modules.chat.interfaces.routes import get_chat_client
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
@@ -43,6 +41,17 @@ class ResponseQueueClient:
     def complete(self, messages: list[dict[str, str]]) -> str:
         self.calls.append(messages)
         return self.responses.pop(0)
+
+
+class FakeDb:
+    def scalar(self, _stmt):
+        return 2
+
+    def scalars(self, _stmt):
+        return []
+
+    def execute(self, _stmt):
+        return []
 
 
 def test_consulta_fuera_de_alcance_no_invoca_proveedor() -> None:
@@ -139,6 +148,51 @@ def test_build_material_context_informa_operaciones_administrativas_solo_admin(m
     context = build_material_context(SimpleNamespace(nombre="Cemento Portland", unidad_base="kg"), 3, object(), is_admin=True)
 
     assert "operaciones administrativas" in context
+
+
+def test_backend_retrieval_resuelve_material_por_nombre_y_usa_historicos() -> None:
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg", categoria=None, marca=None, descripcion=None)
+    prices = [
+        SimpleNamespace(
+            id=1,
+            fecha=date(2026, 1, 1),
+            precio_normalizado=100,
+            fuente=SimpleNamespace(nombre="Factura compra"),
+            numero_comprobante="A-1",
+        ),
+        SimpleNamespace(
+            id=2,
+            fecha=date(2026, 2, 1),
+            precio_normalizado=120,
+            fuente=SimpleNamespace(nombre="Factura compra"),
+            numero_comprobante="A-2",
+        ),
+    ]
+    material_repo = SimpleNamespace(list_active=lambda: [material], get_by_id=lambda _id: material)
+    pricing_repo = SimpleNamespace(get_historical_prices=lambda _material_id, _since: prices)
+
+    result = build_backend_retrieval_context(
+        "Cual fue el ultimo precio de cemento?",
+        material_repo=material_repo,
+        pricing_repo=pricing_repo,
+        db=FakeDb(),
+    )
+
+    assert result.material == material
+    assert "FUENTE precios_historicos" in result.context
+    assert "Ultimo precio normalizado: ARS 120" in result.context
+
+
+def test_backend_retrieval_margenes_no_admin_no_expone_detalle() -> None:
+    result = build_backend_retrieval_context(
+        "Mostrame los margenes comerciales",
+        material_repo=SimpleNamespace(list_active=lambda: []),
+        pricing_repo=object(),
+        db=FakeDb(),
+        is_admin=False,
+    )
+
+    assert "solo para usuarios administradores" in result.context
 
 
 def test_plan_operation_extrae_accion_estructurada() -> None:
@@ -293,8 +347,73 @@ def test_anthropic_client_usa_messages_y_headers_nativos(monkeypatch: pytest.Mon
 
 def test_provider_anthropic_selecciona_cliente_nativo(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(chat_routes.settings, "chat_provider", "anthropic")
+    monkeypatch.setattr(chat_routes.settings, "openai_base_url", "https://facultad.example/api/v1")
+    monkeypatch.setattr(chat_routes.settings, "openai_api_key", "openai-token")
+    monkeypatch.setattr(chat_routes.settings, "openai_model", "facultad-modelo")
 
-    assert isinstance(get_chat_client(), AnthropicChatClient)
+    client = get_chat_client()
+
+    assert isinstance(client, FallbackChatClient)
+    assert isinstance(client.primary, AnthropicChatClient)
+    assert isinstance(client.fallback, OpenAICompatibleChatClient)
+
+
+def test_admin_puede_leer_configuracion_de_ia(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat_routes.settings, "chat_provider", "openai")
+    monkeypatch.setattr(chat_routes.settings, "openai_model", "facultad-modelo")
+    monkeypatch.setattr(chat_routes.settings, "anthropic_model", "claude-modelo")
+    monkeypatch.setattr(chat_routes.settings, "openai_base_url", "https://facultad.example/api/v1")
+    monkeypatch.setattr(chat_routes.settings, "openai_api_key", "openai-token")
+    monkeypatch.setattr(chat_routes.settings, "anthropic_base_url", "https://api.anthropic.com/v1")
+    monkeypatch.setattr(chat_routes.settings, "anthropic_api_key", "claude-token")
+
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
+    try:
+        response = TestClient(app).get("/chat/config")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "proveedor_activo": "facultad",
+        "modelo_facultad": "facultad-modelo",
+        "modelo_claude": "claude-modelo",
+        "fallback_habilitado": True,
+    }
+
+
+def test_admin_puede_actualizar_configuracion_de_ia(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat_routes.settings, "chat_provider", "openai")
+    monkeypatch.setattr(chat_routes.settings, "openai_model", "facultad-modelo")
+    monkeypatch.setattr(chat_routes.settings, "anthropic_model", "claude-modelo")
+    monkeypatch.setattr(chat_routes.settings, "openai_base_url", "https://facultad.example/api/v1")
+    monkeypatch.setattr(chat_routes.settings, "openai_api_key", "openai-token")
+    monkeypatch.setattr(chat_routes.settings, "anthropic_base_url", "https://api.anthropic.com/v1")
+    monkeypatch.setattr(chat_routes.settings, "anthropic_api_key", "claude-token")
+
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
+    try:
+        response = TestClient(app).patch(
+            "/chat/config",
+            json={
+                "proveedor_activo": "claude",
+                "modelo_facultad": "facultad-nueva",
+                "modelo_claude": "claude-nuevo",
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "proveedor_activo": "claude",
+        "modelo_facultad": "facultad-nueva",
+        "modelo_claude": "claude-nuevo",
+        "fallback_habilitado": True,
+    }
+    assert chat_routes.settings.chat_provider == "anthropic"
+    assert chat_routes.settings.openai_model == "facultad-nueva"
+    assert chat_routes.settings.anthropic_model == "claude-nuevo"
 
 
 def test_endpoint_chat_rechaza_fuera_de_alcance_sin_proveedor() -> None:
