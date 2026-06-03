@@ -99,6 +99,15 @@ La auditoria es no bloqueante: si el registro falla, la respuesta al usuario no 
 
 Los administradores pueden consultar estos registros desde `/chat/auditoria` y desde el panel `Admin > Auditoria IA`, con filtros por intencion y uso de fallback.
 
+El panel tambien muestra metricas agregadas de auditoria:
+
+- total de consultas;
+- consultas fuera de alcance;
+- tasa de fallback;
+- latencia promedio y p95;
+- consultas por intencion;
+- usuarios unicos.
+
 ## Medicion de determinismo
 
 El endpoint `/chat/auditoria/determinismo` calcula determinismo del RAG sobre consultas repetidas. La pregunta se normaliza y se comparan campos criticos de recuperacion:
@@ -122,6 +131,19 @@ Esto separa dos cosas:
 - variabilidad aceptable del LLM: redaccion final de la respuesta.
 
 Si la misma pregunta mantiene los campos criticos estables, el sistema puede defender que el RAG es deterministico aunque el texto natural cambie.
+
+## Bateria canonica
+
+El endpoint `/chat/auditoria/determinismo/canonicas` evalua una bateria fija de consultas de referencia sin mezclar preguntas historicas arbitrarias. La bateria cubre:
+
+- historico de precios;
+- forecast;
+- recomendacion;
+- presupuestacion;
+- catalogo;
+- administracion.
+
+La idea es separar la medicion de estabilidad del RAG operativo de la variacion acumulada en la auditoria real.
 
 ## Diferencia con un chatbot generico
 

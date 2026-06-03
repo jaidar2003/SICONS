@@ -36,7 +36,9 @@ El sistema ya permite:
 - Clasificacion formal de intenciones: `HISTORICO`, `FORECAST`, `RECOMENDACION`, `PRESUPUESTO`, `CATALOGO`, `ADMIN` y `FUERA_ALCANCE`.
 - Auditoria persistente de consultas del asistente en `audit_logs`.
 - Endpoint admin `/chat/auditoria` para consultar trazabilidad del asistente.
+- Endpoint admin `/chat/auditoria/metricas` para ver estadisticas agregadas.
 - Endpoint admin `/chat/auditoria/determinismo` para medir estabilidad del RAG sobre consultas repetidas.
+- Endpoint admin `/chat/auditoria/determinismo/canonicas` para ejecutar una bateria fija de referencia.
 
 ### Frontend
 
@@ -46,7 +48,9 @@ El sistema ya permite:
 - Visualizacion de historicos, forecast, anomalias y escenarios de costo.
 - Administracion de usuarios, margenes y configuracion de IA para admin.
 - Panel admin de auditoria del asistente IA con filtros por intencion y fallback.
+- Panel admin con metricas agregadas de auditoria.
 - Score de determinismo RAG visible en el panel de auditoria IA.
+- Bateria canonica visible en el panel de auditoria IA.
 
 ### Datos del MVP
 
@@ -82,7 +86,7 @@ Verificaciones recientes:
 Resultado:
 
 ```text
-374 passed
+377 passed
 ```
 
 Verificaciones de runtime:
@@ -177,6 +181,7 @@ Con usuario admin:
 
 - [ ] Revisar configuracion de IA.
 - [ ] Revisar auditoria del asistente IA.
+- [ ] Revisar metricas agregadas de auditoria.
 - [ ] Revisar usuarios.
 - [ ] Revisar margenes comerciales.
 
@@ -200,8 +205,8 @@ El MVP queda defendible si la demo permite observar:
 
 ## Prioridades posteriores al MVP
 
-1. Persistencia o reconstruccion del estado conversacional luego de recargar la pagina.
-2. Manejo asincronico de forecasts pesados.
-3. Metricas agregadas sobre auditoria: volumen por intencion, latencia p95, tasa de fallback y consultas fuera de alcance.
-4. RAG documental complementario para documentacion metodologica.
-5. Ampliacion de intenciones con clasificador entrenable si el volumen de consultas lo justifica.
+1. Manejo asincronico de forecasts pesados.
+2. RAG documental complementario para documentacion metodologica.
+3. Ampliacion de intenciones con clasificador entrenable si el volumen de consultas lo justifica.
+4. Exportacion de auditoria y metricas a CSV/JSON para analisis externo.
+5. Persistencia server-side del estado conversacional si se requiere compartir el draft entre sesiones.

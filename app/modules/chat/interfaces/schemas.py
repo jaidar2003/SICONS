@@ -71,6 +71,41 @@ class ChatDeterminismReportRead(BaseModel):
     grupos: list[ChatDeterminismGroupRead]
 
 
+class ChatAuditMetricsRead(BaseModel):
+    total_consultas: int
+    consultas_fuera_de_alcance: int
+    tasa_fallback: float
+    latencia_promedio_ms: float | None = None
+    latencia_p95_ms: float | None = None
+    consultas_por_intencion: dict[str, int]
+    usuarios_unicos: int
+
+
+class ChatDeterminismCanonicalItemRead(BaseModel):
+    pregunta: str
+    muestra: int
+    score: float
+    cumple_expectativa: bool
+    tipo_intencion_esperada: str
+    tipo_intencion_observada: str | None = None
+    material_esperado: str | None = None
+    material_observado: str | None = None
+    horizonte_esperado: int | None = None
+    horizonte_observado: int | None = None
+    fuentes_esperadas: list[str] = Field(default_factory=list)
+    fuentes_observadas: list[str] = Field(default_factory=list)
+    campos_estables: list[str] = Field(default_factory=list)
+    campos_variables: list[str] = Field(default_factory=list)
+
+
+class ChatDeterminismCanonicalReportRead(BaseModel):
+    total_casos: int
+    casos_con_evidencia: int
+    cobertura: float
+    score_promedio: float | None = None
+    casos: list[ChatDeterminismCanonicalItemRead]
+
+
 class ChatProviderConfigRead(BaseModel):
     proveedor_activo: str
     modelo_facultad: str | None = None

@@ -841,3 +841,104 @@ def test_cliente_no_puede_medir_determinismo_rag() -> None:
         app.dependency_overrides.clear()
 
     assert response.status_code == 403
+
+
+def test_admin_puede_ver_metricas_agregadas_de_auditoria() -> None:
+    logs = [
+        SimpleNamespace(
+            cambios={
+                "pregunta": "Cual fue el ultimo precio de cemento?",
+                "tipo_intencion": "HISTORICO",
+                "fallback_usado": False,
+                "duration_ms": 100,
+            },
+            usuario_id=11,
+        ),
+        SimpleNamespace(
+            cambios={
+                "pregunta": "Explicame el forecast de cemento",
+                "tipo_intencion": "FORECAST",
+                "fallback_usado": True,
+                "duration_ms": 200,
+            },
+            usuario_id=12,
+        ),
+        SimpleNamespace(
+            cambios={
+                "pregunta": "Dame una receta de flan",
+                "tipo_intencion": "FUERA_ALCANCE",
+                "fallback_usado": False,
+                "duration_ms": 400,
+            },
+            usuario_id=12,
+        ),
+    ]
+    db = SimpleNamespace(scalars=lambda _stmt: logs)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
+    try:
+        response = TestClient(app).get("/chat/auditoria/metricas")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_consultas"] == 3
+    assert body["consultas_fuera_de_alcance"] == 1
+    assert body["tasa_fallback"] == pytest.approx(1 / 3, rel=1e-4)
+    assert body["latencia_promedio_ms"] == pytest.approx(233.33, rel=1e-3)
+    assert body["latencia_p95_ms"] == 400.0
+    assert body["consultas_por_intencion"]["FORECAST"] == 1
+    assert body["usuarios_unicos"] == 2
+
+
+def test_admin_puede_ver_bateria_canonica() -> None:
+    logs = [
+        SimpleNamespace(
+            cambios={
+                "pregunta": "cual fue el ultimo precio de cemento?",
+                "tipo_intencion": "HISTORICO",
+                "material_resuelto": "Cemento Portland",
+                "horizonte_resuelto": 3,
+                "fuentes_recuperadas": ["operacion.price_history"],
+            },
+            usuario_id=11,
+        ),
+        SimpleNamespace(
+            cambios={
+                "pregunta": "explicame el forecast de cemento",
+                "tipo_intencion": "FORECAST",
+                "material_resuelto": "Cemento Portland",
+                "horizonte_resuelto": 3,
+                "fuentes_recuperadas": ["purchase_recommendations"],
+            },
+            usuario_id=11,
+        ),
+    ]
+    db = SimpleNamespace(scalars=lambda _stmt: logs)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
+    try:
+        response = TestClient(app).get("/chat/auditoria/determinismo/canonicas")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_casos"] >= 1
+    assert body["casos_con_evidencia"] == 2
+    assert body["casos"][0]["pregunta"] == "cual fue el ultimo precio de cemento?"
+    assert body["casos"][0]["cumple_expectativa"] is True
+    assert body["casos"][0]["score"] == 1
+
+
+def test_cliente_no_puede_ver_metricas_ni_bateria_canonica() -> None:
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=2, rol="cliente")
+    try:
+        metrics = TestClient(app).get("/chat/auditoria/metricas")
+        canonical = TestClient(app).get("/chat/auditoria/determinismo/canonicas")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert metrics.status_code == 403
+    assert canonical.status_code == 403

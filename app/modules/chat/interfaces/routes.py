@@ -1,5 +1,7 @@
 import re
 import unicodedata
+from collections import Counter
+from math import ceil
 from time import perf_counter
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -40,7 +42,10 @@ from app.modules.chat.infrastructure.llm_client import (
 )
 from app.modules.chat.interfaces.schemas import (
     ChatAuditLogRead,
+    ChatAuditMetricsRead,
     ChatDeterminismGroupRead,
+    ChatDeterminismCanonicalItemRead,
+    ChatDeterminismCanonicalReportRead,
     ChatDeterminismReportRead,
     ChatProviderConfigRead,
     ChatProviderConfigUpdate,
@@ -153,6 +158,51 @@ DETERMINISM_FIELDS = (
     "fallback_usado",
 )
 
+CANONICAL_DETERMINISM_BATTERY = (
+    {
+        "pregunta": "cual fue el ultimo precio de cemento?",
+        "tipo_intencion": "HISTORICO",
+        "material_resuelto": "Cemento Portland",
+        "horizonte_resuelto": 3,
+        "fuentes_esperadas": ("operacion.price_history",),
+    },
+    {
+        "pregunta": "explicame el forecast de cemento",
+        "tipo_intencion": "FORECAST",
+        "material_resuelto": "Cemento Portland",
+        "horizonte_resuelto": 3,
+        "fuentes_esperadas": ("purchase_recommendations",),
+    },
+    {
+        "pregunta": "me conviene comprar cemento?",
+        "tipo_intencion": "RECOMENDACION",
+        "material_resuelto": "Cemento Portland",
+        "horizonte_resuelto": 3,
+        "fuentes_esperadas": ("purchase_recommendations",),
+    },
+    {
+        "pregunta": "necesito comprar 500 kg de cemento",
+        "tipo_intencion": "PRESUPUESTO",
+        "material_resuelto": "Cemento Portland",
+        "horizonte_resuelto": 3,
+        "fuentes_esperadas": ("presupuestacion.propuesta", "backend_deterministico"),
+    },
+    {
+        "pregunta": "que materiales hay?",
+        "tipo_intencion": "CATALOGO",
+        "material_resuelto": None,
+        "horizonte_resuelto": 3,
+        "fuentes_esperadas": ("catalogo.materiales", "catalogo.presentaciones"),
+    },
+    {
+        "pregunta": "lista usuarios",
+        "tipo_intencion": "ADMIN",
+        "material_resuelto": None,
+        "horizonte_resuelto": 3,
+        "fuentes_esperadas": ("operacion.list_users",),
+    },
+)
+
 
 def _normalize_audit_question(question: str | None) -> str:
     normalized = unicodedata.normalize("NFKD", question or "").encode("ascii", "ignore").decode("ascii")
@@ -168,6 +218,10 @@ def _determinism_value(changes: dict, field: str):
             return ()
         return tuple(sorted(str(item) for item in value))
     return value
+
+
+def _iter_audit_changes(logs: list[AuditLog]) -> list[dict]:
+    return [_audit_changes(log) for log in logs]
 
 
 def _build_determinism_report(logs: list[AuditLog], limit_groups: int = 20) -> ChatDeterminismReportRead:
@@ -217,6 +271,124 @@ def _build_determinism_report(logs: list[AuditLog], limit_groups: int = 20) -> C
         score_promedio=score_promedio,
         campos_evaluados=list(DETERMINISM_FIELDS),
         grupos=groups[:limit_groups],
+    )
+
+
+def _build_chat_metrics(logs: list[AuditLog]) -> ChatAuditMetricsRead:
+    changes_list = _iter_audit_changes(logs)
+    durations = [
+        int(changes.get("duration_ms"))
+        for changes in changes_list
+        if isinstance(changes.get("duration_ms"), (int, float))
+    ]
+    intent_counter = Counter(
+        str(changes.get("tipo_intencion") or "SIN_INTENCION")
+        for changes in changes_list
+    )
+    total = len(logs)
+    fallback_count = sum(1 for changes in changes_list if bool(changes.get("fallback_usado")))
+    out_of_scope = sum(1 for changes in changes_list if changes.get("tipo_intencion") == "FUERA_ALCANCE")
+    user_ids = {log.usuario_id for log in logs if log.usuario_id is not None}
+    avg_duration = round(sum(durations) / len(durations), 2) if durations else None
+    p95_duration = None
+    if durations:
+        ordered = sorted(durations)
+        p95_index = max(0, ceil(0.95 * len(ordered)) - 1)
+        p95_duration = float(ordered[p95_index])
+    return ChatAuditMetricsRead(
+        total_consultas=total,
+        consultas_fuera_de_alcance=out_of_scope,
+        tasa_fallback=round(fallback_count / total, 4) if total else 0.0,
+        latencia_promedio_ms=avg_duration,
+        latencia_p95_ms=p95_duration,
+        consultas_por_intencion=dict(intent_counter),
+        usuarios_unicos=len(user_ids),
+    )
+
+
+def _build_canonical_determinism_report(logs: list[AuditLog]) -> ChatDeterminismCanonicalReportRead:
+    grouped: dict[str, list[AuditLog]] = {}
+    for log in logs:
+        question = _normalize_audit_question(_audit_changes(log).get("pregunta"))
+        if question:
+            grouped.setdefault(question, []).append(log)
+
+    cases: list[ChatDeterminismCanonicalItemRead] = []
+    score_total = 0.0
+    evidence_count = 0
+    for canonical in CANONICAL_DETERMINISM_BATTERY:
+        question_key = _normalize_audit_question(canonical["pregunta"])
+        items = grouped.get(question_key, [])
+        evidence_count += 1 if items else 0
+        changes_list = [_audit_changes(item) for item in items]
+        if changes_list:
+            first = changes_list[0]
+            stable_fields: list[str] = []
+            variable_fields: list[str] = []
+            for field in DETERMINISM_FIELDS:
+                values = {_determinism_value(changes, field) for changes in changes_list}
+                if len(values) == 1:
+                    stable_fields.append(field)
+                else:
+                    variable_fields.append(field)
+            observed_intent = first.get("tipo_intencion")
+            observed_material = first.get("material_resuelto")
+            observed_horizon = first.get("horizonte_resuelto")
+            observed_sources = list(_determinism_value(first, "fuentes_recuperadas"))
+            score = 0.0
+            comparisons = 0
+            if canonical["tipo_intencion"]:
+                comparisons += 1
+                score += 1 if observed_intent == canonical["tipo_intencion"] else 0
+            if canonical["material_resuelto"] is not None:
+                comparisons += 1
+                score += 1 if observed_material == canonical["material_resuelto"] else 0
+            if canonical["horizonte_resuelto"] is not None:
+                comparisons += 1
+                score += 1 if observed_horizon == canonical["horizonte_resuelto"] else 0
+            if canonical["fuentes_esperadas"]:
+                comparisons += 1
+                score += 1 if set(canonical["fuentes_esperadas"]).issubset(set(observed_sources)) else 0
+            score = round(score / comparisons, 4) if comparisons else 0.0
+            score_total += score
+            cases.append(
+                ChatDeterminismCanonicalItemRead(
+                    pregunta=canonical["pregunta"],
+                    muestra=len(items),
+                    score=score,
+                    cumple_expectativa=score >= 1,
+                    tipo_intencion_esperada=canonical["tipo_intencion"],
+                    tipo_intencion_observada=observed_intent,
+                    material_esperado=canonical["material_resuelto"],
+                    material_observado=observed_material,
+                    horizonte_esperado=canonical["horizonte_resuelto"],
+                    horizonte_observado=observed_horizon,
+                    fuentes_esperadas=list(canonical["fuentes_esperadas"]),
+                    fuentes_observadas=observed_sources,
+                    campos_estables=stable_fields,
+                    campos_variables=variable_fields,
+                )
+            )
+        else:
+            cases.append(
+                ChatDeterminismCanonicalItemRead(
+                    pregunta=canonical["pregunta"],
+                    muestra=0,
+                    score=0.0,
+                    cumple_expectativa=False,
+                    tipo_intencion_esperada=canonical["tipo_intencion"],
+                    material_esperado=canonical["material_resuelto"],
+                    horizonte_esperado=canonical["horizonte_resuelto"],
+                    fuentes_esperadas=list(canonical["fuentes_esperadas"]),
+                )
+            )
+    score_promedio = round(score_total / evidence_count, 4) if evidence_count else None
+    return ChatDeterminismCanonicalReportRead(
+        total_casos=len(cases),
+        casos_con_evidencia=evidence_count,
+        cobertura=round(evidence_count / len(cases), 4) if cases else 0.0,
+        score_promedio=score_promedio,
+        casos=cases,
     )
 
 
@@ -306,6 +478,26 @@ def listar_auditoria_chat(
     return [_audit_log_read(log, username) for log, username in rows]
 
 
+@router.get("/auditoria/metricas", response_model=ChatAuditMetricsRead)
+def obtener_metricas_auditoria_chat(
+    limit: int = Query(default=500, ge=10, le=1000),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+) -> ChatAuditMetricsRead:
+    if current_user.rol != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un admin puede ver las metricas de auditoria.")
+
+    stmt = (
+        select(AuditLog)
+        .where(AuditLog.accion == "CHAT_QUERY")
+        .where(AuditLog.recurso == "ChatConsulta")
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .limit(limit)
+    )
+    logs = list(db.scalars(stmt))
+    return _build_chat_metrics(logs)
+
+
 @router.get("/auditoria/determinismo", response_model=ChatDeterminismReportRead)
 def medir_determinismo_rag(
     limit: int = Query(default=200, ge=2, le=1000),
@@ -325,6 +517,26 @@ def medir_determinismo_rag(
     )
     logs = list(db.scalars(stmt))
     return _build_determinism_report(logs, limit_groups=limit_groups)
+
+
+@router.get("/auditoria/determinismo/canonicas", response_model=ChatDeterminismCanonicalReportRead)
+def medir_determinismo_canonicas(
+    limit: int = Query(default=500, ge=10, le=1000),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+) -> ChatDeterminismCanonicalReportRead:
+    if current_user.rol != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un admin puede medir la bateria canonica del RAG.")
+
+    stmt = (
+        select(AuditLog)
+        .where(AuditLog.accion == "CHAT_QUERY")
+        .where(AuditLog.recurso == "ChatConsulta")
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .limit(limit)
+    )
+    logs = list(db.scalars(stmt))
+    return _build_canonical_determinism_report(logs)
 
 
 @router.patch("/config", response_model=ChatProviderConfigRead)

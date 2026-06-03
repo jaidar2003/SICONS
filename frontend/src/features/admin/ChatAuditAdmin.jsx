@@ -21,7 +21,7 @@ import {
 } from "@mui/material";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
-import { fetchChatAudit, fetchChatDeterminism } from "./admin.api.js";
+import { fetchChatAudit, fetchChatAuditMetrics, fetchChatDeterminism, fetchChatDeterminismCanonica } from "./admin.api.js";
 
 const INTENT_OPTIONS = ["HISTORICO", "FORECAST", "RECOMENDACION", "PRESUPUESTO", "CATALOGO", "ADMIN", "FUERA_ALCANCE"];
 
@@ -45,6 +45,8 @@ function truncate(value, maxLength = 110) {
 export function ChatAuditAdmin({ token }) {
   const [rows, setRows] = useState([]);
   const [determinism, setDeterminism] = useState(null);
+  const [canonical, setCanonical] = useState(null);
+  const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [filters, setFilters] = useState({ limit: 50, tipo_intencion: "", fallback_usado: "" });
@@ -64,9 +66,13 @@ export function ChatAuditAdmin({ token }) {
     setError("");
     try {
       const data = await fetchChatAudit(queryParams, token);
+      const metricas = await fetchChatAuditMetrics({ limit: 500 }, token);
       const report = await fetchChatDeterminism({ limit: 200, limit_groups: 8 }, token);
+      const canonicalReport = await fetchChatDeterminismCanonica({ limit: 500 }, token);
       setRows(data);
+      setMetrics(metricas);
       setDeterminism(report);
+      setCanonical(canonicalReport);
     } catch (loadError) {
       setError(loadError.message);
     } finally {
@@ -83,10 +89,14 @@ export function ChatAuditAdmin({ token }) {
       setError("");
       try {
         const data = await fetchChatAudit(queryParams, token);
+        const metricas = await fetchChatAuditMetrics({ limit: 500 }, token);
         const report = await fetchChatDeterminism({ limit: 200, limit_groups: 8 }, token);
+        const canonicalReport = await fetchChatDeterminismCanonica({ limit: 500 }, token);
         if (!cancelled) {
           setRows(data);
+          setMetrics(metricas);
           setDeterminism(report);
+          setCanonical(canonicalReport);
         }
       } catch (loadError) {
         if (!cancelled) setError(loadError.message);
@@ -242,6 +252,163 @@ export function ChatAuditAdmin({ token }) {
                 ))}
               </TableBody>
             </Table>
+          </Box>
+        ) : null}
+
+        {metrics ? (
+          <Box className="mb-3 grid gap-3 md:grid-cols-5">
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="caption" color="text.secondary" fontWeight={800}>
+                  Total consultas
+                </Typography>
+                <Typography variant="h5" fontWeight={900}>
+                  {metrics.total_consultas}
+                </Typography>
+              </CardContent>
+            </Card>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="caption" color="text.secondary" fontWeight={800}>
+                  Fuera de alcance
+                </Typography>
+                <Typography variant="h5" fontWeight={900}>
+                  {metrics.consultas_fuera_de_alcance}
+                </Typography>
+              </CardContent>
+            </Card>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="caption" color="text.secondary" fontWeight={800}>
+                  Tasa fallback
+                </Typography>
+                <Typography variant="h5" fontWeight={900}>
+                  {metrics.tasa_fallback != null ? `${Math.round(metrics.tasa_fallback * 100)}%` : "-"}
+                </Typography>
+              </CardContent>
+            </Card>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="caption" color="text.secondary" fontWeight={800}>
+                  Latencia p95
+                </Typography>
+                <Typography variant="h5" fontWeight={900}>
+                  {metrics.latencia_p95_ms != null ? `${Math.round(metrics.latencia_p95_ms)} ms` : "-"}
+                </Typography>
+              </CardContent>
+            </Card>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="caption" color="text.secondary" fontWeight={800}>
+                  Usuarios únicos
+                </Typography>
+                <Typography variant="h5" fontWeight={900}>
+                  {metrics.usuarios_unicos}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Box>
+        ) : null}
+
+        {canonical ? (
+          <Box className="mb-3 grid gap-3">
+            <Typography variant="subtitle2" fontWeight={900}>
+              Batería canónica
+            </Typography>
+            <Box className="grid gap-3 md:grid-cols-5">
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="caption" color="text.secondary" fontWeight={800}>
+                    Casos
+                  </Typography>
+                  <Typography variant="h5" fontWeight={900}>
+                    {canonical.total_casos}
+                  </Typography>
+                </CardContent>
+              </Card>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="caption" color="text.secondary" fontWeight={800}>
+                    Con evidencia
+                  </Typography>
+                  <Typography variant="h5" fontWeight={900}>
+                    {canonical.casos_con_evidencia}
+                  </Typography>
+                </CardContent>
+              </Card>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="caption" color="text.secondary" fontWeight={800}>
+                    Cobertura
+                  </Typography>
+                  <Typography variant="h5" fontWeight={900}>
+                    {canonical.cobertura != null ? `${Math.round(canonical.cobertura * 100)}%` : "-"}
+                  </Typography>
+                </CardContent>
+              </Card>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="caption" color="text.secondary" fontWeight={800}>
+                    Score promedio
+                  </Typography>
+                  <Typography variant="h5" fontWeight={900}>
+                    {canonical.score_promedio != null ? `${Math.round(canonical.score_promedio * 100)}%` : "-"}
+                  </Typography>
+                </CardContent>
+              </Card>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="caption" color="text.secondary" fontWeight={800}>
+                    Cumplen expectativa
+                  </Typography>
+                  <Typography variant="h5" fontWeight={900}>
+                    {canonical.casos.filter((item) => item.cumple_expectativa).length}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Box>
+            <Box className="overflow-x-auto">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Pregunta</TableCell>
+                    <TableCell>Muestra</TableCell>
+                    <TableCell>Score</TableCell>
+                    <TableCell>Expectativa</TableCell>
+                    <TableCell>Observado</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {canonical.casos.map((item) => (
+                    <TableRow key={item.pregunta} hover>
+                      <TableCell>{truncate(item.pregunta, 90)}</TableCell>
+                      <TableCell>{item.muestra}</TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={`${Math.round(item.score * 100)}%`}
+                          color={item.score >= 1 ? "success" : item.score >= 0.75 ? "warning" : "error"}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {item.tipo_intencion_esperada}
+                          {item.material_esperado ? ` / ${item.material_esperado}` : ""}
+                          {item.horizonte_esperado != null ? ` / ${item.horizonte_esperado}m` : ""}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {item.tipo_intencion_observada || "-"}
+                          {item.material_observado ? ` / ${item.material_observado}` : ""}
+                          {item.horizonte_observado != null ? ` / ${item.horizonte_observado}m` : ""}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
           </Box>
         ) : null}
 

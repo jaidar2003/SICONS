@@ -1,5 +1,5 @@
 import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, MenuItem, Stack, TextField, Typography } from "@mui/material";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
@@ -27,6 +27,7 @@ const DECISION_LABELS = {
   SIN_VENTAJA_CLARA: "Sin ventaja clara",
 };
 const SUPPORTED_PRODUCT_KEYS = new Set(["cemento-portland", "pastina", "membrana-megaflex"]);
+const COMMERCIAL_DRAFT_STORAGE_KEY = "buildwise.chat.commercialDraft.v1";
 
 function materialKey(nombre) {
   return String(nombre || "")
@@ -76,11 +77,13 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
     () => materiales.filter((material) => SUPPORTED_PRODUCT_KEYS.has(materialKey(material.nombre))),
     [materiales]
   );
+  const draftStorageKey = `${COMMERCIAL_DRAFT_STORAGE_KEY}.${selectedMaterial?.id ?? "none"}`;
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([initialMessage(isAdmin)]);
   const [draft, setDraft] = useState(createEmptyDraft);
   const [interpretation, setInterpretation] = useState(null);
   const [proposal, setProposal] = useState(null);
+  const [commercialFlowReady, setCommercialFlowReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [proposalLoading, setProposalLoading] = useState(false);
   const [error, setError] = useState("");
@@ -92,6 +95,46 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
     !Number.isFinite(draftQuantity) ||
     draftQuantity <= 0 ||
     (!draft.targetDate && (!Number(draft.horizon) || Number(draft.horizon) < 1 || Number(draft.horizon) > 12));
+
+  useEffect(() => {
+    setCommercialFlowReady(false);
+    try {
+      const stored = window.localStorage.getItem(draftStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === "object") {
+          setDraft(parsed.draft ? { ...createEmptyDraft(), ...parsed.draft } : createEmptyDraft());
+          setInterpretation(parsed.interpretation || null);
+          setProposal(parsed.proposal || null);
+        } else {
+          setDraft(createEmptyDraft());
+          setInterpretation(null);
+          setProposal(null);
+        }
+      } else {
+        setDraft(createEmptyDraft());
+        setInterpretation(null);
+        setProposal(null);
+      }
+    } catch {
+      window.localStorage.removeItem(draftStorageKey);
+      setDraft(createEmptyDraft());
+      setInterpretation(null);
+      setProposal(null);
+    } finally {
+      setCommercialFlowReady(true);
+    }
+  }, [draftStorageKey]);
+
+  useEffect(() => {
+    if (!commercialFlowReady) return;
+    const payload = JSON.stringify({
+      draft,
+      interpretation,
+      proposal,
+    });
+    window.localStorage.setItem(draftStorageKey, payload);
+  }, [commercialFlowReady, draft, interpretation, proposal, draftStorageKey]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -186,6 +229,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
     setInterpretation(null);
     setProposal(null);
     setError("");
+    window.localStorage.removeItem(draftStorageKey);
   }
 
   async function handleGenerateProposal() {
