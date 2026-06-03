@@ -210,6 +210,7 @@ Alcance implementado:
 - chips visibles con `RAG backend`, intencion clasificada, material resuelto, horizonte y fuentes recuperadas;
 - clasificacion formal de intencion: `HISTORICO`, `FORECAST`, `RECOMENDACION`, `PRESUPUESTO`, `CATALOGO`, `ADMIN` o `FUERA_ALCANCE`;
 - auditoria persistente por consulta con usuario, pregunta, fuentes, fallback, duracion y respuesta, visible para admin en `Auditoria IA`;
+- medicion de determinismo RAG sobre consultas repetidas, comparando intencion, material, horizonte, fuentes, contexto y fallback;
 - resolucion de materiales por nombre, alias y errores frecuentes del MVP;
 - productos soportados: `Cemento Portland`, `Pastina` y `Membrana Megaflex`;
 - interpretacion IA de producto, cantidad, fase de obra, fecha/horizonte, presupuesto y tolerancia al riesgo, limitada al catalogo MVP;

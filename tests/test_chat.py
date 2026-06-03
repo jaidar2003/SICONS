@@ -772,3 +772,72 @@ def test_cliente_no_puede_listar_auditoria_chat() -> None:
         app.dependency_overrides.clear()
 
     assert response.status_code == 403
+
+
+def test_admin_puede_medir_determinismo_rag() -> None:
+    def row(row_id, cambios):
+        return SimpleNamespace(id=row_id, cambios=cambios, usuario_id=11, ip_address=None, created_at="2026-06-03T10:00:00")
+
+    logs = [
+        row(
+            1,
+            {
+                "pregunta": "Cual fue el ultimo precio de cemento?",
+                "tipo_intencion": "HISTORICO",
+                "material_resuelto": "Cemento Portland",
+                "horizonte_resuelto": 3,
+                "fuentes_recuperadas": ["precios_historicos", "catalogo.materiales"],
+                "contexto_usado": True,
+                "fallback_usado": False,
+            },
+        ),
+        row(
+            2,
+            {
+                "pregunta": "cual fue el ultimo precio de cemento",
+                "tipo_intencion": "HISTORICO",
+                "material_resuelto": "Cemento Portland",
+                "horizonte_resuelto": 3,
+                "fuentes_recuperadas": ["catalogo.materiales", "precios_historicos"],
+                "contexto_usado": True,
+                "fallback_usado": False,
+            },
+        ),
+        row(
+            3,
+            {
+                "pregunta": "Que materiales hay?",
+                "tipo_intencion": "CATALOGO",
+                "material_resuelto": None,
+                "horizonte_resuelto": 3,
+                "fuentes_recuperadas": ["catalogo.materiales"],
+                "contexto_usado": True,
+                "fallback_usado": False,
+            },
+        ),
+    ]
+    db = SimpleNamespace(scalars=lambda _stmt: logs)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
+    try:
+        response = TestClient(app).get("/chat/auditoria/determinismo")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_consultas"] == 3
+    assert body["grupos_repetidos"] == 1
+    assert body["consultas_evaluadas"] == 2
+    assert body["score_promedio"] == 1
+    assert body["grupos"][0]["campos_variables"] == []
+
+
+def test_cliente_no_puede_medir_determinismo_rag() -> None:
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=2, rol="cliente")
+    try:
+        response = TestClient(app).get("/chat/auditoria/determinismo")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 403

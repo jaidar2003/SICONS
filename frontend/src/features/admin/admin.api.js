@@ -42,3 +42,14 @@ export function fetchChatAudit(params, token) {
   const suffix = search.toString() ? `?${search.toString()}` : "";
   return apiGet(`/chat/auditoria${suffix}`, token);
 }
+
+export function fetchChatDeterminism(params, token) {
+  const search = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      search.set(key, String(value));
+    }
+  });
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+  return apiGet(`/chat/auditoria/determinismo${suffix}`, token);
+}

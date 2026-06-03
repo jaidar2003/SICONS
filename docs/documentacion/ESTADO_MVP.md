@@ -36,6 +36,7 @@ El sistema ya permite:
 - Clasificacion formal de intenciones: `HISTORICO`, `FORECAST`, `RECOMENDACION`, `PRESUPUESTO`, `CATALOGO`, `ADMIN` y `FUERA_ALCANCE`.
 - Auditoria persistente de consultas del asistente en `audit_logs`.
 - Endpoint admin `/chat/auditoria` para consultar trazabilidad del asistente.
+- Endpoint admin `/chat/auditoria/determinismo` para medir estabilidad del RAG sobre consultas repetidas.
 
 ### Frontend
 
@@ -45,6 +46,7 @@ El sistema ya permite:
 - Visualizacion de historicos, forecast, anomalias y escenarios de costo.
 - Administracion de usuarios, margenes y configuracion de IA para admin.
 - Panel admin de auditoria del asistente IA con filtros por intencion y fallback.
+- Score de determinismo RAG visible en el panel de auditoria IA.
 
 ### Datos del MVP
 
@@ -80,7 +82,7 @@ Verificaciones recientes:
 Resultado:
 
 ```text
-372 passed
+374 passed
 ```
 
 Verificaciones de runtime:

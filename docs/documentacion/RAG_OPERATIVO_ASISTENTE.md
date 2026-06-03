@@ -99,6 +99,30 @@ La auditoria es no bloqueante: si el registro falla, la respuesta al usuario no 
 
 Los administradores pueden consultar estos registros desde `/chat/auditoria` y desde el panel `Admin > Auditoria IA`, con filtros por intencion y uso de fallback.
 
+## Medicion de determinismo
+
+El endpoint `/chat/auditoria/determinismo` calcula determinismo del RAG sobre consultas repetidas. La pregunta se normaliza y se comparan campos criticos de recuperacion:
+
+- `tipo_intencion`;
+- `material_resuelto`;
+- `horizonte_resuelto`;
+- `fuentes_recuperadas`;
+- `contexto_usado`;
+- `fallback_usado`.
+
+El score de cada grupo es:
+
+```text
+campos_estables / campos_evaluados
+```
+
+Esto separa dos cosas:
+
+- determinismo del RAG operativo: recuperacion, fuentes, material, horizonte e intencion;
+- variabilidad aceptable del LLM: redaccion final de la respuesta.
+
+Si la misma pregunta mantiene los campos criticos estables, el sistema puede defender que el RAG es deterministico aunque el texto natural cambie.
+
 ## Diferencia con un chatbot generico
 
 El modelo generativo no decide precios, forecast ni recomendaciones. El backend primero recupera o calcula contexto y luego el modelo redacta una respuesta breve sobre esos datos.
