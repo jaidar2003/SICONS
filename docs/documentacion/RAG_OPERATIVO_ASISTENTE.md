@@ -55,8 +55,11 @@ El endpoint `/chat/consultas` devuelve, ademas de la respuesta:
 - `tipo_intencion`;
 - `contexto_usado`;
 - `fuentes_recuperadas`;
+- `fuentes_evidencia`;
+- `material_resuelto_id`;
 - `material_resuelto`;
-- `horizonte_resuelto`.
+- `horizonte_resuelto`;
+- `visualizacion_sugerida`.
 
 El frontend traduce esos metadatos en chips:
 
@@ -65,6 +68,20 @@ El frontend traduce esos metadatos en chips:
 - material resuelto;
 - horizonte;
 - fuentes recuperadas.
+
+Cuando corresponde, la respuesta tambien puede incluir evidencia expandible de fuente. Para `precios_historicos`, el frontend puede mostrar los ultimos registros usados con fecha, precio normalizado, fuente y comprobante.
+
+Si el usuario pide una visualizacion, el backend devuelve una instruccion estructurada (`PRICE_HISTORY`, `FORECAST` o `PRICE_HISTORY_FORECAST`) y el frontend renderiza los graficos existentes con endpoints propios de BuildWise. El modelo generativo no crea graficos ni valores.
+
+El chat conserva el ultimo `material_resuelto_id` para consultas de seguimiento como:
+
+```text
+ahora mostrame el forecast a 12 meses
+```
+
+Si la nueva consulta no menciona explicitamente otro material, el sistema reutiliza el material previamente resuelto.
+
+Para demo y auditoria, cada respuesta permite copiar un resumen y descargar evidencia en JSON con pregunta, respuesta, fuentes, material, horizonte, proveedor, fallback y visualizacion sugerida.
 
 ## Intenciones formales
 

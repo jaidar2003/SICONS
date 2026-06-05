@@ -17,6 +17,25 @@ class ChatQueryCreate(BaseModel):
     historial: list[ChatHistoryMessageCreate] = Field(default_factory=list, max_length=8)
 
 
+class ChatVisualizationRead(BaseModel):
+    tipo: Literal["PRICE_HISTORY", "FORECAST", "PRICE_HISTORY_FORECAST"]
+    material_id: int = Field(ge=1)
+    horizonte_meses: int | None = Field(default=None, ge=1, le=12)
+
+
+class ChatSourceEvidenceRecordRead(BaseModel):
+    fecha: date | None = None
+    precio_normalizado: str | None = None
+    unidad_base: str | None = None
+    fuente: str | None = None
+    comprobante: str | None = None
+
+
+class ChatSourceEvidenceRead(BaseModel):
+    source: str
+    records: list[ChatSourceEvidenceRecordRead] = Field(default_factory=list)
+
+
 class ChatResponseRead(BaseModel):
     aceptada: bool
     respuesta: str
@@ -26,8 +45,11 @@ class ChatResponseRead(BaseModel):
     tipo_intencion: Literal["HISTORICO", "FORECAST", "RECOMENDACION", "PRESUPUESTO", "CATALOGO", "ADMIN", "FUERA_ALCANCE"] | None = None
     contexto_usado: bool = False
     fuentes_recuperadas: list[str] = Field(default_factory=list)
+    fuentes_evidencia: list[ChatSourceEvidenceRead] = Field(default_factory=list)
+    material_resuelto_id: int | None = None
     material_resuelto: str | None = None
     horizonte_resuelto: int | None = None
+    visualizacion_sugerida: ChatVisualizationRead | None = None
 
 
 class ChatAuditLogRead(BaseModel):

@@ -29,6 +29,7 @@ class BackendRetrievalResult:
     material: object | None
     horizon: int
     sources: tuple[str, ...] = ()
+    source_evidence: tuple[dict, ...] = ()
 
 
 def _normalized(text: str) -> str:
@@ -58,7 +59,7 @@ def _wants_catalog(question: str) -> bool:
 
 def _wants_history(question: str) -> bool:
     normalized = _normalized(question)
-    return bool(re.search(r"\b(precio|precios|historico|historial|serie|ultimo|ultima|fuente|factura)\b", normalized))
+    return bool(re.search(r"\b(precio|precios|historico|historial|serie|ultimo|ultima|fuente|factura|evolucion|evoluciono)\b", normalized))
 
 
 def _wants_forecast_or_decision(question: str) -> bool:
@@ -78,6 +79,40 @@ def _wants_external_indices(question: str) -> bool:
 
 def _wants_margins(question: str) -> bool:
     return bool(re.search(r"\b(margen|margenes|precio comercial)\b", _normalized(question)))
+
+
+def wants_visualization(question: str) -> bool:
+    normalized = _normalized(question)
+    return bool(
+        re.search(
+            r"\b(mostra|mostrar|mostrame|ver|visualiza|visualizar|grafica|graficar|graficame|grafico|graficos|chart|evolucion|curva)\b",
+            normalized,
+        )
+    )
+
+
+def suggest_visualization(question: str, *, intent: str | None, material: object | None, horizon: int) -> dict | None:
+    if material is None or not wants_visualization(question):
+        return None
+    material_id = getattr(material, "id", None)
+    if material_id is None:
+        return None
+
+    normalized = _normalized(question)
+    asks_forecast = intent in {"FORECAST", "RECOMENDACION"} or _wants_forecast_or_decision(question)
+    asks_history = intent == "HISTORICO" or _wants_history(question)
+    if asks_forecast and asks_history:
+        visualization_type = "PRICE_HISTORY_FORECAST"
+    elif asks_forecast or re.search(r"\b(forecast|proyeccion|proyectado)\b", normalized):
+        visualization_type = "FORECAST"
+    else:
+        visualization_type = "PRICE_HISTORY"
+
+    return {
+        "tipo": visualization_type,
+        "material_id": int(material_id),
+        "horizonte_meses": horizon if visualization_type in {"FORECAST", "PRICE_HISTORY_FORECAST"} else None,
+    }
 
 
 def classify_chat_intent(question: str, *, accepted_scope: bool = True, admin_only: bool = False) -> str:
@@ -195,10 +230,13 @@ def _material_catalog_context(material, db: Session) -> list[str]:
     return lines
 
 
-def _history_context(material, pricing_repo, db: Session) -> list[str]:
+def _history_context(material, pricing_repo, db: Session) -> tuple[list[str], dict | None]:
     prices = pricing_repo.get_historical_prices(material.id, date(2000, 1, 1))
     if not prices:
-        return ["FUENTE precios_historicos:", "- No hay precios historicos registrados para este material."]
+        return ["FUENTE precios_historicos:", "- No hay precios historicos registrados para este material."], {
+            "source": "precios_historicos",
+            "records": [],
+        }
 
     latest = max(prices, key=lambda price: (price.fecha, price.id))
     first = min(prices, key=lambda price: (price.fecha, price.id))
@@ -238,12 +276,22 @@ def _history_context(material, pricing_repo, db: Session) -> list[str]:
 
     recent = sorted(prices, key=lambda price: (price.fecha, price.id), reverse=True)[:5]
     lines.append("- Ultimos registros:")
+    evidence_records = []
     for price in recent:
         lines.append(
             f"  - {price.fecha.isoformat()}: ARS {_format_decimal(price.precio_normalizado)} por {material.unidad_base}; "
             f"fuente {price.fuente.nombre if price.fuente else 'sin fuente'}; comprobante {price.numero_comprobante or 'sin comprobante'}."
         )
-    return lines
+        evidence_records.append(
+            {
+                "fecha": price.fecha.isoformat(),
+                "precio_normalizado": _format_decimal(price.precio_normalizado),
+                "unidad_base": material.unidad_base,
+                "fuente": price.fuente.nombre if price.fuente else None,
+                "comprobante": price.numero_comprobante,
+            }
+        )
+    return lines, {"source": "precios_historicos", "records": evidence_records}
 
 
 def _external_indices_context(db: Session) -> list[str]:
@@ -317,6 +365,7 @@ def build_backend_retrieval_context(
 
     lines: list[str] = [BACKEND_CONTEXT_HEADER]
     sources: list[str] = []
+    source_evidence: list[dict] = []
     retrieved_any = False
 
     if material is not None:
@@ -324,8 +373,11 @@ def build_backend_retrieval_context(
         sources.append("catalogo.materiales")
         retrieved_any = True
         if wants_history or not wants_forecast:
-            lines.extend(_history_context(material, pricing_repo, db))
+            history_lines, history_evidence = _history_context(material, pricing_repo, db)
+            lines.extend(history_lines)
             sources.append("precios_historicos")
+            if history_evidence is not None:
+                source_evidence.append(history_evidence)
         if wants_margins:
             lines.extend(_margins_context(db, getattr(material, "id", None), is_admin=is_admin))
             sources.append("commercial_margins")
@@ -356,4 +408,10 @@ def build_backend_retrieval_context(
         "Si falta un dato en el contexto, indicá exactamente qué falta en BuildWise."
     )
     unique_sources = tuple(dict.fromkeys(sources))
-    return BackendRetrievalResult(context="\n".join(lines), material=material, horizon=horizon, sources=unique_sources)
+    return BackendRetrievalResult(
+        context="\n".join(lines),
+        material=material,
+        horizon=horizon,
+        sources=unique_sources,
+        source_evidence=tuple(source_evidence),
+    )

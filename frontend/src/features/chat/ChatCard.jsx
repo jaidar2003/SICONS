@@ -1,13 +1,34 @@
-import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import AutoGraphIconModule from "@mui/icons-material/AutoGraph";
+import ContentCopyIconModule from "@mui/icons-material/ContentCopy";
+import DownloadIconModule from "@mui/icons-material/Download";
+import ExpandMoreIconModule from "@mui/icons-material/ExpandMore";
+import OpenInNewIconModule from "@mui/icons-material/OpenInNew";
+import TimelineOutlinedIconModule from "@mui/icons-material/TimelineOutlined";
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent, Chip, CircularProgress, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
+import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
+import { fetchForecast, fetchSerie } from "../pricing/pricing.api.js";
+import { PriceChart } from "../pricing/PriceChart.jsx";
+import { INSUFFICIENT_CHART_DATA_MESSAGE, shouldShowInsufficientChartDataMessage } from "./chatVisualizationState.js";
 import { askChatQuestion, generateCommercialProposal, interpretCommercialNeed } from "./chat.api.js";
 
+const AutoGraphIcon = resolveMuiIcon(AutoGraphIconModule);
+const ContentCopyIcon = resolveMuiIcon(ContentCopyIconModule);
+const DownloadIcon = resolveMuiIcon(DownloadIconModule);
+const ExpandMoreIcon = resolveMuiIcon(ExpandMoreIconModule);
+const OpenInNewIcon = resolveMuiIcon(OpenInNewIconModule);
+const TimelineOutlinedIcon = resolveMuiIcon(TimelineOutlinedIconModule);
 const PROVIDER_LABELS = {
   facultad: "API de la facultad",
   claude: "Claude",
+};
+const VISUALIZATION_LABELS = {
+  PRICE_HISTORY: "Histórico de precios",
+  FORECAST: "Forecast",
+  PRICE_HISTORY_FORECAST: "Histórico + forecast",
 };
 const PHASES = [
   { value: "estructura", label: "Estructura" },
@@ -37,6 +58,22 @@ function materialKey(nombre) {
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+function normalizeText(text) {
+  return String(text || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function questionMentionsKnownMaterial(text, materiales) {
+  const normalized = normalizeText(text);
+  return materiales.some((material) => {
+    const key = materialKey(material.nombre);
+    const nameTokens = key.split("-").filter(Boolean);
+    return nameTokens.some((token) => token.length >= 4 && normalized.includes(token));
+  });
 }
 
 function createEmptyDraft() {
@@ -72,7 +109,7 @@ function looksLikePurchaseNeed(text) {
   return hasPurchaseIntent && hasMaterial && hasQuantity;
 }
 
-export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, materiales = [], showPrices = true }) {
+export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, materiales = [], showPrices = true, onOpenVisualization }) {
   const commercialMaterials = useMemo(
     () => materiales.filter((material) => SUPPORTED_PRODUCT_KEYS.has(materialKey(material.nombre))),
     [materiales]
@@ -87,6 +124,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
   const [loading, setLoading] = useState(false);
   const [proposalLoading, setProposalLoading] = useState(false);
   const [error, setError] = useState("");
+  const [lastResolvedMaterialId, setLastResolvedMaterialId] = useState(null);
   const draftQuantity = Number(draft.quantity);
   const proposalDisabled =
     proposalLoading ||
@@ -188,27 +226,37 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
         .filter((message) => !message.rejected)
         .slice(-8)
         .map((message) => ({ role: message.role, content: message.text }));
+      const materialIdForQuestion = questionMentionsKnownMaterial(trimmed, materiales)
+        ? null
+        : lastResolvedMaterialId || selectedMaterial?.id || null;
       const result = await askChatQuestion(
         {
           pregunta: trimmed,
-          material_id: selectedMaterial?.id ?? null,
+          material_id: materialIdForQuestion,
           horizonte_meses: forecastHorizon,
           historial,
         },
         token
       );
+      if (result.material_resuelto_id) {
+        setLastResolvedMaterialId(result.material_resuelto_id);
+      }
       setMessages((current) => [
         ...current,
         {
           role: "assistant",
+          question: trimmed,
           text: result.respuesta,
           provider: result.proveedor_ia,
           fallbackUsed: Boolean(result.fallback_usado),
           contextUsed: Boolean(result.contexto_usado),
           intent: result.tipo_intencion,
           sources: result.fuentes_recuperadas || [],
+          sourceEvidence: result.fuentes_evidencia || [],
+          resolvedMaterialId: result.material_resuelto_id || null,
           resolvedMaterial: result.material_resuelto,
           resolvedHorizon: result.horizonte_resuelto,
+          visualization: result.visualizacion_sugerida || null,
           rejected: !result.aceptada,
         },
       ]);
@@ -288,7 +336,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           {messages.map((message, index) => (
             <Box
               key={`${message.role}-${index}`}
-              className={`max-w-[85%] rounded-xl px-4 py-3 ${message.role === "user" ? "ml-auto bg-teal-700 text-white" : "bg-white text-slate-800 shadow-sm"}`}
+              className={`${message.visualization ? "max-w-full" : "max-w-[85%]"} rounded-xl px-4 py-3 ${message.role === "user" ? "ml-auto bg-teal-700 text-white" : "bg-white text-slate-800 shadow-sm"}`}
             >
               <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
                 {message.text}
@@ -310,6 +358,20 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
                     <Chip key={source} label={source} size="small" variant="outlined" sx={{ fontWeight: 800 }} />
                   ))}
                 </Box>
+              ) : null}
+              {message.role === "assistant" && !message.rejected && (message.contextUsed || message.visualization) ? (
+                <RagEvidencePanel message={message} />
+              ) : null}
+              {message.role === "assistant" && !message.rejected ? <ChatMessageActions message={message} /> : null}
+              {message.visualization ? (
+                <ChatVisualization
+                  visualization={message.visualization}
+                  token={token}
+                  materiales={materiales}
+                  selectedMaterial={selectedMaterial}
+                  showPrices={showPrices}
+                  onOpenVisualization={onOpenVisualization}
+                />
               ) : null}
               {message.rejected ? (
                 <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
@@ -468,6 +530,162 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
   );
 }
 
+function RagEvidencePanel({ message }) {
+  const rows = [
+    ["Intención", message.intent || "-"],
+    ["Material", message.resolvedMaterial || "-"],
+    ["Horizonte", message.resolvedHorizon ? `${message.resolvedHorizon} meses` : "-"],
+    ["Fuentes", message.sources?.length ? message.sources.join(", ") : "-"],
+    ["Visualización", message.visualization ? VISUALIZATION_LABELS[message.visualization.tipo] || message.visualization.tipo : "-"],
+  ];
+
+  return (
+    <Box className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <Typography variant="body2" fontWeight={900} color="text.secondary">
+        Datos usados por el RAG
+      </Typography>
+      <Box className="mt-2 grid gap-2 md:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <Box key={label} className="rounded-md bg-white px-3 py-2">
+            <Typography variant="caption" color="text.secondary" fontWeight={800}>
+              {label}
+            </Typography>
+            <Typography variant="body2" fontWeight={800}>
+              {value}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
+      {message.sourceEvidence?.length ? <SourceEvidenceList evidence={message.sourceEvidence} /> : null}
+    </Box>
+  );
+}
+
+function SourceEvidenceList({ evidence }) {
+  return (
+    <Box className="mt-3 grid gap-2">
+      {evidence.map((sourceEvidence) => (
+        <Accordion key={sourceEvidence.source} disableGutters elevation={0} className="border border-slate-200">
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="body2" fontWeight={900}>
+              Fuente expandible: {sourceEvidence.source}
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            {sourceEvidence.records?.length ? (
+              <Box className="grid gap-2">
+                {sourceEvidence.records.map((record, index) => (
+                  <Box key={`${sourceEvidence.source}-${record.fecha || index}`} className="rounded-md bg-white p-3">
+                    <Typography variant="body2" fontWeight={900}>
+                      {record.fecha || "Sin fecha"}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Precio: {record.precio_normalizado ? `ARS ${record.precio_normalizado}` : "-"} {record.unidad_base ? `por ${record.unidad_base}` : ""}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Fuente: {record.fuente || "-"}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Comprobante: {record.comprobante || "-"}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                La fuente fue usada, pero no hay registros detallados para mostrar.
+              </Typography>
+            )}
+          </AccordionDetails>
+        </Accordion>
+      ))}
+    </Box>
+  );
+}
+
+function buildEvidencePayload(message) {
+  return {
+    pregunta: message.question || null,
+    respuesta: message.text,
+    tipo_intencion: message.intent || null,
+    contexto_usado: Boolean(message.contextUsed),
+    fuentes_recuperadas: message.sources || [],
+    fuentes_evidencia: message.sourceEvidence || [],
+    material_resuelto_id: message.resolvedMaterialId || null,
+    material_resuelto: message.resolvedMaterial || null,
+    horizonte_resuelto: message.resolvedHorizon || null,
+    proveedor_ia: message.provider || null,
+    fallback_usado: Boolean(message.fallbackUsed),
+    visualizacion_sugerida: message.visualization || null,
+  };
+}
+
+function buildSummaryText(message) {
+  const payload = buildEvidencePayload(message);
+  return [
+    `Pregunta: ${payload.pregunta || "-"}`,
+    `Respuesta: ${payload.respuesta || "-"}`,
+    `Intención: ${payload.tipo_intencion || "-"}`,
+    `Material: ${payload.material_resuelto || "-"}`,
+    `Horizonte: ${payload.horizonte_resuelto ? `${payload.horizonte_resuelto} meses` : "-"}`,
+    `Fuentes: ${payload.fuentes_recuperadas.length ? payload.fuentes_recuperadas.join(", ") : "-"}`,
+    `Visualización: ${payload.visualizacion_sugerida ? VISUALIZATION_LABELS[payload.visualizacion_sugerida.tipo] || payload.visualizacion_sugerida.tipo : "-"}`,
+  ].join("\n");
+}
+
+function ChatMessageActions({ message }) {
+  async function copySummary() {
+    const text = buildSummaryText(message);
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    }
+  }
+
+  function downloadEvidence() {
+    const blob = new Blob([JSON.stringify(buildEvidencePayload(message), null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `buildwise-rag-evidencia-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <Box className="mt-3 grid gap-2">
+      <Box className="flex flex-wrap gap-2">
+        <Button size="small" variant="outlined" startIcon={<ContentCopyIcon fontSize="small" />} onClick={copySummary}>
+          Copiar resumen
+        </Button>
+        <Button size="small" variant="outlined" startIcon={<DownloadIcon fontSize="small" />} onClick={downloadEvidence}>
+          Descargar evidencia
+        </Button>
+      </Box>
+      <Accordion disableGutters elevation={0} className="border border-slate-200">
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography variant="body2" fontWeight={900}>
+            Modo auditoría/demo
+          </Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Box className="grid gap-2 md:grid-cols-2">
+            {Object.entries(buildEvidencePayload(message)).map(([key, value]) => (
+              <Box key={key} className="rounded-md bg-slate-50 p-2">
+                <Typography variant="caption" color="text.secondary" fontWeight={800}>
+                  {key}
+                </Typography>
+                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                  {typeof value === "object" ? JSON.stringify(value, null, 2) : String(value ?? "-")}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        </AccordionDetails>
+      </Accordion>
+    </Box>
+  );
+}
+
 function ProposalValue({ label, value }) {
   return (
     <Box className="rounded-lg border border-slate-200 bg-white p-3">
@@ -477,6 +695,97 @@ function ProposalValue({ label, value }) {
       <Typography mt={0.5} fontWeight={800}>
         {value ?? "-"}
       </Typography>
+    </Box>
+  );
+}
+
+function ChatVisualization({ visualization, token, materiales, selectedMaterial, showPrices, onOpenVisualization }) {
+  const [serie, setSerie] = useState([]);
+  const [forecast, setForecast] = useState(null);
+  const [loadingChart, setLoadingChart] = useState(false);
+  const [chartError, setChartError] = useState("");
+  const materialId = visualization?.material_id;
+  const horizonteMeses = visualization?.horizonte_meses || 3;
+  const material = useMemo(
+    () => materiales.find((item) => Number(item.id) === Number(materialId)) || (Number(selectedMaterial?.id) === Number(materialId) ? selectedMaterial : null),
+    [materiales, materialId, selectedMaterial]
+  );
+  const isForecastChart = visualization?.tipo === "FORECAST" || visualization?.tipo === "PRICE_HISTORY_FORECAST";
+  const shouldShowInsufficientData = shouldShowInsufficientChartDataMessage({
+    loading: loadingChart,
+    error: chartError,
+    serie,
+    forecast,
+  });
+
+  useEffect(() => {
+    let active = true;
+    async function loadChartData() {
+      if (!materialId) return;
+      setLoadingChart(true);
+      setChartError("");
+      try {
+        const [serieResult, forecastResult] = await Promise.all([
+          fetchSerie({ materialId, token }),
+          visualization.tipo === "PRICE_HISTORY" ? Promise.resolve(null) : fetchForecast({ materialId, horizonteMeses, token }),
+        ]);
+        if (!active) return;
+        setSerie(serieResult || []);
+        setForecast(forecastResult);
+      } catch (error) {
+        if (active) setChartError(error.message);
+      } finally {
+        if (active) setLoadingChart(false);
+      }
+    }
+    loadChartData();
+    return () => {
+      active = false;
+    };
+  }, [materialId, horizonteMeses, token, visualization.tipo]);
+
+  if (!visualization || !materialId) return null;
+
+  return (
+    <Box className="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+      <Box className="flex flex-col gap-2 border-b border-slate-200 bg-white px-3 py-2 md:flex-row md:items-center md:justify-between">
+        <Box>
+          <Typography variant="body2" fontWeight={900}>
+            {VISUALIZATION_LABELS[visualization.tipo] || "Visualización"}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            El gráfico usa endpoints de BuildWise, no datos generados por el modelo.
+          </Typography>
+        </Box>
+        {onOpenVisualization ? (
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={isForecastChart ? <TimelineOutlinedIcon fontSize="small" /> : <AutoGraphIcon fontSize="small" />}
+            endIcon={<OpenInNewIcon fontSize="small" />}
+            onClick={() => onOpenVisualization(visualization)}
+          >
+            Abrir vista
+          </Button>
+        ) : null}
+      </Box>
+      {chartError ? <Alert severity="warning">No fue posible cargar el gráfico solicitado: {chartError}</Alert> : null}
+      {loadingChart ? (
+        <Box className="flex items-center gap-2 p-3 text-slate-600">
+          <CircularProgress size={16} />
+          <Typography variant="body2">Cargando gráfico...</Typography>
+        </Box>
+      ) : shouldShowInsufficientData ? (
+        <Alert severity="info">{INSUFFICIENT_CHART_DATA_MESSAGE}</Alert>
+      ) : (
+        <PriceChart
+          serie={serie}
+          forecast={visualization.tipo === "PRICE_HISTORY" ? null : forecast}
+          selectedMaterial={material}
+          showPrices={showPrices}
+          className="m-0 border-0 shadow-none"
+        />
+      )}
     </Box>
   );
 }

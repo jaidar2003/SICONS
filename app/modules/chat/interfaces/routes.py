@@ -25,7 +25,7 @@ from app.modules.chat.application.operations import (
     needs_operation_plan,
     plan_operation,
 )
-from app.modules.chat.application.retrieval import build_backend_retrieval_context, classify_chat_intent
+from app.modules.chat.application.retrieval import build_backend_retrieval_context, classify_chat_intent, suggest_visualization
 from app.modules.chat.application.service import (
     ADMIN_ONLY_RESPONSE,
     ChatCompletionClient,
@@ -594,10 +594,15 @@ def consultar_chat(
     try:
         context = None
         fuentes_recuperadas: list[str] = []
+        fuentes_evidencia: list[dict] = []
         material_resuelto = None
+        material_resuelto_id = None
         horizonte_resuelto = None
+        material_for_calculated_context = None
         if should_load_context:
             material = material_repo.get_by_id(payload.material_id) if payload.material_id is not None else None
+            if material is not None:
+                material_resuelto_id = getattr(material, "id", None)
             horizon = resolve_horizon(payload.pregunta, payload.horizonte_meses)
             horizonte_resuelto = horizon
             if needs_operation_plan(payload.pregunta):
@@ -630,6 +635,7 @@ def consultar_chat(
                             operation_material = material_repo.get_by_id(int(operation_material_id))
                             if operation_material is not None:
                                 material_resuelto = getattr(operation_material, "nombre", None)
+                                material_resuelto_id = getattr(operation_material, "id", material_resuelto_id)
                         try:
                             operation_horizon = int(plan.get("horizonte_meses") or horizon)
                         except (TypeError, ValueError):
@@ -653,8 +659,10 @@ def consultar_chat(
                     )
                     context = retrieval.context
                     fuentes_recuperadas.extend(retrieval.sources)
+                    fuentes_evidencia.extend(retrieval.source_evidence)
                     if retrieval.material is not None:
                         material_resuelto = getattr(retrieval.material, "nombre", None)
+                        material_resuelto_id = getattr(retrieval.material, "id", material_resuelto_id)
                     horizonte_resuelto = retrieval.horizon
                 except SQLAlchemyError:
                     retrieval = None
@@ -676,6 +684,7 @@ def consultar_chat(
                             "No fue posible calcular forecast/recomendacion en esta consulta; responder con el contexto disponible.",
                         )
                     material_resuelto = getattr(material_for_calculated_context, "nombre", None)
+                    material_resuelto_id = getattr(material_for_calculated_context, "id", material_resuelto_id)
                     horizonte_resuelto = horizon
                 elif (
                     context is not None
@@ -700,6 +709,7 @@ def consultar_chat(
                             "No fue posible calcular forecast/recomendacion en esta consulta; responder con el contexto disponible.",
                         )
                     material_resuelto = getattr(material_for_calculated_context, "nombre", None)
+                    material_resuelto_id = getattr(material_for_calculated_context, "id", material_resuelto_id)
                     horizonte_resuelto = retrieval.horizon
         result = answer_question(
             payload.pregunta,
@@ -720,8 +730,18 @@ def consultar_chat(
         tipo_intencion=tipo_intencion if result.aceptada else "FUERA_ALCANCE",
         contexto_usado=bool(context),
         fuentes_recuperadas=list(dict.fromkeys(fuentes_recuperadas)),
+        fuentes_evidencia=fuentes_evidencia,
+        material_resuelto_id=material_resuelto_id,
         material_resuelto=material_resuelto,
         horizonte_resuelto=horizonte_resuelto,
+        visualizacion_sugerida=suggest_visualization(
+            payload.pregunta,
+            intent=tipo_intencion if result.aceptada else "FUERA_ALCANCE",
+            material=material_for_calculated_context,
+            horizon=horizonte_resuelto or payload.horizonte_meses,
+        )
+        if result.aceptada and context
+        else None,
     )
     _register_chat_audit(
         db,

@@ -11,7 +11,7 @@ from app.modules.auth.interfaces.dependencies import get_current_user
 from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.chat.application.context import build_material_context, resolve_horizon
 from app.modules.chat.application.operations import execute_operation, plan_operation
-from app.modules.chat.application.retrieval import build_backend_retrieval_context, classify_chat_intent
+from app.modules.chat.application.retrieval import build_backend_retrieval_context, classify_chat_intent, suggest_visualization
 from app.modules.chat.application.service import ADMIN_ONLY_RESPONSE, OUT_OF_SCOPE_RESPONSE, answer_question
 from app.modules.chat.infrastructure import llm_client
 from app.modules.chat.infrastructure.llm_client import AnthropicChatClient, FallbackChatClient, LLMConfigurationError, OpenAICompatibleChatClient
@@ -44,6 +44,21 @@ class ResponseQueueClient:
 
 
 class FakeDb:
+    def add(self, _entity):
+        return None
+
+    def commit(self):
+        return None
+
+    def flush(self):
+        return None
+
+    def refresh(self, entity):
+        return entity
+
+    def rollback(self):
+        return None
+
     def scalar(self, _stmt):
         return 2
 
@@ -182,6 +197,27 @@ def test_backend_retrieval_resuelve_material_por_nombre_y_usa_historicos() -> No
     assert "FUENTE precios_historicos" in result.context
     assert "Ultimo precio normalizado: ARS 120" in result.context
     assert result.sources == ("catalogo.materiales", "precios_historicos")
+    assert result.source_evidence == (
+        {
+            "source": "precios_historicos",
+            "records": [
+                {
+                    "fecha": "2026-02-01",
+                    "precio_normalizado": "120",
+                    "unidad_base": "kg",
+                    "fuente": "Factura compra",
+                    "comprobante": "A-2",
+                },
+                {
+                    "fecha": "2026-01-01",
+                    "precio_normalizado": "100",
+                    "unidad_base": "kg",
+                    "fuente": "Factura compra",
+                    "comprobante": "A-1",
+                },
+            ],
+        },
+    )
 
 
 def test_backend_retrieval_margenes_no_admin_no_expone_detalle() -> None:
@@ -220,6 +256,38 @@ def test_backend_retrieval_resuelve_alias_de_materiales() -> None:
         pricing_repo=SimpleNamespace(get_historical_prices=lambda *_args: []),
         db=FakeDb(),
     ).material == cemento
+
+
+def test_suggest_visualization_historico_usa_material_y_no_modelo() -> None:
+    material = SimpleNamespace(id=1, nombre="Cemento Portland")
+
+    result = suggest_visualization(
+        "Mostrame la evolucion del precio de cemento",
+        intent="HISTORICO",
+        material=material,
+        horizon=3,
+    )
+
+    assert result == {"tipo": "PRICE_HISTORY", "material_id": 1, "horizonte_meses": None}
+
+
+def test_suggest_visualization_forecast_incluye_horizonte() -> None:
+    material = SimpleNamespace(id=1, nombre="Cemento Portland")
+
+    result = suggest_visualization(
+        "Graficame el forecast de cemento a 6 meses",
+        intent="FORECAST",
+        material=material,
+        horizon=6,
+    )
+
+    assert result == {"tipo": "FORECAST", "material_id": 1, "horizonte_meses": 6}
+
+
+def test_suggest_visualization_sin_pedido_visual_no_sugiere_grafico() -> None:
+    material = SimpleNamespace(id=1, nombre="Cemento Portland")
+
+    assert suggest_visualization("Cual fue el ultimo precio?", intent="HISTORICO", material=material, horizon=3) is None
 
 
 @pytest.mark.parametrize(
@@ -474,10 +542,16 @@ def test_endpoint_chat_rechaza_fuera_de_alcance_sin_proveedor() -> None:
     assert provider.calls == []
 
 
-def test_endpoint_chat_llama_proveedor_para_consulta_admitida() -> None:
+def test_endpoint_chat_llama_proveedor_para_consulta_admitida(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = FakeChatClient(response="El forecast expresa una proyeccion del sistema.")
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg", categoria=None, marca=None, descripcion=None)
+    material_repo = SimpleNamespace(get_by_id=lambda _material_id: None, list_active=lambda: [material])
+    monkeypatch.setattr(chat_routes, "build_material_context", lambda _material, horizon, _repo, **_kwargs: f"CONTEXTO {horizon} meses")
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
     app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: material_repo
+    app.dependency_overrides[get_pricing_repository] = object
+    app.dependency_overrides[get_db] = lambda: FakeDb()
     try:
         response = TestClient(app).post(
             "/chat/consultas",
@@ -496,8 +570,11 @@ def test_endpoint_chat_llama_proveedor_para_consulta_admitida() -> None:
         "tipo_intencion": "FORECAST",
         "contexto_usado": True,
         "fuentes_recuperadas": ["catalogo.materiales", "purchase_recommendations"],
+        "fuentes_evidencia": [],
+        "material_resuelto_id": 1,
         "material_resuelto": "Cemento Portland",
         "horizonte_resuelto": 3,
+        "visualizacion_sugerida": None,
     }
     assert len(provider.calls) == 1
 
@@ -539,6 +616,7 @@ def test_endpoint_chat_incluye_contexto_calculado_del_material(monkeypatch: pyte
     app.dependency_overrides[get_chat_client] = lambda: provider
     app.dependency_overrides[get_material_repository] = lambda: material_repo
     app.dependency_overrides[get_pricing_repository] = object
+    app.dependency_overrides[get_db] = lambda: FakeDb()
     try:
         response = TestClient(app).post(
             "/chat/consultas",
@@ -560,6 +638,32 @@ def test_endpoint_chat_incluye_contexto_calculado_del_material(monkeypatch: pyte
     assert "purchase_recommendations" in response.json()["fuentes_recuperadas"]
     assert response.json()["material_resuelto"] == "Cemento Portland"
     assert response.json()["horizonte_resuelto"] == 6
+
+
+def test_endpoint_chat_sugiere_visualizacion_desde_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = FakeChatClient(response="Te muestro el forecast calculado por BuildWise.")
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg", categoria=None, marca=None, descripcion=None)
+    material_repo = SimpleNamespace(get_by_id=lambda _material_id: None, list_active=lambda: [material])
+    monkeypatch.setattr(chat_routes, "build_material_context", lambda _material, horizon, _repo, **_kwargs: f"CONTEXTO {horizon} meses")
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: material_repo
+    app.dependency_overrides[get_pricing_repository] = object
+    app.dependency_overrides[get_db] = lambda: FakeDb()
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={"pregunta": "Graficame el forecast de Cemento Portland a 6 meses"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["visualizacion_sugerida"] == {
+        "tipo": "FORECAST",
+        "material_id": 1,
+        "horizonte_meses": 6,
+    }
 
 
 def test_endpoint_chat_ejecuta_operacion_analitica_planificada(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -621,8 +725,11 @@ def test_endpoint_chat_cliente_rechaza_acciones_admin_sin_proveedor(question: st
         "tipo_intencion": "ADMIN",
         "contexto_usado": False,
         "fuentes_recuperadas": [],
+        "fuentes_evidencia": [],
+        "material_resuelto_id": None,
         "material_resuelto": None,
         "horizonte_resuelto": None,
+        "visualizacion_sugerida": None,
     }
     assert provider.calls == []
 

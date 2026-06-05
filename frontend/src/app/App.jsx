@@ -438,6 +438,24 @@ export function App() {
     loadSerieData({ materialId: value }).catch((loadError) => setError(loadError.message));
   }
 
+  function handleOpenChatVisualization(visualization) {
+    if (!visualization?.material_id) return;
+    const materialId = String(visualization.material_id);
+    const nextHorizon = visualization.horizonte_meses || forecastHorizon;
+    setSelectedMaterialId(materialId);
+    if (visualization.horizonte_meses) {
+      setForecastHorizon(visualization.horizonte_meses);
+    }
+    if (visualization.tipo === "PRICE_HISTORY") {
+      setActiveView("history");
+      setHistoryWorkflow("chart");
+    } else {
+      setActiveView("forecast");
+      setForecastWorkflow("chart");
+    }
+    loadSerieData({ materialId, horizon: nextHorizon }).catch((loadError) => setError(loadError.message));
+  }
+
   async function handleRefresh() {
     setError("");
     try {
@@ -768,6 +786,7 @@ export function App() {
                   isAdmin={isAdmin}
                   materiales={materiales}
                   showPrices={showPrices}
+                  onOpenVisualization={handleOpenChatVisualization}
                 />
               ) : null}
 
