@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -14,9 +14,11 @@ from app.modules.chat.application.operations import execute_operation, plan_oper
 from app.modules.chat.application.retrieval import build_backend_retrieval_context, classify_chat_intent, suggest_visualization
 from app.modules.chat.application.service import ADMIN_ONLY_RESPONSE, OUT_OF_SCOPE_RESPONSE, answer_question
 from app.modules.chat.infrastructure import llm_client
+from app.modules.chat.infrastructure.models import ChatConversation, ChatMessage
 from app.modules.chat.infrastructure.llm_client import AnthropicChatClient, FallbackChatClient, LLMConfigurationError, OpenAICompatibleChatClient
 from app.modules.chat.interfaces import routes as chat_routes
-from app.modules.chat.interfaces.routes import get_chat_client
+from app.modules.chat.interfaces.routes import _persist_conversation_turn, _semantic_question_for_conversation, get_chat_client
+from app.modules.chat.interfaces.schemas import ChatResponseRead
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
 from app.shared.database.session import get_db
 
@@ -44,7 +46,11 @@ class ResponseQueueClient:
 
 
 class FakeDb:
+    def __init__(self):
+        self.added = []
+
     def add(self, _entity):
+        self.added.append(_entity)
         return None
 
     def commit(self):
@@ -106,6 +112,76 @@ def test_consulta_con_contexto_acepta_seguimiento_y_envia_historial() -> None:
     assert "Decision del motor: COMPRAR_AHORA" in client.calls[0][0]["content"]
     assert client.calls[0][1] == {"role": "assistant", "content": "Conviene comprar ahora."}
     assert client.calls[0][2]["content"] == "Explicate eso que me decis"
+
+
+def test_persist_conversation_turn_guarda_mensajes_y_estado_rag() -> None:
+    db = FakeDb()
+    conversation = ChatConversation(id=7, usuario_id=1, titulo="Forecast cemento")
+    response = ChatResponseRead(
+        aceptada=True,
+        respuesta="Respuesta persistida.",
+        proveedor_utilizado=True,
+        proveedor_ia="facultad",
+        tipo_intencion="FORECAST",
+        contexto_usado=True,
+        fuentes_recuperadas=["purchase_recommendations"],
+        material_resuelto_id=1,
+        material_resuelto="Cemento Portland",
+        horizonte_resuelto=12,
+        conversation_id=7,
+    )
+
+    _persist_conversation_turn(db, conversation=conversation, question="Ahora a 12 meses", response=response)
+
+    assert [message.role for message in db.added] == ["user", "assistant"]
+    assert db.added[0].content == "Ahora a 12 meses"
+    assert db.added[1].content == "Respuesta persistida."
+    assert db.added[1].tipo_intencion == "FORECAST"
+    assert conversation.material_actual_id == 1
+    assert conversation.horizonte_actual == 12
+
+
+def test_listar_mensajes_conversacion_aplica_paginacion_y_orden_desc(monkeypatch: pytest.MonkeyPatch) -> None:
+    class CapturingDb(FakeDb):
+        def scalars(self, stmt):
+            self.stmt = stmt
+            return [
+                ChatMessage(
+                    id=11,
+                    conversation_id=7,
+                    role="user",
+                    content="Mensaje paginado",
+                    created_at=datetime(2026, 6, 5, 10, 0, 0),
+                )
+            ]
+
+    db = CapturingDb()
+    monkeypatch.setattr(chat_routes, "_get_owned_conversation", lambda *_args: SimpleNamespace(id=7))
+
+    result = chat_routes.listar_mensajes_conversacion(
+        7,
+        limit=2,
+        offset=4,
+        order="desc",
+        db=db,
+        current_user=SimpleNamespace(id=1),
+    )
+
+    sql = str(db.stmt.compile(compile_kwargs={"literal_binds": True}))
+    assert result[0].content == "Mensaje paginado"
+    assert "ORDER BY chat_messages.created_at DESC, chat_messages.id DESC" in sql
+    assert "LIMIT 2" in sql
+    assert "OFFSET 4" in sql
+
+
+def test_semantic_question_hereda_forecast_en_followup_visual() -> None:
+    latest = ChatMessage(
+        role="assistant",
+        content="Forecast calculado.",
+        visualizacion_sugerida={"tipo": "FORECAST", "material_id": 1, "horizonte_meses": 6},
+    )
+
+    assert _semantic_question_for_conversation("Ahora mostrame a 12 meses", latest) == "Ahora mostrame a 12 meses forecast"
 
 
 def test_resolve_horizon_prioriza_meses_escritos_en_pregunta() -> None:
@@ -575,6 +651,7 @@ def test_endpoint_chat_llama_proveedor_para_consulta_admitida(monkeypatch: pytes
         "material_resuelto": "Cemento Portland",
         "horizonte_resuelto": 3,
         "visualizacion_sugerida": None,
+        "conversation_id": None,
     }
     assert len(provider.calls) == 1
 
@@ -730,8 +807,72 @@ def test_endpoint_chat_cliente_rechaza_acciones_admin_sin_proveedor(question: st
         "material_resuelto": None,
         "horizonte_resuelto": None,
         "visualizacion_sugerida": None,
+        "conversation_id": None,
     }
     assert provider.calls == []
+
+
+def test_endpoint_chat_admin_only_conversation_persiste_turno(monkeypatch: pytest.MonkeyPatch) -> None:
+    db = FakeDb()
+    conversation = SimpleNamespace(id=7, usuario_id=2, material_actual_id=None, horizonte_actual=None)
+    monkeypatch.setattr(chat_routes, "_get_owned_conversation", lambda *_args: conversation)
+    monkeypatch.setattr(chat_routes, "_latest_assistant_message", lambda *_args: None)
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=2, rol="cliente")
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(get_by_id=lambda _id: None, list_active=lambda: [])
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace()
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={"pregunta": "Lista los usuarios registrados", "conversation_id": 7},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    persisted_messages = [entity for entity in db.added if isinstance(entity, ChatMessage)]
+    assert [entity.role for entity in persisted_messages] == ["user", "assistant"]
+    assert persisted_messages[1].content == ADMIN_ONLY_RESPONSE
+
+
+def test_endpoint_chat_reusa_horizonte_persistido_en_seguimiento(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = FakeChatClient(response="El forecast sigue la conversación previa.")
+    db = FakeDb()
+    conversation = SimpleNamespace(id=7, usuario_id=1, material_actual_id=1, horizonte_actual=12)
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+    captured = {}
+
+    def fake_build_backend_retrieval_context(_question, **kwargs):
+        captured["fallback_horizon"] = kwargs["fallback_horizon"]
+        return SimpleNamespace(
+            context=f"CTX {kwargs['fallback_horizon']}",
+            sources=[],
+            source_evidence=[],
+            material=material,
+            horizon=kwargs["fallback_horizon"],
+        )
+
+    monkeypatch.setattr(chat_routes, "_get_owned_conversation", lambda *_args: conversation)
+    monkeypatch.setattr(chat_routes, "_latest_assistant_message", lambda *_args: None)
+    monkeypatch.setattr(chat_routes, "build_backend_retrieval_context", fake_build_backend_retrieval_context)
+    monkeypatch.setattr(chat_routes, "build_material_context", lambda _material, horizon, _repo, **_kwargs: f"CTX {horizon}")
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(get_by_id=lambda _id: material, list_active=lambda: [material])
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace()
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={"pregunta": "Ahora mostrame eso", "conversation_id": 7, "material_id": 1},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert captured["fallback_horizon"] == 12
+    assert "CTX 12" in provider.calls[0][0]["content"]
+    assert response.json()["horizonte_resuelto"] == 12
 
 def test_consultar_chat_admin_only_request_denied_for_regular_user():
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=2, rol="cliente")

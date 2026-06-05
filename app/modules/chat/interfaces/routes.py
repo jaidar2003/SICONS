@@ -1,6 +1,7 @@
 import re
 import unicodedata
 from collections import Counter
+from datetime import datetime, timezone
 from math import ceil
 from time import perf_counter
 
@@ -43,10 +44,14 @@ from app.modules.chat.infrastructure.llm_client import (
 from app.modules.chat.interfaces.schemas import (
     ChatAuditLogRead,
     ChatAuditMetricsRead,
+    ChatConversationCreate,
+    ChatConversationRead,
+    ChatConversationUpdate,
     ChatDeterminismGroupRead,
     ChatDeterminismCanonicalItemRead,
     ChatDeterminismCanonicalReportRead,
     ChatDeterminismReportRead,
+    ChatMessageRead,
     ChatProviderConfigRead,
     ChatProviderConfigUpdate,
     ChatQueryCreate,
@@ -56,6 +61,7 @@ from app.modules.chat.interfaces.schemas import (
     CommercialProposalCreate,
     CommercialProposalRead,
 )
+from app.modules.chat.infrastructure.models import ChatConversation, ChatMessage
 from app.shared.database.audit_models import AuditLog
 from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.infrastructure.models import CommercialMargin
@@ -65,6 +71,134 @@ from app.shared.database.audit_service import register_audit_log
 from app.shared.database.session import get_db
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+
+def _conversation_title(question: str | None = None) -> str:
+    text = (question or "Nueva conversación").strip()
+    if not text:
+        return "Nueva conversación"
+    return text[:157] + "..." if len(text) > 160 else text
+
+
+def _get_owned_conversation(db: Session, conversation_id: int, user_id: int) -> ChatConversation:
+    conversation = db.get(ChatConversation, conversation_id)
+    if conversation is None or conversation.usuario_id != user_id or conversation.archived_at is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversación no encontrada")
+    return conversation
+
+
+def _message_to_history(message: ChatMessage) -> dict[str, str]:
+    return {"role": message.role, "content": message.content}
+
+
+def _conversation_history(db: Session, conversation: ChatConversation, limit: int = 8) -> list[dict[str, str]]:
+    rows = list(
+        db.scalars(
+            select(ChatMessage)
+            .where(ChatMessage.conversation_id == conversation.id)
+            .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+            .limit(limit)
+        )
+    )
+    return [_message_to_history(message) for message in reversed(rows)]
+
+
+def _latest_assistant_message(db: Session, conversation: ChatConversation) -> ChatMessage | None:
+    return db.scalar(
+        select(ChatMessage)
+        .where(ChatMessage.conversation_id == conversation.id, ChatMessage.role == "assistant")
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+        .limit(1)
+    )
+
+
+def _semantic_question_for_conversation(question: str, latest_assistant: ChatMessage | None) -> str:
+    if latest_assistant is None:
+        return question
+    normalized = unicodedata.normalize("NFKD", question.lower()).encode("ascii", "ignore").decode("ascii")
+    mentions_forecast = any(
+        token in normalized
+        for token in ("forecast", "proyeccion", "proyectado", "conviene", "recomendacion", "comprar", "esperar")
+    )
+    if mentions_forecast:
+        return question
+    previous_visualization = latest_assistant.visualizacion_sugerida or {}
+    previous_type = previous_visualization.get("tipo")
+    if previous_type in {"FORECAST", "PRICE_HISTORY_FORECAST"} and re.search(r"\b(ahora|mostra|mostrame|ver|grafica|graficame|mes|meses|horizonte|12|6|3)\b", normalized):
+        return f"{question} forecast"
+    return question
+
+
+def _message_read(message: ChatMessage) -> ChatMessageRead:
+    return ChatMessageRead(
+        id=message.id,
+        conversation_id=message.conversation_id,
+        role=message.role,
+        content=message.content,
+        tipo_intencion=message.tipo_intencion,
+        contexto_usado=message.contexto_usado,
+        fuentes_recuperadas=message.fuentes_recuperadas or [],
+        fuentes_evidencia=message.fuentes_evidencia or [],
+        material_resuelto_id=message.material_resuelto_id,
+        material_resuelto=message.material_resuelto,
+        horizonte_resuelto=message.horizonte_resuelto,
+        visualizacion_sugerida=message.visualizacion_sugerida,
+        proveedor_ia=message.proveedor_ia,
+        fallback_usado=message.fallback_usado,
+        created_at=message.created_at,
+    )
+
+
+def _conversation_read(db: Session, conversation: ChatConversation) -> ChatConversationRead:
+    latest = db.scalar(
+        select(ChatMessage)
+        .where(ChatMessage.conversation_id == conversation.id)
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+        .limit(1)
+    )
+    return ChatConversationRead(
+        id=conversation.id,
+        titulo=conversation.titulo,
+        material_actual_id=conversation.material_actual_id,
+        horizonte_actual=conversation.horizonte_actual,
+        created_at=conversation.created_at,
+        updated_at=conversation.updated_at,
+        archived_at=conversation.archived_at,
+        ultimo_mensaje=latest.content if latest is not None else None,
+    )
+
+
+def _persist_conversation_turn(
+    db: Session,
+    *,
+    conversation: ChatConversation,
+    question: str,
+    response: ChatResponseRead,
+) -> None:
+    db.add(ChatMessage(conversation_id=conversation.id, role="user", content=question.strip()))
+    db.add(
+        ChatMessage(
+            conversation_id=conversation.id,
+            role="assistant",
+            content=response.respuesta,
+            tipo_intencion=response.tipo_intencion,
+            contexto_usado=response.contexto_usado,
+            fuentes_recuperadas=response.fuentes_recuperadas,
+            fuentes_evidencia=[item.model_dump(mode="json") for item in response.fuentes_evidencia],
+            material_resuelto_id=response.material_resuelto_id,
+            material_resuelto=response.material_resuelto,
+            horizonte_resuelto=response.horizonte_resuelto,
+            visualizacion_sugerida=response.visualizacion_sugerida.model_dump(mode="json") if response.visualizacion_sugerida else None,
+            proveedor_ia=response.proveedor_ia,
+            fallback_usado=response.fallback_usado,
+        )
+    )
+    if response.material_resuelto_id is not None:
+        conversation.material_actual_id = response.material_resuelto_id
+    if response.horizonte_resuelto is not None:
+        conversation.horizonte_actual = response.horizonte_resuelto
+    conversation.updated_at = datetime.now(timezone.utc)
+    db.flush()
 
 
 def _requires_calculated_material_context(question: str) -> bool:
@@ -103,6 +237,80 @@ def get_chat_client() -> ChatCompletionClient:
     primary = OpenAICompatibleChatClient()
     fallback = AnthropicChatClient()
     return FallbackChatClient(primary, fallback)
+
+
+@router.get("/conversaciones", response_model=list[ChatConversationRead])
+def listar_conversaciones(
+    include_archived: bool = False,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+) -> list[ChatConversationRead]:
+    stmt = select(ChatConversation).where(ChatConversation.usuario_id == current_user.id)
+    if not include_archived:
+        stmt = stmt.where(ChatConversation.archived_at.is_(None))
+    stmt = stmt.order_by(ChatConversation.updated_at.desc(), ChatConversation.id.desc())
+    return [_conversation_read(db, conversation) for conversation in db.scalars(stmt)]
+
+
+@router.post("/conversaciones", response_model=ChatConversationRead, status_code=status.HTTP_201_CREATED)
+def crear_conversacion(
+    payload: ChatConversationCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+) -> ChatConversationRead:
+    conversation = ChatConversation(
+        usuario_id=current_user.id,
+        titulo=_conversation_title(payload.titulo),
+    )
+    db.add(conversation)
+    db.commit()
+    db.refresh(conversation)
+    return _conversation_read(db, conversation)
+
+
+@router.get("/conversaciones/{conversation_id}/mensajes", response_model=list[ChatMessageRead])
+def listar_mensajes_conversacion(
+    conversation_id: int,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    order: str = Query("asc", pattern="^(asc|desc)$"),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+) -> list[ChatMessageRead]:
+    conversation = _get_owned_conversation(db, conversation_id, current_user.id)
+    order_by = (
+        (ChatMessage.created_at.desc(), ChatMessage.id.desc())
+        if order == "desc"
+        else (ChatMessage.created_at.asc(), ChatMessage.id.asc())
+    )
+    messages = db.scalars(
+        select(ChatMessage)
+        .where(ChatMessage.conversation_id == conversation.id)
+        .order_by(*order_by)
+        .offset(offset)
+        .limit(limit)
+    )
+    return [_message_read(message) for message in messages]
+
+
+@router.patch("/conversaciones/{conversation_id}", response_model=ChatConversationRead)
+def actualizar_conversacion(
+    conversation_id: int,
+    payload: ChatConversationUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+) -> ChatConversationRead:
+    conversation = _get_owned_conversation(db, conversation_id, current_user.id)
+    if payload.titulo is not None:
+        conversation.titulo = _conversation_title(payload.titulo)
+    if payload.archived is True:
+        conversation.archived_at = datetime.now(timezone.utc)
+    elif payload.archived is False:
+        conversation.archived_at = None
+    conversation.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(conversation)
+    return _conversation_read(db, conversation)
 
 
 def _provider_key_from_settings() -> str:
@@ -568,10 +776,21 @@ def consultar_chat(
     current_user: Usuario = Depends(get_current_user),
 ) -> ChatResponseRead:
     started_at = perf_counter()
-    admin_only = is_admin_only_request(payload.pregunta)
-    should_load_context = is_in_scope(payload.pregunta, has_context=payload.material_id is not None)
+    conversation = None
+    if payload.conversation_id is not None:
+        conversation = _get_owned_conversation(db, payload.conversation_id, current_user.id)
+    latest_assistant = _latest_assistant_message(db, conversation) if conversation is not None else None
+    semantic_question = _semantic_question_for_conversation(payload.pregunta, latest_assistant)
+    effective_material_id = payload.material_id or (conversation.material_actual_id if conversation is not None else None)
+    effective_horizon = (
+        payload.horizonte_meses
+        if payload.horizonte_meses is not None
+        else (conversation.horizonte_actual if conversation is not None else 3)
+    )
+    admin_only = is_admin_only_request(semantic_question)
+    should_load_context = is_in_scope(semantic_question, has_context=effective_material_id is not None)
     tipo_intencion = classify_chat_intent(
-        payload.pregunta,
+        semantic_question,
         accepted_scope=should_load_context,
         admin_only=admin_only,
     )
@@ -581,7 +800,10 @@ def consultar_chat(
             respuesta=ADMIN_ONLY_RESPONSE,
             proveedor_utilizado=False,
             tipo_intencion=tipo_intencion,
+            conversation_id=conversation.id if conversation is not None else None,
         )
+        if conversation is not None:
+            _persist_conversation_turn(db, conversation=conversation, question=payload.pregunta, response=response)
         _register_chat_audit(
             db,
             current_user=current_user,
@@ -600,14 +822,14 @@ def consultar_chat(
         horizonte_resuelto = None
         material_for_calculated_context = None
         if should_load_context:
-            material = material_repo.get_by_id(payload.material_id) if payload.material_id is not None else None
+            material = material_repo.get_by_id(effective_material_id) if effective_material_id is not None else None
             if material is not None:
                 material_resuelto_id = getattr(material, "id", None)
-            horizon = resolve_horizon(payload.pregunta, payload.horizonte_meses)
+            horizon = resolve_horizon(semantic_question, effective_horizon)
             horizonte_resuelto = horizon
-            if needs_operation_plan(payload.pregunta):
+            if needs_operation_plan(semantic_question):
                 plan = plan_operation(
-                    payload.pregunta,
+                    semantic_question,
                     client,
                     materials=material_repo.list_active(),
                     selected_material_id=material.id if material is not None else None,
@@ -626,7 +848,7 @@ def consultar_chat(
                             pricing_repo=pricing_repo,
                             db=db,
                             current_user=current_user,
-                            confirmed=is_explicit_confirmation(payload.pregunta),
+                            confirmed=is_explicit_confirmation(semantic_question),
                         )
                         context = operation.context
                         fuentes_recuperadas.append(f"operacion.{plan['action'].lower()}")
@@ -649,12 +871,12 @@ def consultar_chat(
             if context is None:
                 try:
                     retrieval = build_backend_retrieval_context(
-                        payload.pregunta,
+                        semantic_question,
                         material_repo=material_repo,
                         pricing_repo=pricing_repo,
                         db=db,
-                        selected_material_id=payload.material_id,
-                        fallback_horizon=payload.horizonte_meses,
+                        selected_material_id=effective_material_id,
+                        fallback_horizon=effective_horizon,
                         is_admin=current_user.rol == "admin",
                     )
                     context = retrieval.context
@@ -690,7 +912,7 @@ def consultar_chat(
                     context is not None
                     and material_for_calculated_context is not None
                     and retrieval is not None
-                    and _requires_calculated_material_context(payload.pregunta)
+                    and _requires_calculated_material_context(semantic_question)
                 ):
                     try:
                         context = (
@@ -711,11 +933,12 @@ def consultar_chat(
                     material_resuelto = getattr(material_for_calculated_context, "nombre", None)
                     material_resuelto_id = getattr(material_for_calculated_context, "id", material_resuelto_id)
                     horizonte_resuelto = retrieval.horizon
+        history = _conversation_history(db, conversation) if conversation is not None else [message.model_dump() for message in payload.historial]
         result = answer_question(
-            payload.pregunta,
+            semantic_question,
             client,
             context=context,
-            history=[message.model_dump() for message in payload.historial],
+            history=history,
         )
     except LLMConfigurationError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
@@ -735,14 +958,17 @@ def consultar_chat(
         material_resuelto=material_resuelto,
         horizonte_resuelto=horizonte_resuelto,
         visualizacion_sugerida=suggest_visualization(
-            payload.pregunta,
+            semantic_question,
             intent=tipo_intencion if result.aceptada else "FUERA_ALCANCE",
             material=material_for_calculated_context,
-            horizon=horizonte_resuelto or payload.horizonte_meses,
+            horizon=horizonte_resuelto or effective_horizon,
         )
         if result.aceptada and context
         else None,
+        conversation_id=conversation.id if conversation is not None else None,
     )
+    if conversation is not None:
+        _persist_conversation_turn(db, conversation=conversation, question=payload.pregunta, response=response)
     _register_chat_audit(
         db,
         current_user=current_user,

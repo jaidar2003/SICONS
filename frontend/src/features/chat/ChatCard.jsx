@@ -13,7 +13,15 @@ import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
 import { fetchForecast, fetchSerie } from "../pricing/pricing.api.js";
 import { PriceChart } from "../pricing/PriceChart.jsx";
 import { INSUFFICIENT_CHART_DATA_MESSAGE, shouldShowInsufficientChartDataMessage } from "./chatVisualizationState.js";
-import { askChatQuestion, generateCommercialProposal, interpretCommercialNeed } from "./chat.api.js";
+import {
+  askChatQuestion,
+  createChatConversation,
+  fetchChatConversationMessages,
+  fetchChatConversations,
+  generateCommercialProposal,
+  interpretCommercialNeed,
+  updateChatConversation,
+} from "./chat.api.js";
 
 const AutoGraphIcon = resolveMuiIcon(AutoGraphIconModule);
 const ContentCopyIcon = resolveMuiIcon(ContentCopyIconModule);
@@ -49,6 +57,7 @@ const DECISION_LABELS = {
 };
 const SUPPORTED_PRODUCT_KEYS = new Set(["cemento-portland", "pastina", "membrana-megaflex"]);
 const COMMERCIAL_DRAFT_STORAGE_KEY = "buildwise.chat.commercialDraft.v1";
+const MESSAGE_PAGE_SIZE = 40;
 
 function materialKey(nombre) {
   return String(nombre || "")
@@ -98,6 +107,28 @@ function initialMessage(isAdmin) {
   };
 }
 
+function mapStoredMessage(message) {
+  if (message.role === "user") {
+    return { role: "user", text: message.content };
+  }
+  return {
+    role: "assistant",
+    question: null,
+    text: message.content,
+    provider: message.proveedor_ia,
+    fallbackUsed: Boolean(message.fallback_usado),
+    contextUsed: Boolean(message.contexto_usado),
+    intent: message.tipo_intencion,
+    sources: message.fuentes_recuperadas || [],
+    sourceEvidence: message.fuentes_evidencia || [],
+    resolvedMaterialId: message.material_resuelto_id || null,
+    resolvedMaterial: message.material_resuelto,
+    resolvedHorizon: message.horizonte_resuelto,
+    visualization: message.visualizacion_sugerida || null,
+    rejected: message.tipo_intencion === "FUERA_ALCANCE",
+  };
+}
+
 function looksLikePurchaseNeed(text) {
   const normalized = String(text || "")
     .normalize("NFD")
@@ -109,6 +140,11 @@ function looksLikePurchaseNeed(text) {
   return hasPurchaseIntent && hasMaterial && hasQuantity;
 }
 
+function questionMentionsHorizon(text) {
+  const normalized = normalizeText(text);
+  return /\b\d{1,2}\s*mes(?:es)?\b/.test(normalized) || /\bhorizonte\b/.test(normalized) || /\ba\s*\d{1,2}\s*mes(?:es)?\b/.test(normalized);
+}
+
 export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, materiales = [], showPrices = true, onOpenVisualization }) {
   const commercialMaterials = useMemo(
     () => materiales.filter((material) => SUPPORTED_PRODUCT_KEYS.has(materialKey(material.nombre))),
@@ -117,6 +153,13 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
   const draftStorageKey = `${COMMERCIAL_DRAFT_STORAGE_KEY}.${selectedMaterial?.id ?? "none"}`;
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([initialMessage(isAdmin)]);
+  const [conversations, setConversations] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState(null);
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [messageOffset, setMessageOffset] = useState(0);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [conversationTitleDraft, setConversationTitleDraft] = useState("");
+  const [renamingConversation, setRenamingConversation] = useState(false);
   const [draft, setDraft] = useState(createEmptyDraft);
   const [interpretation, setInterpretation] = useState(null);
   const [proposal, setProposal] = useState(null);
@@ -133,6 +176,125 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
     !Number.isFinite(draftQuantity) ||
     draftQuantity <= 0 ||
     (!draft.targetDate && (!Number(draft.horizon) || Number(draft.horizon) < 1 || Number(draft.horizon) > 12));
+  const activeConversation = useMemo(
+    () => conversations.find((conversation) => conversation.id === activeConversationId) || null,
+    [activeConversationId, conversations]
+  );
+  const messagePage = Math.floor(messageOffset / MESSAGE_PAGE_SIZE) + 1;
+
+  async function loadConversations() {
+    if (!token) return;
+    const result = await fetchChatConversations(token);
+    setConversations(result);
+    if (!activeConversationId && result.length) {
+      setActiveConversationId(result[0].id);
+    }
+  }
+
+  async function loadConversationMessages(conversationId, offset = 0) {
+    if (!conversationId || !token) {
+      setMessages([initialMessage(isAdmin)]);
+      setHasOlderMessages(false);
+      return;
+    }
+    setConversationLoading(true);
+    try {
+      const storedMessages = await fetchChatConversationMessages(conversationId, token, {
+        limit: MESSAGE_PAGE_SIZE + 1,
+        offset,
+        order: "desc",
+      });
+      const visibleMessages = storedMessages.slice(0, MESSAGE_PAGE_SIZE).reverse();
+      setHasOlderMessages(storedMessages.length > MESSAGE_PAGE_SIZE);
+      setMessages(visibleMessages.length ? visibleMessages.map(mapStoredMessage) : [initialMessage(isAdmin)]);
+      const lastAssistant = storedMessages.find((message) => message.role === "assistant" && message.material_resuelto_id);
+      if (lastAssistant?.material_resuelto_id) setLastResolvedMaterialId(lastAssistant.material_resuelto_id);
+    } catch (loadError) {
+      setError(loadError.message);
+    } finally {
+      setConversationLoading(false);
+    }
+  }
+
+  async function handleNewConversation() {
+    setError("");
+    try {
+      const created = await createChatConversation({ titulo: "Nueva conversación" }, token);
+      setConversations((current) => [created, ...current]);
+      setActiveConversationId(created.id);
+      setMessageOffset(0);
+      setHasOlderMessages(false);
+      setMessages([initialMessage(isAdmin)]);
+      setLastResolvedMaterialId(null);
+    } catch (newError) {
+      setError(newError.message);
+    }
+  }
+
+  async function handleArchiveConversation() {
+    if (!activeConversationId) return;
+    setError("");
+    try {
+      await updateChatConversation(activeConversationId, { archived: true }, token);
+      const remaining = conversations.filter((conversation) => conversation.id !== activeConversationId);
+      setConversations(remaining);
+      setActiveConversationId(remaining[0]?.id || null);
+      setMessageOffset(0);
+      setHasOlderMessages(false);
+      if (!remaining.length) setMessages([initialMessage(isAdmin)]);
+    } catch (archiveError) {
+      setError(archiveError.message);
+    }
+  }
+
+  async function handleRenameConversation() {
+    if (!activeConversationId) return;
+    const title = conversationTitleDraft.trim();
+    if (!title) {
+      setError("El título de la conversación no puede quedar vacío.");
+      return;
+    }
+    setError("");
+    setRenamingConversation(true);
+    try {
+      const updated = await updateChatConversation(activeConversationId, { titulo: title }, token);
+      setConversations((current) =>
+        current.map((conversation) => (conversation.id === updated.id ? updated : conversation))
+      );
+      setConversationTitleDraft(updated.titulo);
+    } catch (renameError) {
+      setError(renameError.message);
+    } finally {
+      setRenamingConversation(false);
+    }
+  }
+
+  function handleSelectConversation(conversationId) {
+    setMessageOffset(0);
+    setActiveConversationId(conversationId);
+  }
+
+  function handleOlderMessagesPage() {
+    if (hasOlderMessages) setMessageOffset((current) => current + MESSAGE_PAGE_SIZE);
+  }
+
+  function handleRecentMessagesPage() {
+    setMessageOffset((current) => Math.max(0, current - MESSAGE_PAGE_SIZE));
+  }
+
+  useEffect(() => {
+    loadConversations().catch((loadError) => setError(loadError.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    loadConversationMessages(activeConversationId, messageOffset).catch((loadError) => setError(loadError.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConversationId, messageOffset]);
+
+  useEffect(() => {
+    setConversationTitleDraft(activeConversation?.titulo || "");
+  }, [activeConversation?.id, activeConversation?.titulo]);
 
   useEffect(() => {
     setCommercialFlowReady(false);
@@ -229,11 +391,19 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
       const materialIdForQuestion = questionMentionsKnownMaterial(trimmed, materiales)
         ? null
         : lastResolvedMaterialId || selectedMaterial?.id || null;
+      let conversationId = activeConversationId;
+      let createdConversation = null;
+      if (!conversationId) {
+        createdConversation = await createChatConversation({ titulo: trimmed }, token);
+        conversationId = createdConversation.id;
+      }
+      const shouldSendHorizon = !activeConversationId || questionMentionsHorizon(trimmed);
       const result = await askChatQuestion(
         {
           pregunta: trimmed,
           material_id: materialIdForQuestion,
-          horizonte_meses: forecastHorizon,
+          conversation_id: conversationId,
+          ...(shouldSendHorizon ? { horizonte_meses: forecastHorizon } : {}),
           historial,
         },
         token
@@ -260,6 +430,13 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           rejected: !result.aceptada,
         },
       ]);
+      if (createdConversation) {
+        setConversations((current) => [createdConversation, ...current]);
+        setActiveConversationId(createdConversation.id);
+        setMessageOffset(0);
+        setHasOlderMessages(false);
+      }
+      loadConversations().catch(() => {});
     } catch (chatError) {
       setError(chatError.message);
     } finally {
@@ -330,9 +507,66 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           description={`Opera con datos calculados de ${selectedMaterial?.nombre || "los materiales"} a ${forecastHorizon} meses. Las consultas externas se rechazan antes de llamar al proveedor de IA.`}
         />
 
+        <Box className="mb-3 grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
+          <TextField
+            select
+            size="small"
+            label="Conversación"
+            value={activeConversationId || ""}
+            onChange={(event) => handleSelectConversation(event.target.value ? Number(event.target.value) : null)}
+          >
+            {!conversations.length ? <MenuItem value="">Sin conversaciones guardadas</MenuItem> : null}
+            {conversations.map((conversation) => (
+              <MenuItem key={conversation.id} value={conversation.id}>
+                {conversation.titulo}
+              </MenuItem>
+            ))}
+          </TextField>
+          <Button variant="outlined" onClick={handleNewConversation}>
+            Nueva conversación
+          </Button>
+          <Button variant="outlined" color="secondary" onClick={handleArchiveConversation} disabled={!activeConversationId}>
+            Archivar
+          </Button>
+          <TextField
+            size="small"
+            label="Título"
+            value={conversationTitleDraft}
+            disabled={!activeConversationId}
+            onChange={(event) => setConversationTitleDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                handleRenameConversation();
+              }
+            }}
+            className="md:col-span-2"
+          />
+          <Button
+            variant="outlined"
+            onClick={handleRenameConversation}
+            disabled={!activeConversationId || renamingConversation || conversationTitleDraft.trim() === activeConversation?.titulo}
+          >
+            {renamingConversation ? "Guardando..." : "Guardar título"}
+          </Button>
+        </Box>
+
         {error ? <Alert severity="error" className="mb-3">{error}</Alert> : null}
 
         <Box className="mb-4 flex min-h-[300px] flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <Box className="flex flex-wrap items-center justify-between gap-2">
+            <Typography variant="caption" color="text.secondary">
+              Página {messagePage} · {MESSAGE_PAGE_SIZE} mensajes por página
+            </Typography>
+            <Stack direction="row" spacing={1}>
+              <Button size="small" variant="outlined" onClick={handleRecentMessagesPage} disabled={messageOffset === 0 || conversationLoading}>
+                Más recientes
+              </Button>
+              <Button size="small" variant="outlined" onClick={handleOlderMessagesPage} disabled={!hasOlderMessages || conversationLoading}>
+                Anteriores
+              </Button>
+            </Stack>
+          </Box>
           {messages.map((message, index) => (
             <Box
               key={`${message.role}-${index}`}
@@ -384,6 +618,12 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
             <Box className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-slate-600 shadow-sm">
               <CircularProgress size={16} />
               <Typography variant="body2">Consultando asistente...</Typography>
+            </Box>
+          ) : null}
+          {conversationLoading ? (
+            <Box className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-slate-600 shadow-sm">
+              <CircularProgress size={16} />
+              <Typography variant="body2">Cargando conversación...</Typography>
             </Box>
           ) : null}
         </Box>

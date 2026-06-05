@@ -13,7 +13,8 @@ class ChatHistoryMessageCreate(BaseModel):
 class ChatQueryCreate(BaseModel):
     pregunta: str = Field(min_length=1, max_length=1000)
     material_id: int | None = Field(default=None, ge=1)
-    horizonte_meses: int = Field(default=3, ge=1, le=12)
+    conversation_id: int | None = Field(default=None, ge=1)
+    horizonte_meses: int | None = Field(default=None, ge=1, le=12)
     historial: list[ChatHistoryMessageCreate] = Field(default_factory=list, max_length=8)
 
 
@@ -50,6 +51,45 @@ class ChatResponseRead(BaseModel):
     material_resuelto: str | None = None
     horizonte_resuelto: int | None = None
     visualizacion_sugerida: ChatVisualizationRead | None = None
+    conversation_id: int | None = None
+
+
+class ChatConversationCreate(BaseModel):
+    titulo: str | None = Field(default=None, min_length=1, max_length=160)
+
+
+class ChatConversationUpdate(BaseModel):
+    titulo: str | None = Field(default=None, min_length=1, max_length=160)
+    archived: bool | None = None
+
+
+class ChatConversationRead(BaseModel):
+    id: int
+    titulo: str
+    material_actual_id: int | None = None
+    horizonte_actual: int | None = None
+    created_at: datetime
+    updated_at: datetime
+    archived_at: datetime | None = None
+    ultimo_mensaje: str | None = None
+
+
+class ChatMessageRead(BaseModel):
+    id: int
+    conversation_id: int
+    role: Literal["user", "assistant"]
+    content: str
+    tipo_intencion: Literal["HISTORICO", "FORECAST", "RECOMENDACION", "PRESUPUESTO", "CATALOGO", "ADMIN", "FUERA_ALCANCE"] | None = None
+    contexto_usado: bool | None = None
+    fuentes_recuperadas: list[str] = Field(default_factory=list)
+    fuentes_evidencia: list[ChatSourceEvidenceRead] = Field(default_factory=list)
+    material_resuelto_id: int | None = None
+    material_resuelto: str | None = None
+    horizonte_resuelto: int | None = None
+    visualizacion_sugerida: ChatVisualizationRead | None = None
+    proveedor_ia: str | None = None
+    fallback_usado: bool | None = None
+    created_at: datetime
 
 
 class ChatAuditLogRead(BaseModel):
