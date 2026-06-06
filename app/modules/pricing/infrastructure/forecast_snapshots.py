@@ -52,6 +52,8 @@ def _serializar_punto_mensual(punto) -> dict:
         "variacion_porcentual_anterior": None if punto.variacion_porcentual_anterior is None else str(punto.variacion_porcentual_anterior),
         "es_anomalia": punto.es_anomalia,
         "severidad_anomalia": getattr(punto, "severidad_anomalia", None),
+        "score_anomalia": getattr(punto, "score_anomalia", None),
+        "confianza_anomalia": None if getattr(punto, "confianza_anomalia", None) is None else str(getattr(punto, "confianza_anomalia")),
         "motivo_anomalia": punto.motivo_anomalia,
     }
 
@@ -91,6 +93,8 @@ def _deserializar_result(data: dict):
                 variacion_porcentual_anterior=None if punto.get("variacion_porcentual_anterior") is None else Decimal(punto["variacion_porcentual_anterior"]),
                 es_anomalia=bool(punto.get("es_anomalia", False)),
                 severidad_anomalia=punto.get("severidad_anomalia"),
+                score_anomalia=int(punto["score_anomalia"]) if punto.get("score_anomalia") is not None else None,
+                confianza_anomalia=None if punto.get("confianza_anomalia") is None else Decimal(punto["confianza_anomalia"]),
                 motivo_anomalia=punto.get("motivo_anomalia"),
             )
             for punto in data.get("serie_mensual", [])

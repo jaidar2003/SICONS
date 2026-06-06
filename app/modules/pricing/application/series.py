@@ -27,6 +27,8 @@ class PuntoSeriePrecio:
     variacion_porcentual_anterior: Decimal | None
     es_anomalia: bool = False
     severidad_anomalia: str | None = None
+    score_anomalia: int | None = None
+    confianza_anomalia: Decimal | None = None
     motivo_anomalia: str | None = None
 
 
@@ -274,7 +276,17 @@ def _clasificar_severidad_anomalia(residual_pct: Decimal, residual_limit: Decima
     return "leve"
 
 
-def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[date, tuple[str, str]]:
+def _confianza_anomalia(score: int, required_signals: int, residual_pct: Decimal, residual_limit: Decimal) -> Decimal:
+    base = Decimal(score) / Decimal("4")
+    if residual_limit > 0:
+        residual_boost = min(Decimal("0.25"), residual_pct / (residual_limit * Decimal("4")))
+    else:
+        residual_boost = Decimal("0")
+    evidence_boost = Decimal("0.10") if score >= required_signals + 1 else Decimal("0")
+    return _quantize(min(base + residual_boost + evidence_boost, Decimal("1")) * Decimal("100"))
+
+
+def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[date, tuple[str, str, int, Decimal]]:
     if len(puntos) < 6:
         return {}
 
@@ -291,7 +303,7 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
         random_state=42,
     )
 
-    evaluaciones: list[tuple[int, float, float, float, float, float | None, float, float]] = []
+    evaluaciones: list[tuple[int, float, float, float, float, float | None, float, float, int, int]] = []
     residuals_historial: list[float] = []
     variaciones_historial: list[float] = []
     for index in trainable_indexes:
@@ -324,6 +336,14 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
         variacion_actual = abs(float(puntos[index].variacion_porcentual_anterior or Decimal("0")))
         residual_limit = _limite_adaptativo_desde_valores(residuals_historial, fallback=15.0)
         variacion_limit = _limite_adaptativo_desde_valores(variaciones_historial, fallback=12.0)
+        trend_limit = max(Decimal("8.000000"), variacion_limit * Decimal("0.85"))
+        seasonal_limit = max(Decimal("10.000000"), variacion_limit)
+        residual_signal = Decimal(f"{residual_pct:.6f}") > residual_limit
+        variacion_signal = Decimal(f"{variacion_actual:.6f}") > variacion_limit
+        seasonal_signal = seasonal_gap is not None and Decimal(f"{seasonal_gap:.6f}") > seasonal_limit
+        trend_signal = Decimal(f"{tendencia_gap:.6f}") > trend_limit if tendencia_local is not None else False
+        score = int(sum((residual_signal, variacion_signal, seasonal_signal, trend_signal)))
+        required_signals = 3 if variacion_limit >= Decimal("20.000000") else 2
         evaluaciones.append(
             (
                 index,
@@ -334,6 +354,8 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
                 seasonal_gap,
                 tendencia_gap,
                 float(variacion_limit),
+                score,
+                required_signals,
             )
         )
         residuals_historial.append(residual_pct)
@@ -342,8 +364,8 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
     if not evaluaciones:
         return {}
 
-    anomalies: dict[date, tuple[str, str]] = {}
-    for index, residual_pct, predicted, variacion_actual, residual_limit_float, seasonal_gap, tendencia_gap, variacion_limit_float in evaluaciones:
+    anomalies: dict[date, tuple[str, str, int, Decimal]] = {}
+    for index, residual_pct, predicted, variacion_actual, residual_limit_float, seasonal_gap, tendencia_gap, variacion_limit_float, score, required_signals in evaluaciones:
         residual_decimal = Decimal(f"{residual_pct:.6f}")
         variacion = puntos[index].variacion_porcentual_anterior
         if variacion is None:
@@ -357,12 +379,11 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
         variacion_signal = Decimal(f"{abs(variacion_actual):.6f}") > variacion_limit
         seasonal_signal = seasonal_gap is not None and Decimal(f"{seasonal_gap:.6f}") > seasonal_limit
         trend_signal = Decimal(f"{tendencia_gap:.6f}") > trend_limit
-        score = sum((residual_signal, variacion_signal, seasonal_signal, trend_signal))
-        required_signals = 3 if variacion_limit >= Decimal("20.000000") else 2
-        if not (score >= required_signals or (strong_residual := residual_decimal > (residual_limit * Decimal("1.60"))) and score >= required_signals - 1):
+        if not (score >= required_signals or (residual_decimal > (residual_limit * Decimal("1.60")) and score >= required_signals - 1)):
             continue
 
         severidad = _clasificar_severidad_anomalia(residual_decimal, residual_limit, score, required_signals)
+        confianza = _confianza_anomalia(score, required_signals, residual_decimal, residual_limit)
         signalos = []
         if residual_signal:
             signalos.append(f"residuo {Decimal(f'{residual_pct:.4f}').quantize(Decimal('0.0001'))}% > limite {residual_limit}")
@@ -380,6 +401,8 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
             f"score {score}/{4}; "
             + "; ".join(signalos),
             severidad,
+            score,
+            confianza,
         )
 
     return anomalies
@@ -506,6 +529,8 @@ def construir_serie_mensual(registros: list[PrecioSerieInput]) -> list[PuntoSeri
                 es_anomalia=punto.fecha in anomalies,
                 severidad_anomalia=anomalies.get(punto.fecha, (None, None))[1],
                 motivo_anomalia=anomalies.get(punto.fecha, (None, None))[0],
+                score_anomalia=anomalies.get(punto.fecha, (None, None, None, None))[2],
+                confianza_anomalia=anomalies.get(punto.fecha, (None, None, None, None))[3],
             )
             for punto in puntos
         ]

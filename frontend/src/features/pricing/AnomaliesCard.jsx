@@ -249,17 +249,36 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
                           backgroundColor: "#FFFFFF",
                         }}
                       />
+                    <Chip
+                      label={point.cantidad_registros === 1 ? "1 precio relevado" : `${point.cantidad_registros} precios relevados`}
+                      size="small"
+                      variant="outlined"
+                      sx={{ fontWeight: 800 }}
+                    />
+                    {point.score_anomalia !== null && point.score_anomalia !== undefined ? (
                       <Chip
-                        label={point.cantidad_registros === 1 ? "1 precio relevado" : `${point.cantidad_registros} precios relevados`}
+                        label={`Score ${point.score_anomalia}/4`}
                         size="small"
                         variant="outlined"
                         sx={{ fontWeight: 800 }}
                       />
-                      {showPrices ? (
-                        <Chip
-                          label={formatCurrency(getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))}
-                          size="small"
-                          variant="outlined"
+                    ) : null}
+                    {point.confianza_anomalia !== null && point.confianza_anomalia !== undefined ? (
+                      <Chip
+                        label={`Confianza ${formatPercent(point.confianza_anomalia)}`}
+                        size="small"
+                        sx={{
+                          fontWeight: 800,
+                          backgroundColor: "#EFF6FF",
+                          color: "#1D4ED8",
+                        }}
+                      />
+                    ) : null}
+                    {showPrices ? (
+                      <Chip
+                        label={formatCurrency(getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))}
+                        size="small"
+                        variant="outlined"
                           sx={{ fontWeight: 800 }}
                         />
                       ) : null}
@@ -430,6 +449,11 @@ function DetailList({ title, values, emptyText, className = "" }) {
 function formatRatio(value) {
   if (value === null || value === undefined) return "Sin dato";
   return `${formatNumber(Number(value) * 100)}%`;
+}
+
+function formatPercent(value) {
+  if (value === null || value === undefined) return "Sin dato";
+  return `${formatNumber(Number(value))}%`;
 }
 
 function parseAnomalyMotivo(value) {

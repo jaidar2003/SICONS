@@ -90,7 +90,7 @@ export async function loadInitialAppData({ token, forecastHorizon, clientDefault
   const defaultMaterial = materiales.find((material) => material.nombre.toLowerCase().includes("cemento")) || materiales[0];
   const selectedMaterialId = defaultMaterial ? String(defaultMaterial.id) : "";
   const rangeDesde = range.desde ? dayjs(range.desde) : null;
-  const desde = rangeDesde ? (rangeDesde.isAfter(clientDefaultStart) ? rangeDesde : clientDefaultStart) : clientDefaultStart;
+  const desde = rangeDesde ?? clientDefaultStart;
   const hasta = dayjs(range.hasta || range.hoy);
   const maxDate = range.hoy ? dayjs(range.hoy) : null;
   const dateWarning = "";
