@@ -57,6 +57,13 @@ export function fetchPriceVariationBetweenDates({ materialId, fechaDesde, fechaH
   return apiGet(`/materiales/${materialId}/variacion-entre-fechas?${params.toString()}`, token);
 }
 
+export function evaluateDetectedAnomalies({ materialId, fechasConfirmadas, desde, hasta, token }) {
+  const params = new URLSearchParams({ agrupacion: "mensual" });
+  if (desde) params.set("desde", desde);
+  if (hasta) params.set("hasta", hasta);
+  return apiPost(`/materiales/${materialId}/anomalias/evaluacion?${params.toString()}`, { fechas_confirmadas: fechasConfirmadas }, token);
+}
+
 export function simulatePurchaseScenarios(payload, token, materialId) {
   return apiPost(`/materiales/${materialId}/simulacion-escenarios-compra`, payload, token);
 }

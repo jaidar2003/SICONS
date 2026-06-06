@@ -1,4 +1,4 @@
-import { Box, Card, CardContent, Chip, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, Chip, Divider, Stack, TextField, Typography } from "@mui/material";
 import {
   CategoryScale,
   Chart as ChartJS,
@@ -9,28 +9,113 @@ import {
   PointElement,
   Tooltip,
 } from "chart.js";
+import dayjs from "dayjs";
+import { useEffect, useMemo, useState } from "react";
 import { Line } from "react-chartjs-2";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
-import { formatCurrency, formatNumber, formatPercentChange, variationTone } from "../../shared/utils/formatters.js";
+import { formatCurrency, formatNumber, formatPercentChange, toApiDate, variationTone } from "../../shared/utils/formatters.js";
+import { evaluateDetectedAnomalies } from "./pricing.api.js";
+import { parseConfirmedAnomalyDates } from "./anomalyEvaluation.js";
 import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
-export function AnomaliesCard({ serie, showPrices, selectedMaterial, className = "" }) {
+export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desde, hasta, className = "" }) {
   const severityConfig = {
-    leve: { label: "Leve", color: "warning" },
-    media: { label: "Media", color: "error" },
-    alta: { label: "Alta", color: "error" },
+    leve: { label: "Leve", color: "#F59E0B", bg: "#FFF7ED" },
+    media: { label: "Media", color: "#F97316", bg: "#FFF7ED" },
+    alta: { label: "Alta", color: "#DC2626", bg: "#FEF2F2" },
   };
+  const [confirmedDatesInput, setConfirmedDatesInput] = useState("");
+  const [evaluation, setEvaluation] = useState(null);
+  const [evaluationError, setEvaluationError] = useState("");
+  const [evaluating, setEvaluating] = useState(false);
   const anomalies = serie.filter((point) => point.es_anomalia);
   const presentation = getMaterialPresentation(selectedMaterial?.nombre, serie[0]?.unidad_base);
   const labels = serie.map((point) => point.fecha.slice(0, 7));
+  const firstDate = serie[0]?.fecha || "";
+  const lastDate = serie[serie.length - 1]?.fecha || "";
   const mainSeries = showPrices
     ? serie.map((point) => getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))
     : serie.map((point) => Number(point.variacion_porcentual_anterior || 0));
   const anomalySeries = serie.map((point, index) => (point.es_anomalia ? mainSeries[index] : null));
   const chartLabel = showPrices ? presentation.primaryPriceLabel : "Variacion mensual %";
+  const evaluationSummary = useMemo(() => {
+    if (!evaluation) return null;
+    return [
+      {
+        label: "Precisión",
+        value: formatRatio(evaluation.precision),
+        helper: "Coincidencias sobre lo detectado",
+      },
+      {
+        label: "Recall",
+        value: formatRatio(evaluation.recall),
+        helper: "Coincidencias sobre lo confirmado",
+      },
+      {
+        label: "F1",
+        value: formatRatio(evaluation.f1),
+        helper: "Balance entre precisión y recall",
+      },
+      {
+        label: "Exactitud",
+        value: formatRatio(evaluation.exactitud),
+        helper: "Aciertos sobre el total evaluado",
+      },
+    ];
+  }, [evaluation]);
+
+  useEffect(() => {
+    setConfirmedDatesInput("");
+    setEvaluation(null);
+    setEvaluationError("");
+    setEvaluating(false);
+  }, [selectedMaterial?.id, firstDate, lastDate]);
+
+  async function handleEvaluate() {
+    setEvaluationError("");
+    setEvaluation(null);
+
+    if (!selectedMaterial?.id) {
+      setEvaluationError("Seleccioná un material.");
+      return;
+    }
+
+    if (!token) {
+      setEvaluationError("Iniciá sesión para evaluar anomalías.");
+      return;
+    }
+
+    const parsed = parseConfirmedAnomalyDates(confirmedDatesInput);
+    if (parsed.invalidValues.length) {
+      setEvaluationError(`Hay fechas inválidas: ${parsed.invalidValues.join(", ")}`);
+      return;
+    }
+
+    if (!parsed.dates.length) {
+      setEvaluationError("Pegá al menos una fecha confirmada, una por línea.");
+      return;
+    }
+
+    setEvaluating(true);
+    try {
+      const result = await evaluateDetectedAnomalies({
+        materialId: selectedMaterial.id,
+        fechasConfirmadas: parsed.dates,
+        desde: desde ? toApiDate(dayjs(desde)) : undefined,
+        hasta: hasta ? toApiDate(dayjs(hasta)) : undefined,
+        token,
+      });
+      setEvaluation(result);
+    } catch (error) {
+      setEvaluationError(error.message);
+    } finally {
+      setEvaluating(false);
+    }
+  }
+
   const chartData = {
     labels,
     datasets: [
@@ -117,35 +202,259 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, className =
             No se detectaron variaciones mensuales bruscas en el periodo seleccionado.
           </Box>
         ) : (
-          <Box className="grid gap-2 sm:grid-cols-2">
-            {anomalies.map((point) => (
-              <Box key={point.fecha} className="rounded-md border border-slate-200 bg-white px-3 py-2">
-                <Typography fontWeight={800}>{point.fecha.slice(0, 7)}</Typography>
-                <Box className="mt-1 flex flex-wrap gap-1.5">
-                  <Chip label={formatPercentChange(point.variacion_porcentual_anterior)} size="small" sx={{ color: variationTone(point.variacion_porcentual_anterior), fontWeight: 800 }} />
-                  {point.severidad_anomalia ? (
-                    <Chip
-                      label={`Severidad ${severityConfig[point.severidad_anomalia]?.label || point.severidad_anomalia}`}
-                      color={severityConfig[point.severidad_anomalia]?.color || "default"}
-                      size="small"
-                      sx={{ fontWeight: 800 }}
-                    />
-                  ) : null}
+          <Box className="grid gap-3 xl:grid-cols-2">
+            {anomalies.map((point) => {
+              const parsedMotivo = parseAnomalyMotivo(point.motivo_anomalia);
+              return (
+                <Box
+                  key={point.fecha}
+                  className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                  sx={{
+                    borderLeftWidth: 6,
+                    borderLeftStyle: "solid",
+                    borderLeftColor: severityColor(point.severidad_anomalia, severityConfig),
+                  }}
+                >
+                  <Box className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                    <Box className="flex flex-wrap items-start justify-between gap-2">
+                      <Box>
+                        <Typography variant="overline" color="text.secondary">
+                          Mes detectado
+                        </Typography>
+                        <Typography variant="h4" lineHeight={1.1}>
+                          {point.fecha.slice(0, 7)}
+                        </Typography>
+                      </Box>
+                      {point.severidad_anomalia ? (
+                        <Chip
+                          label={`Severidad ${severityConfig[point.severidad_anomalia]?.label || point.severidad_anomalia}`}
+                          size="small"
+                          sx={{
+                            fontWeight: 800,
+                            backgroundColor: severityConfig[point.severidad_anomalia]?.bg || "#F8FAFC",
+                            color: severityConfig[point.severidad_anomalia]?.color || "#0F172A",
+                            borderColor: severityConfig[point.severidad_anomalia]?.color || "#CBD5E1",
+                          }}
+                          variant="outlined"
+                        />
+                      ) : null}
+                    </Box>
+                    <Box className="mt-2 flex flex-wrap gap-1.5">
+                      <Chip
+                        label={formatPercentChange(point.variacion_porcentual_anterior)}
+                        size="small"
+                        sx={{
+                          color: variationTone(point.variacion_porcentual_anterior),
+                          fontWeight: 800,
+                          backgroundColor: "#FFFFFF",
+                        }}
+                      />
+                      <Chip
+                        label={point.cantidad_registros === 1 ? "1 precio relevado" : `${point.cantidad_registros} precios relevados`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontWeight: 800 }}
+                      />
+                      {showPrices ? (
+                        <Chip
+                          label={formatCurrency(getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))}
+                          size="small"
+                          variant="outlined"
+                          sx={{ fontWeight: 800 }}
+                        />
+                      ) : null}
+                    </Box>
+                  </Box>
+
+                  <Box className="px-4 py-3">
+                    <Typography color="text.secondary" fontSize={12}>
+                      {point.fuentes?.length ? point.fuentes.join(" / ") : "Sin fuente visible"}
+                      {showPrices ? ` · ${presentation.displayUnitLabel}` : ""}
+                    </Typography>
+
+                    <Box className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <Typography color="text.secondary" variant="caption" fontWeight={900} letterSpacing={0}>
+                        Explicación del modelo
+                      </Typography>
+                      <Typography mt={0.5} variant="body2" color="text.primary">
+                        {parsedMotivo.summary}
+                      </Typography>
+                    </Box>
+
+                    {parsedMotivo.signals.length ? (
+                      <Box className="mt-2 flex flex-wrap gap-1.5">
+                        {parsedMotivo.signals.map((signal) => (
+                          <Chip
+                            key={signal}
+                            label={signal}
+                            size="small"
+                            variant="outlined"
+                            sx={{
+                              fontSize: 12,
+                              height: 26,
+                              backgroundColor: "#FFFFFF",
+                              borderColor: "#CBD5E1",
+                              color: "#334155",
+                            }}
+                          />
+                        ))}
+                      </Box>
+                    ) : null}
+                  </Box>
                 </Box>
-                {showPrices ? (
-                  <Typography color="text.secondary" fontSize={12} mt={0.75}>
-                    {formatCurrency(getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))} · {presentation.displayUnitLabel}
-                  </Typography>
-                ) : (
-                  <Typography color="text.secondary" fontSize={12} mt={0.75}>
-                    {point.cantidad_registros} {point.cantidad_registros === 1 ? "precio relevado" : "precios relevados"}
-                  </Typography>
-                )}
-              </Box>
-            ))}
+              );
+            })}
           </Box>
         )}
+
+        <Divider className="!my-5" />
+
+        <Stack spacing={2.5}>
+          <Box>
+            <Typography variant="h4">Validación de anomalías</Typography>
+            <Typography color="text.secondary" variant="body2" mt={0.5}>
+              Pegá una fecha por línea, o separalas con comas. La evaluación usa el rango visible {firstDate && lastDate ? `${firstDate.slice(0, 7)} a ${lastDate.slice(0, 7)}` : "del historial actual"}.
+            </Typography>
+          </Box>
+
+          <TextField
+            value={confirmedDatesInput}
+            onChange={(event) => setConfirmedDatesInput(event.target.value)}
+            label="Fechas confirmadas"
+            placeholder="2026-02-01\n2026-05-01"
+            helperText="Usá fechas ISO de meses confirmados. También podés pegar meses como YYYY-MM."
+            multiline
+            minRows={4}
+            fullWidth
+          />
+
+          <Box className="flex flex-wrap gap-2">
+            <Button variant="contained" onClick={handleEvaluate} disabled={evaluating || !selectedMaterial?.id}>
+              {evaluating ? "Evaluando..." : "Evaluar contra confirmadas"}
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setConfirmedDatesInput("");
+                setEvaluation(null);
+                setEvaluationError("");
+              }}
+              disabled={!confirmedDatesInput && !evaluation && !evaluationError}
+            >
+              Limpiar
+            </Button>
+          </Box>
+
+          {evaluationError ? <Alert severity="error">{evaluationError}</Alert> : null}
+
+          {evaluating ? (
+            <Box className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+              Calculando precision, recall, F1 y exactitud...
+            </Box>
+          ) : null}
+
+          {evaluation ? (
+            <Box className="rounded-md border border-slate-200 bg-white p-4">
+              <Box className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {evaluationSummary.map((item) => (
+                  <MetricTile key={item.label} label={item.label} value={item.value} helper={item.helper} />
+                ))}
+              </Box>
+
+              <Box className="mt-4 grid gap-3 sm:grid-cols-3">
+                <MetricTile label="Confirmadas" value={String(evaluation.total_confirmadas)} helper="Fechas ingresadas" />
+                <MetricTile label="Detectadas" value={String(evaluation.total_detectadas)} helper="Marcas del modelo" />
+                <MetricTile label="Coincidencias" value={String(evaluation.verdaderos_positivos)} helper="Aciertos sobre la validación" />
+              </Box>
+
+              <Box className="mt-3 grid gap-3 sm:grid-cols-2">
+                <MetricTile label="Falsos positivos" value={String(evaluation.falsos_positivos)} helper="Marcados por el modelo pero no confirmados" />
+                <MetricTile label="Falsos negativos" value={String(evaluation.falsos_negativos)} helper="Confirmados pero no detectados" />
+              </Box>
+
+              <Box className="mt-4 grid gap-3 lg:grid-cols-2">
+                <DetailList title="Coincidencias" values={evaluation.coincidencias} emptyText="No hubo coincidencias." />
+                <DetailList title="Fechas detectadas" values={evaluation.fechas_detectadas} emptyText="El modelo no marcó anomalías en el rango." />
+              </Box>
+
+              <DetailList className="mt-3" title="Fechas confirmadas" values={evaluation.fechas_confirmadas} emptyText="No se cargaron fechas confirmadas." />
+            </Box>
+          ) : (
+            <Box className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+              Cargá fechas confirmadas para medir qué tan preciso está el detector frente a anomalías reales.
+            </Box>
+          )}
+        </Stack>
       </CardContent>
     </Card>
   );
+}
+
+function MetricTile({ label, value, helper }) {
+  return (
+    <Box className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <Typography color="text.secondary" variant="body2" fontWeight={800}>
+        {label}
+      </Typography>
+      <Typography component="strong" display="block" mt={0.75} variant="h3" lineHeight={1.1}>
+        {value}
+      </Typography>
+      <Typography color="text.secondary" variant="body2" mt={0.5}>
+        {helper}
+      </Typography>
+    </Box>
+  );
+}
+
+function DetailList({ title, values, emptyText, className = "" }) {
+  return (
+    <Box className={`rounded-xl border border-slate-200 bg-slate-50 p-3 ${className}`}>
+      <Typography color="text.secondary" variant="body2" fontWeight={800}>
+        {title}
+      </Typography>
+      {values?.length ? (
+        <Box className="mt-2 flex flex-wrap gap-1.5">
+          {values.map((value) => (
+            <Chip key={String(value)} label={String(value)} size="small" />
+          ))}
+        </Box>
+      ) : (
+        <Typography color="text.secondary" variant="body2" mt={0.75}>
+          {emptyText}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+function formatRatio(value) {
+  if (value === null || value === undefined) return "Sin dato";
+  return `${formatNumber(Number(value) * 100)}%`;
+}
+
+function parseAnomalyMotivo(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return {
+      summary: "Mes atípico frente al patrón esperado.",
+      signals: [],
+    };
+  }
+
+  const parts = raw.split(": ");
+  const summary = parts.length > 1 ? parts.slice(1).join(": ") : raw;
+  const signals = summary
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => !item.toLowerCase().startsWith("precio esperado"));
+
+  return {
+    summary: parts[0] && parts.length > 1 ? `${parts[0]}: ${signals.length ? signals[0] : summary.split(";")[0].trim()}` : summary,
+    signals,
+  };
+}
+
+function severityColor(severity, severityConfig) {
+  return severityConfig[severity]?.color || "#CBD5E1";
 }

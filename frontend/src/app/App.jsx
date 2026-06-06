@@ -847,7 +847,14 @@ export function App() {
                   ) : null}
 
                   {historyWorkflow === "anomalies" ? (
-                    <AnomaliesCard serie={serie} showPrices={showPrices} selectedMaterial={selectedMaterial} />
+                    <AnomaliesCard
+                      serie={serie}
+                      showPrices={showPrices}
+                      selectedMaterial={selectedMaterial}
+                      token={token}
+                      desde={desde}
+                      hasta={hasta}
+                    />
                   ) : null}
 
                   {historyWorkflow === "table" ? (

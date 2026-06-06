@@ -5,9 +5,12 @@ import pytest
 
 from app.modules.pricing.application.series import (
     PrecioSerieInput,
+    PuntoSeriePrecio,
+    evaluar_anomalias_detectadas,
     calcular_variacion_entre_fechas,
     construir_serie_mensual,
     construir_serie_precios,
+    medir_estabilidad_anomalias,
 )
 
 
@@ -42,7 +45,7 @@ def test_construir_serie_mensual_promedia_y_detecta_anomalias_con_random_forest(
             PrecioSerieInput(date(2026, 4, 4), Decimal("116.0000"), "kg", "Lista proveedor", "A-0005"),
             PrecioSerieInput(date(2026, 5, 4), Decimal("118.0000"), "kg", "Lista proveedor", "A-0006"),
             PrecioSerieInput(date(2026, 6, 4), Decimal("120.0000"), "kg", "Lista proveedor", "A-0007"),
-            PrecioSerieInput(date(2026, 7, 4), Decimal("170.0000"), "kg", "Lista proveedor", "A-0008"),
+            PrecioSerieInput(date(2026, 7, 4), Decimal("320.0000"), "kg", "Lista proveedor", "A-0008"),
             PrecioSerieInput(date(2026, 8, 4), Decimal("124.0000"), "kg", "Lista proveedor", "A-0009"),
         ]
     )
@@ -55,11 +58,79 @@ def test_construir_serie_mensual_promedia_y_detecta_anomalias_con_random_forest(
     assert serie[0].cantidad_facturas == 2
     assert serie[0].es_anomalia is False
     assert serie[6].fecha == date(2026, 7, 1)
-    assert serie[6].variacion_porcentual_anterior == Decimal("41.6667")
+    assert serie[6].variacion_porcentual_anterior == Decimal("166.6667")
     assert serie[6].es_anomalia is True
     assert serie[6].severidad_anomalia in {"leve", "media", "alta"}
     assert serie[6].motivo_anomalia is not None
     assert "Random Forest" in serie[6].motivo_anomalia
+    assert "score" in serie[6].motivo_anomalia
+
+
+def test_evaluar_anomalias_detectadas_calcula_precision_recall_f1() -> None:
+    puntos = [
+        PuntoSeriePrecio(
+            fecha=date(2026, 1, 1),
+            precio_promedio_normalizado=Decimal("100.0000"),
+            unidad_base="kg",
+            precio_equivalente_25kg=None,
+            precio_equivalente_50kg=None,
+            cantidad_registros=1,
+            cantidad_facturas=1,
+            fuentes=["Factura compra"],
+            variacion_porcentual_anterior=None,
+            es_anomalia=False,
+        ),
+        PuntoSeriePrecio(
+            fecha=date(2026, 2, 1),
+            precio_promedio_normalizado=Decimal("200.0000"),
+            unidad_base="kg",
+            precio_equivalente_25kg=None,
+            precio_equivalente_50kg=None,
+            cantidad_registros=1,
+            cantidad_facturas=1,
+            fuentes=["Factura compra"],
+            variacion_porcentual_anterior=Decimal("100.0000"),
+            es_anomalia=True,
+        ),
+        PuntoSeriePrecio(
+            fecha=date(2026, 3, 1),
+            precio_promedio_normalizado=Decimal("110.0000"),
+            unidad_base="kg",
+            precio_equivalente_25kg=None,
+            precio_equivalente_50kg=None,
+            cantidad_registros=1,
+            cantidad_facturas=1,
+            fuentes=["Factura compra"],
+            variacion_porcentual_anterior=Decimal("-45.0000"),
+            es_anomalia=False,
+        ),
+        PuntoSeriePrecio(
+            fecha=date(2026, 4, 1),
+            precio_promedio_normalizado=Decimal("300.0000"),
+            unidad_base="kg",
+            precio_equivalente_25kg=None,
+            precio_equivalente_50kg=None,
+            cantidad_registros=1,
+            cantidad_facturas=1,
+            fuentes=["Factura compra"],
+            variacion_porcentual_anterior=Decimal("172.7273"),
+            es_anomalia=True,
+        ),
+    ]
+
+    result = evaluar_anomalias_detectadas(puntos, {date(2026, 2, 1), date(2026, 3, 1)})
+
+    assert result.total_puntos == 4
+    assert result.total_detectadas == 2
+    assert result.total_confirmadas == 2
+    assert result.verdaderos_positivos == 1
+    assert result.falsos_positivos == 1
+    assert result.falsos_negativos == 1
+    assert result.precision == Decimal("0.5000")
+    assert result.recall == Decimal("0.5000")
+    assert result.f1 == Decimal("0.5000")
+    assert result.exactitud == Decimal("0.5000")
+    assert result.coincidencias == [date(2026, 2, 1)]
 
 
 def test_construir_serie_mensual_cuenta_facturas_distintas() -> None:
@@ -116,3 +187,28 @@ def test_calcular_variacion_entre_fechas_falla_si_fechas_invalidas() -> None:
             fecha_desde=date(2026, 2, 1),
             fecha_hasta=date(2026, 2, 1),
         )
+
+
+def test_medir_estabilidad_anomalias_es_reproducible() -> None:
+    serie = construir_serie_mensual(
+        [
+            PrecioSerieInput(date(2026, 1, 3), Decimal("100.0000"), "kg", "Factura compra", "A-0001"),
+            PrecioSerieInput(date(2026, 1, 20), Decimal("120.0000"), "kg", "Factura compra", "A-0002"),
+            PrecioSerieInput(date(2026, 2, 4), Decimal("112.0000"), "kg", "Lista proveedor", "A-0003"),
+            PrecioSerieInput(date(2026, 3, 4), Decimal("114.0000"), "kg", "Lista proveedor", "A-0004"),
+            PrecioSerieInput(date(2026, 4, 4), Decimal("116.0000"), "kg", "Lista proveedor", "A-0005"),
+            PrecioSerieInput(date(2026, 5, 4), Decimal("118.0000"), "kg", "Lista proveedor", "A-0006"),
+            PrecioSerieInput(date(2026, 6, 4), Decimal("120.0000"), "kg", "Lista proveedor", "A-0007"),
+            PrecioSerieInput(date(2026, 7, 4), Decimal("320.0000"), "kg", "Lista proveedor", "A-0008"),
+            PrecioSerieInput(date(2026, 8, 4), Decimal("124.0000"), "kg", "Lista proveedor", "A-0009"),
+        ]
+    )
+
+    estabilidad_1 = medir_estabilidad_anomalias(serie)
+    estabilidad_2 = medir_estabilidad_anomalias(serie)
+
+    assert estabilidad_1 == estabilidad_2
+    assert estabilidad_1.ventanas > 0
+    assert estabilidad_1.jaccard_promedio is not None
+    assert estabilidad_1.jaccard_minimo is not None
+    assert estabilidad_1.jaccard_maximo is not None

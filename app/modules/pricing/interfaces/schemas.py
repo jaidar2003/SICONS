@@ -49,6 +49,26 @@ class PuntoSeriePrecioRead(BaseModel):
     motivo_anomalia: str | None = None
 
 
+class AnomalyEvaluationCreate(BaseModel):
+    fechas_confirmadas: list[date] = Field(default_factory=list)
+
+
+class AnomalyEvaluationRead(BaseModel):
+    total_puntos: int
+    total_detectadas: int
+    total_confirmadas: int
+    verdaderos_positivos: int
+    falsos_positivos: int
+    falsos_negativos: int
+    precision: Decimal | None = None
+    recall: Decimal | None = None
+    f1: Decimal | None = None
+    exactitud: Decimal | None = None
+    fechas_detectadas: list[date] = Field(default_factory=list)
+    fechas_confirmadas: list[date] = Field(default_factory=list)
+    coincidencias: list[date] = Field(default_factory=list)
+
+
 class PriceVariationBetweenDatesRead(BaseModel):
     material_id: int
     material_nombre: str

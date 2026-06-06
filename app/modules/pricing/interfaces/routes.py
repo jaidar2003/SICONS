@@ -47,6 +47,7 @@ from app.modules.pricing.application.purchase_strategies import comparar_estrate
 from app.modules.pricing.application.series import (
     PrecioSerieInput,
     calcular_variacion_entre_fechas,
+    evaluar_anomalias_detectadas,
     construir_serie_mensual,
     construir_serie_precios,
 )
@@ -68,6 +69,8 @@ from app.modules.pricing.interfaces.schemas import (
     ExternalIndexValueRead,
     ForecastResponseRead,
     MaterialCriticidadCreate,
+    AnomalyEvaluationCreate,
+    AnomalyEvaluationRead,
     MaterialCriticidadResponseRead,
     OperationalPurchaseRecommendationCreate,
     OperationalPurchaseRecommendationRead,
@@ -196,6 +199,57 @@ def obtener_serie_precios_material(
     if agrupacion != "dia":
         raise HTTPException(status_code=422, detail="La agrupacion debe ser 'dia' o 'mensual'")
     return construir_serie_precios(registros)
+
+
+@router.post("/materiales/{material_id}/anomalias/evaluacion", response_model=AnomalyEvaluationRead)
+def evaluar_anomalias_material(
+    material_id: int,
+    payload: AnomalyEvaluationCreate,
+    desde: date | None = None,
+    hasta: date | None = None,
+    agrupacion: str = "mensual",
+    material_repo: MaterialRepository = Depends(get_material_repository),
+    pricing_repo: PricingRepository = Depends(get_pricing_repository),
+    current_user: Usuario = Depends(get_current_user),
+) -> AnomalyEvaluationRead:
+    material = material_repo.get_by_id(material_id)
+    if material is None:
+        raise MaterialNotFoundException(material_id)
+
+    precios = pricing_repo.get_historical_prices(material_id, desde or date(2000, 1, 1))
+    if hasta:
+        precios = [p for p in precios if p.fecha <= hasta]
+
+    registros = [
+        PrecioSerieInput(
+            fecha=precio.fecha,
+            precio_normalizado=precio.precio_normalizado,
+            unidad_base=material.unidad_base,
+            fuente=precio.fuente.nombre if precio.fuente else None,
+            numero_comprobante=precio.numero_comprobante,
+        )
+        for precio in precios
+    ]
+    if agrupacion != "mensual":
+        raise HTTPException(status_code=422, detail="La evaluacion de anomalias se realiza en agrupacion mensual")
+
+    serie = construir_serie_mensual(registros)
+    result = evaluar_anomalias_detectadas(serie, set(payload.fechas_confirmadas))
+    return AnomalyEvaluationRead(
+        total_puntos=result.total_puntos,
+        total_detectadas=result.total_detectadas,
+        total_confirmadas=result.total_confirmadas,
+        verdaderos_positivos=result.verdaderos_positivos,
+        falsos_positivos=result.falsos_positivos,
+        falsos_negativos=result.falsos_negativos,
+        precision=result.precision,
+        recall=result.recall,
+        f1=result.f1,
+        exactitud=result.exactitud,
+        fechas_detectadas=result.fechas_detectadas,
+        fechas_confirmadas=result.fechas_confirmadas,
+        coincidencias=result.coincidencias,
+    )
 
 
 @router.get("/materiales/{material_id}/variacion-entre-fechas", response_model=PriceVariationBetweenDatesRead)
