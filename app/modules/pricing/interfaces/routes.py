@@ -47,9 +47,9 @@ from app.modules.pricing.application.purchase_strategies import comparar_estrate
 from app.modules.pricing.application.series import (
     PrecioSerieInput,
     calcular_variacion_entre_fechas,
-    evaluar_anomalias_detectadas,
     construir_serie_mensual,
     construir_serie_precios,
+    evaluar_anomalias_detectadas,
 )
 from app.modules.pricing.domain.exceptions import MaterialNotFoundException
 from app.modules.pricing.domain.repositories import PricingRepository
@@ -58,6 +58,8 @@ from app.modules.pricing.interfaces.dependencies import get_pricing_repository
 from app.modules.pricing.interfaces.schemas import (
     AlertaBatchUpdate,
     AlertaRead,
+    AnomalyEvaluationCreate,
+    AnomalyEvaluationRead,
     CommercialMarginCreate,
     CommercialMarginRead,
     CommercialMarginUpdate,
@@ -69,8 +71,6 @@ from app.modules.pricing.interfaces.schemas import (
     ExternalIndexValueRead,
     ForecastResponseRead,
     MaterialCriticidadCreate,
-    AnomalyEvaluationCreate,
-    AnomalyEvaluationRead,
     MaterialCriticidadResponseRead,
     OperationalPurchaseRecommendationCreate,
     OperationalPurchaseRecommendationRead,

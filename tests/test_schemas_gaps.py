@@ -1,14 +1,17 @@
-import pytest
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
+
+import pytest
 from pydantic import ValidationError
+
+from app.modules.chat.interfaces.schemas import CommercialProposalCreate
 from app.modules.pricing.interfaces.schemas import (
     CommercialMarginCreate,
     CommercialMarginUpdate,
     ContextualPurchaseRecommendationCreate,
-    PurchaseTemporalSimulationCreate
+    PurchaseTemporalSimulationCreate,
 )
-from app.modules.chat.interfaces.schemas import CommercialProposalCreate
+
 
 def test_commercial_margin_create_global_with_data():
     with pytest.raises(ValidationError, match="El margen GLOBAL no debe tener"):

@@ -4,14 +4,14 @@ from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 from app.main import app
 from app.modules.auth.interfaces.dependencies import get_current_user
 from app.modules.catalog.interfaces.dependencies import get_material_repository
-from app.modules.pricing.interfaces.dependencies import get_pricing_repository
 from app.modules.pricing.interfaces import routes as pricing_routes
+from app.modules.pricing.interfaces.dependencies import get_pricing_repository
 
 
 def test_endpoint_variacion_entre_fechas_devuelve_comparacion_libre() -> None:

@@ -53,7 +53,7 @@ def _serializar_punto_mensual(punto) -> dict:
         "es_anomalia": punto.es_anomalia,
         "severidad_anomalia": getattr(punto, "severidad_anomalia", None),
         "score_anomalia": getattr(punto, "score_anomalia", None),
-        "confianza_anomalia": None if getattr(punto, "confianza_anomalia", None) is None else str(getattr(punto, "confianza_anomalia")),
+        "confianza_anomalia": None if getattr(punto, "confianza_anomalia", None) is None else str(punto.confianza_anomalia),
         "motivo_anomalia": punto.motivo_anomalia,
     }
 

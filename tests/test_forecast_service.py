@@ -534,6 +534,7 @@ def test_normalizacion_por_kg_no_cambia_con_selector_activado(monkeypatch: pytes
 
 def test_obtener_forecast_cacheado_success(monkeypatch):
     from time import monotonic
+
     from app.modules.pricing.application.forecast_service import (
         ForecastCacheEntry,
         ForecastCacheKey,

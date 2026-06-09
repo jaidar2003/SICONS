@@ -220,8 +220,6 @@ def _features_anomalia_mensual(puntos: list[PuntoSeriePrecio], index: int) -> li
     variacion_anterior = float(anterior.variacion_porcentual_anterior or Decimal("0"))
     variacion_2 = float(hace_2.variacion_porcentual_anterior or Decimal("0"))
     variacion_3 = float(hace_3.variacion_porcentual_anterior or Decimal("0"))
-    media_3 = _mediana(precios_previos_3) or float(anterior.precio_promedio_normalizado)
-    media_6 = _mediana(precios_previos_6) or float(anterior.precio_promedio_normalizado)
     mad_3 = _mad(precios_previos_3)
     mad_6 = _mad(precios_previos_6)
     mismo_mes_anterior = next(

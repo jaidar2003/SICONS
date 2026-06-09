@@ -11,13 +11,26 @@ from app.modules.auth.interfaces.dependencies import get_current_user
 from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.chat.application.context import build_material_context, resolve_horizon
 from app.modules.chat.application.operations import execute_operation, plan_operation
-from app.modules.chat.application.retrieval import build_backend_retrieval_context, classify_chat_intent, suggest_visualization
+from app.modules.chat.application.retrieval import (
+    build_backend_retrieval_context,
+    classify_chat_intent,
+    suggest_visualization,
+)
 from app.modules.chat.application.service import ADMIN_ONLY_RESPONSE, OUT_OF_SCOPE_RESPONSE, answer_question
 from app.modules.chat.infrastructure import llm_client
+from app.modules.chat.infrastructure.llm_client import (
+    AnthropicChatClient,
+    FallbackChatClient,
+    LLMConfigurationError,
+    OpenAICompatibleChatClient,
+)
 from app.modules.chat.infrastructure.models import ChatConversation, ChatMessage
-from app.modules.chat.infrastructure.llm_client import AnthropicChatClient, FallbackChatClient, LLMConfigurationError, OpenAICompatibleChatClient
 from app.modules.chat.interfaces import routes as chat_routes
-from app.modules.chat.interfaces.routes import _persist_conversation_turn, _semantic_question_for_conversation, get_chat_client
+from app.modules.chat.interfaces.routes import (
+    _persist_conversation_turn,
+    _semantic_question_for_conversation,
+    get_chat_client,
+)
 from app.modules.chat.interfaces.schemas import ChatResponseRead
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
 from app.shared.database.session import get_db

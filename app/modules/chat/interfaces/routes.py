@@ -1,7 +1,7 @@
 import re
 import unicodedata
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from math import ceil
 from time import perf_counter
 
@@ -26,7 +26,11 @@ from app.modules.chat.application.operations import (
     needs_operation_plan,
     plan_operation,
 )
-from app.modules.chat.application.retrieval import build_backend_retrieval_context, classify_chat_intent, suggest_visualization
+from app.modules.chat.application.retrieval import (
+    build_backend_retrieval_context,
+    classify_chat_intent,
+    suggest_visualization,
+)
 from app.modules.chat.application.service import (
     ADMIN_ONLY_RESPONSE,
     ChatCompletionClient,
@@ -41,15 +45,16 @@ from app.modules.chat.infrastructure.llm_client import (
     LLMProviderError,
     OpenAICompatibleChatClient,
 )
+from app.modules.chat.infrastructure.models import ChatConversation, ChatMessage
 from app.modules.chat.interfaces.schemas import (
     ChatAuditLogRead,
     ChatAuditMetricsRead,
     ChatConversationCreate,
     ChatConversationRead,
     ChatConversationUpdate,
-    ChatDeterminismGroupRead,
     ChatDeterminismCanonicalItemRead,
     ChatDeterminismCanonicalReportRead,
+    ChatDeterminismGroupRead,
     ChatDeterminismReportRead,
     ChatMessageRead,
     ChatProviderConfigRead,
@@ -61,12 +66,11 @@ from app.modules.chat.interfaces.schemas import (
     CommercialProposalCreate,
     CommercialProposalRead,
 )
-from app.modules.chat.infrastructure.models import ChatConversation, ChatMessage
-from app.shared.database.audit_models import AuditLog
 from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.infrastructure.models import CommercialMargin
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
 from app.shared.config.settings import settings
+from app.shared.database.audit_models import AuditLog
 from app.shared.database.audit_service import register_audit_log
 from app.shared.database.session import get_db
 
@@ -197,7 +201,7 @@ def _persist_conversation_turn(
         conversation.material_actual_id = response.material_resuelto_id
     if response.horizonte_resuelto is not None:
         conversation.horizonte_actual = response.horizonte_resuelto
-    conversation.updated_at = datetime.now(timezone.utc)
+    conversation.updated_at = datetime.now(UTC)
     db.flush()
 
 
@@ -304,10 +308,10 @@ def actualizar_conversacion(
     if payload.titulo is not None:
         conversation.titulo = _conversation_title(payload.titulo)
     if payload.archived is True:
-        conversation.archived_at = datetime.now(timezone.utc)
+        conversation.archived_at = datetime.now(UTC)
     elif payload.archived is False:
         conversation.archived_at = None
-    conversation.updated_at = datetime.now(timezone.utc)
+    conversation.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(conversation)
     return _conversation_read(db, conversation)
@@ -487,7 +491,7 @@ def _build_chat_metrics(logs: list[AuditLog]) -> ChatAuditMetricsRead:
     durations = [
         int(changes.get("duration_ms"))
         for changes in changes_list
-        if isinstance(changes.get("duration_ms"), (int, float))
+        if isinstance(changes.get("duration_ms"), int | float)
     ]
     intent_counter = Counter(
         str(changes.get("tipo_intencion") or "SIN_INTENCION")

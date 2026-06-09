@@ -6,10 +6,10 @@ import pytest
 from app.modules.pricing.application.series import (
     PrecioSerieInput,
     PuntoSeriePrecio,
-    evaluar_anomalias_detectadas,
     calcular_variacion_entre_fechas,
     construir_serie_mensual,
     construir_serie_precios,
+    evaluar_anomalias_detectadas,
     medir_estabilidad_anomalias,
 )
 
