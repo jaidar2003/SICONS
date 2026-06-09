@@ -15,39 +15,18 @@ import {
   Typography,
 } from "@mui/material";
 import dayjs from "dayjs";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { PriceForm } from "../features/admin/PriceForm.jsx";
 import { LoginPage } from "../features/auth/LoginPage.jsx";
 import { useAuthSession } from "../features/auth/useAuthSession.js";
 import { AppHeader } from "../features/layout/AppHeader.jsx";
-import { AnomaliesCard } from "../features/pricing/AnomaliesCard.jsx";
-import { ComparisonCard } from "../features/pricing/ComparisonCard.jsx";
-import { CostPlannerCard } from "../features/pricing/CostPlannerCard.jsx";
-import { CostProjectionCard } from "../features/pricing/CostProjectionCard.jsx";
-import { FinalDecisionCard } from "../features/pricing/FinalDecisionCard.jsx";
 import { FiltersBar } from "../features/pricing/FiltersBar.jsx";
-import { ForecastCard } from "../features/pricing/ForecastCard.jsx";
-import { ForecastModelDetails } from "../features/pricing/ForecastModelDetails.jsx";
-import { HistoryTable } from "../features/pricing/HistoryTable.jsx";
-import { InsightStrip } from "../features/pricing/InsightStrip.jsx";
-import { MetricsGrid } from "../features/pricing/MetricsGrid.jsx";
-import { PurchaseDecisionCard } from "../features/pricing/PurchaseDecisionCard.jsx";
-import { PriceChart } from "../features/pricing/PriceChart.jsx";
-import { CommercialMarginsAdmin } from "../features/admin/CommercialMarginsAdmin.jsx";
-import { ChatAuditAdmin } from "../features/admin/ChatAuditAdmin.jsx";
-import { ChatConfigAdmin } from "../features/admin/ChatConfigAdmin.jsx";
-import { UsersAdmin } from "../features/admin/UsersAdmin.jsx";
-import { ChatCard } from "../features/chat/ChatCard.jsx";
-import { PriceVariationBetweenDatesCard } from "../features/pricing/PriceVariationBetweenDatesCard.jsx";
-import { PurchaseScenarioSimulationCard } from "../features/pricing/PurchaseScenarioSimulationCard.jsx";
-import { DecisionSummaryCard } from "../features/pricing/DecisionSummaryCard.jsx";
 import { createPrecioHistorico } from "../features/pricing/pricing.api.js";
 import { getDisplayPrice } from "../features/pricing/materialPresentation.js";
 import { apiGet } from "../shared/api/http.js";
 import { resolveMuiIcon } from "../shared/components/resolveMuiIcon.js";
 import { formatCurrency, formatNumber } from "../shared/utils/formatters.js";
-import { loadForecastExtras, loadInitialAppData, loadMaterialAnalysis } from "./appData.js";
+import { loadComparisonRows, loadForecastExtras, loadInitialAppData, loadMaterialAnalysis } from "./appData.js";
 import { AppViewHeader } from "./AppViewHeader.jsx";
 import { brand } from "./brand.js";
 
@@ -57,6 +36,28 @@ const AdminPanelSettingsOutlinedIcon = resolveMuiIcon(AdminPanelSettingsOutlined
 const Inventory2OutlinedIcon = resolveMuiIcon(Inventory2OutlinedIconModule);
 const SavingsOutlinedIcon = resolveMuiIcon(SavingsOutlinedIconModule);
 const TimelineOutlinedIcon = resolveMuiIcon(TimelineOutlinedIconModule);
+
+const PriceForm = lazy(() => import("../features/admin/PriceForm.jsx").then((mod) => ({ default: mod.PriceForm })));
+const CommercialMarginsAdmin = lazy(() => import("../features/admin/CommercialMarginsAdmin.jsx").then((mod) => ({ default: mod.CommercialMarginsAdmin })));
+const ChatAuditAdmin = lazy(() => import("../features/admin/ChatAuditAdmin.jsx").then((mod) => ({ default: mod.ChatAuditAdmin })));
+const ChatConfigAdmin = lazy(() => import("../features/admin/ChatConfigAdmin.jsx").then((mod) => ({ default: mod.ChatConfigAdmin })));
+const UsersAdmin = lazy(() => import("../features/admin/UsersAdmin.jsx").then((mod) => ({ default: mod.UsersAdmin })));
+const AnomaliesCard = lazy(() => import("../features/pricing/AnomaliesCard.jsx").then((mod) => ({ default: mod.AnomaliesCard })));
+const ComparisonCard = lazy(() => import("../features/pricing/ComparisonCard.jsx").then((mod) => ({ default: mod.ComparisonCard })));
+const CostPlannerCard = lazy(() => import("../features/pricing/CostPlannerCard.jsx").then((mod) => ({ default: mod.CostPlannerCard })));
+const CostProjectionCard = lazy(() => import("../features/pricing/CostProjectionCard.jsx").then((mod) => ({ default: mod.CostProjectionCard })));
+const FinalDecisionCard = lazy(() => import("../features/pricing/FinalDecisionCard.jsx").then((mod) => ({ default: mod.FinalDecisionCard })));
+const ForecastCard = lazy(() => import("../features/pricing/ForecastCard.jsx").then((mod) => ({ default: mod.ForecastCard })));
+const ForecastModelDetails = lazy(() => import("../features/pricing/ForecastModelDetails.jsx").then((mod) => ({ default: mod.ForecastModelDetails })));
+const HistoryTable = lazy(() => import("../features/pricing/HistoryTable.jsx").then((mod) => ({ default: mod.HistoryTable })));
+const InsightStrip = lazy(() => import("../features/pricing/InsightStrip.jsx").then((mod) => ({ default: mod.InsightStrip })));
+const MetricsGrid = lazy(() => import("../features/pricing/MetricsGrid.jsx").then((mod) => ({ default: mod.MetricsGrid })));
+const PurchaseDecisionCard = lazy(() => import("../features/pricing/PurchaseDecisionCard.jsx").then((mod) => ({ default: mod.PurchaseDecisionCard })));
+const PriceChart = lazy(() => import("../features/pricing/PriceChart.jsx").then((mod) => ({ default: mod.PriceChart })));
+const PriceVariationBetweenDatesCard = lazy(() => import("../features/pricing/PriceVariationBetweenDatesCard.jsx").then((mod) => ({ default: mod.PriceVariationBetweenDatesCard })));
+const PurchaseScenarioSimulationCard = lazy(() => import("../features/pricing/PurchaseScenarioSimulationCard.jsx").then((mod) => ({ default: mod.PurchaseScenarioSimulationCard })));
+const DecisionSummaryCard = lazy(() => import("../features/pricing/DecisionSummaryCard.jsx").then((mod) => ({ default: mod.DecisionSummaryCard })));
+const ChatCard = lazy(() => import("../features/chat/ChatCard.jsx").then((mod) => ({ default: mod.ChatCard })));
 const VIEW_TABS = [
   {
     value: "summary",
@@ -227,12 +228,15 @@ export function App() {
   const [forecastHorizon, setForecastHorizon] = useState(3);
   const [forecastPriceView, setForecastPriceView] = useState("comparative");
   const [comparisonRows, setComparisonRows] = useState([]);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonReady, setComparisonReady] = useState(false);
   const [activeView, setActiveView] = useState("summary");
   const [costWorkflow, setCostWorkflow] = useState("planner");
   const [forecastWorkflow, setForecastWorkflow] = useState("projection");
   const [historyWorkflow, setHistoryWorkflow] = useState("variation");
   const [adminWorkflow, setAdminWorkflow] = useState("ai");
   const forecastRequestRef = useRef(0);
+  const comparisonRequestRef = useRef(0);
   const clientDefaultStart = useMemo(() => dayjs("2026-01-01"), []);
 
   const selectedMaterial = useMemo(
@@ -319,6 +323,29 @@ export function App() {
     []
   );
 
+  const loadComparisonData = useCallback(
+    async ({ materials = materiales, from = desde, to = hasta, activeToken = token } = {}) => {
+      if (!materials.length || !activeToken) return;
+
+      const requestId = comparisonRequestRef.current + 1;
+      comparisonRequestRef.current = requestId;
+      setComparisonLoading(true);
+      try {
+        const rows = await loadComparisonRows({ materials, from, to, token: activeToken });
+        if (comparisonRequestRef.current !== requestId) return;
+        setComparisonRows(rows);
+      } catch {
+        if (comparisonRequestRef.current !== requestId) return;
+        setComparisonRows([]);
+      } finally {
+        if (comparisonRequestRef.current === requestId) {
+          setComparisonLoading(false);
+        }
+      }
+    },
+    [desde, hasta, materiales, token]
+  );
+
   const loadSerieData = useCallback(
     async ({ materialId = selectedMaterialId, from = desde, to = hasta, horizon = forecastHorizon } = {}) => {
       const result = await loadMaterialAnalysis({
@@ -330,24 +357,28 @@ export function App() {
         token,
         includeForecast: false,
         includeCommercial: false,
-        includeComparison: true,
       });
       setSerie(result.serie);
       setForecast(null);
       setCommercialPrice(null);
-      setComparisonRows(result.comparisonRows);
+      if (comparisonReady) {
+        loadComparisonData({ materials: materiales, from, to, activeToken: token }).catch(() => {});
+      }
       loadForecastData({ materialId, horizon, activeToken: token }).catch(() => {});
     },
-    [desde, forecastHorizon, hasta, loadForecastData, materiales, selectedMaterialId, token]
+    [comparisonReady, desde, forecastHorizon, hasta, loadComparisonData, loadForecastData, materiales, selectedMaterialId, token]
   );
 
   const resetWorkspaceState = useCallback(() => {
     forecastRequestRef.current += 1;
+    comparisonRequestRef.current += 1;
     setSerie([]);
     setForecast(null);
     setCommercialPrice(null);
     setForecastLoading(false);
     setComparisonRows([]);
+    setComparisonLoading(false);
+    setComparisonReady(false);
   }, []);
 
   const bootstrapApp = useCallback(
@@ -367,7 +398,9 @@ export function App() {
         setSerie(data.serie);
         setForecast(null);
         setCommercialPrice(null);
-        setComparisonRows(data.comparisonRows);
+        setComparisonRows([]);
+        setComparisonReady(false);
+        setComparisonLoading(false);
         loadForecastData({
           materialId: data.selectedMaterialId,
           horizon: forecastHorizon,
@@ -433,6 +466,16 @@ export function App() {
     return saved;
   }
 
+  function handleLoadComparison() {
+    setComparisonReady(true);
+    loadComparisonData({
+      materials: materiales,
+      from: desde,
+      to: hasta,
+      activeToken: token,
+    }).catch((loadError) => setError(loadError.message));
+  }
+
   function handleMaterialChange(value) {
     setSelectedMaterialId(value);
     loadSerieData({ materialId: value }).catch((loadError) => setError(loadError.message));
@@ -483,7 +526,14 @@ export function App() {
       {!user ? (
         <LoginPage onLogin={login} onRegister={register} />
       ) : (
-        <Box className="mx-auto w-[95%] max-w-[1600px] pb-12">
+        <Suspense
+          fallback={
+            <Box className="mx-auto flex w-[95%] max-w-[1600px] justify-center pb-12 pt-6">
+              <CircularProgress />
+            </Box>
+          }
+        >
+          <Box className="mx-auto w-[95%] max-w-[1600px] pb-12">
           {loading ? (
             <Box className="-mt-8 flex justify-center rounded-md bg-white p-8 shadow-md1">
               <CircularProgress />
@@ -578,7 +628,28 @@ export function App() {
                       </CardContent>
                     </Card>
                   ) : null}
-                  <ComparisonCard rows={comparisonRows} selectedMaterialId={selectedMaterialId} showPrices={showPrices} compact className="mt-3" />
+                  {comparisonReady ? (
+                    <ComparisonCard rows={comparisonRows} selectedMaterialId={selectedMaterialId} showPrices={showPrices} compact className="mt-3" />
+                  ) : (
+                    <Card className="mt-3 border border-dashed border-slate-300 bg-white/80">
+                      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <Box>
+                          <Typography fontWeight={900}>Comparación entre materiales</Typography>
+                          <Typography color="text.secondary" variant="body2">
+                            Todavía no se cargó. Se pide solo cuando la abrís para no frenar el arranque.
+                          </Typography>
+                        </Box>
+                        <Button
+                          variant="outlined"
+                          onClick={handleLoadComparison}
+                          disabled={comparisonLoading}
+                          startIcon={comparisonLoading ? <CircularProgress size={16} color="inherit" /> : null}
+                        >
+                          {comparisonLoading ? "Cargando comparación" : "Cargar comparación"}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
                 </>
               ) : null}
 
@@ -883,7 +954,8 @@ export function App() {
 
             </>
           )}
-        </Box>
+          </Box>
+        </Suspense>
       )}
     </Box>
   );

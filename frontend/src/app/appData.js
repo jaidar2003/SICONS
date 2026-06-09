@@ -35,6 +35,21 @@ export async function loadForecastExtras({ materialId, horizon, token }) {
   return { forecast, commercialPrice };
 }
 
+export async function loadComparisonRows({ materials, from, to, token }) {
+  if (!materials?.length) return [];
+
+  const desde = toApiDate(from);
+  const hasta = toApiDate(to);
+  const comparisonResults = await Promise.all(
+    materials.map(async (material) => ({
+      material,
+      serie: await fetchSerie({ materialId: material.id, desde, hasta, token }),
+    }))
+  );
+
+  return buildComparisonRows(comparisonResults);
+}
+
 export async function loadMaterialAnalysis({
   materialId,
   from,
@@ -44,38 +59,27 @@ export async function loadMaterialAnalysis({
   token,
   includeForecast = true,
   includeCommercial = true,
-  includeComparison = true,
 }) {
   if (!materialId) {
     return {
       serie: [],
       forecast: null,
       commercialPrice: null,
-      comparisonRows: [],
     };
   }
 
   const desde = toApiDate(from);
   const hasta = toApiDate(to);
-  const [serie, forecast, commercialPrice, comparisonResults] = await Promise.all([
+  const [serie, forecast, commercialPrice] = await Promise.all([
     fetchSerie({ materialId, desde, hasta, token }),
     includeForecast ? fetchForecast({ materialId, horizonteMeses: horizon, token }).catch(() => null) : Promise.resolve(null),
     includeCommercial ? fetchCommercialPrice({ materialId, horizonteMeses: horizon, token }).catch(() => null) : Promise.resolve(null),
-    includeComparison
-      ? Promise.all(
-          materials.map(async (material) => ({
-            material,
-            serie: await fetchSerie({ materialId: material.id, desde, hasta, token }),
-          }))
-        )
-      : Promise.resolve([]),
   ]);
 
   return {
     serie,
     forecast,
     commercialPrice,
-    comparisonRows: buildComparisonRows(comparisonResults),
   };
 }
 
@@ -103,7 +107,6 @@ export async function loadInitialAppData({ token, forecastHorizon, clientDefault
     token,
     includeForecast: false,
     includeCommercial: false,
-    includeComparison: true,
   });
 
   return {
@@ -115,6 +118,9 @@ export async function loadInitialAppData({ token, forecastHorizon, clientDefault
     hasta,
     maxDate,
     dateWarning,
+    comparisonRows: [],
+    forecast: null,
+    commercialPrice: null,
     ...analysis,
   };
 }

@@ -403,6 +403,57 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
               Cargá fechas confirmadas para medir qué tan preciso está el detector frente a anomalías reales.
             </Box>
           )}
+
+          <Box className="rounded-xl border border-slate-200 bg-white p-4">
+            <Box className="flex items-start justify-between gap-3">
+              <Box>
+                <Typography variant="h4">Glosario</Typography>
+                <Typography color="text.secondary" variant="body2" mt={0.5}>
+                  Qué significa cada señal y de dónde sale.
+                </Typography>
+              </Box>
+              <Chip label="Auditable" size="small" variant="outlined" sx={{ fontWeight: 800 }} />
+            </Box>
+
+            <Box className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <GlossaryItem
+                term="Residuo"
+                definition="Distancia porcentual entre el precio observado y el precio esperado por el Random Forest."
+              />
+              <GlossaryItem
+                term="Desvío de tendencia"
+                definition="Diferencia porcentual contra una tendencia local de corto plazo, calculada con los últimos meses."
+              />
+              <GlossaryItem
+                term="Gap estacional"
+                definition="Diferencia frente al mismo mes de años anteriores, si existe un antecedente comparable."
+              />
+              <GlossaryItem
+                term="Score"
+                definition="Cantidad de señales activadas sobre 4: residuo, variación mensual, estacionalidad y tendencia."
+              />
+              <GlossaryItem
+                term="Confianza"
+                definition="Porcentaje heurístico derivado del score y de la fuerza del residuo. Sirve para priorizar revisión."
+              />
+              <GlossaryItem
+                term="Severidad"
+                definition="Etiqueta cualitativa que resume qué tan fuerte fue la desviación detectada."
+              />
+              <GlossaryItem
+                term="Precisión"
+                definition="Métrica global de evaluación contra anomalías confirmadas. No se asigna por punto individual."
+              />
+              <GlossaryItem
+                term="Recall"
+                definition="Proporción de anomalías confirmadas que el detector logró encontrar."
+              />
+              <GlossaryItem
+                term="F1"
+                definition="Balance entre precisión y recall. Útil cuando querés medir detección y falsos positivos al mismo tiempo."
+              />
+            </Box>
+          </Box>
         </Stack>
       </CardContent>
     </Card>
@@ -442,6 +493,19 @@ function DetailList({ title, values, emptyText, className = "" }) {
           {emptyText}
         </Typography>
       )}
+    </Box>
+  );
+}
+
+function GlossaryItem({ term, definition }) {
+  return (
+    <Box className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <Typography variant="body2" fontWeight={900} color="text.primary">
+        {term}
+      </Typography>
+      <Typography variant="body2" color="text.secondary" mt={0.5}>
+        {definition}
+      </Typography>
     </Box>
   );
 }
