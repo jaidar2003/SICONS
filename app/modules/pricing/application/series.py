@@ -274,14 +274,21 @@ def _clasificar_severidad_anomalia(residual_pct: Decimal, residual_limit: Decima
     return "leve"
 
 
-def _confianza_anomalia(score: int, required_signals: int, residual_pct: Decimal, residual_limit: Decimal) -> Decimal:
+def _confianza_anomalia(
+    score: int,
+    required_signals: int,
+    residual_pct: Decimal,
+    residual_limit: Decimal,
+    incertidumbre_modelo_pct: Decimal,
+) -> Decimal:
     base = Decimal(score) / Decimal("4")
     if residual_limit > 0:
         residual_boost = min(Decimal("0.25"), residual_pct / (residual_limit * Decimal("4")))
     else:
         residual_boost = Decimal("0")
     evidence_boost = Decimal("0.10") if score >= required_signals + 1 else Decimal("0")
-    return _quantize(min(base + residual_boost + evidence_boost, Decimal("1")) * Decimal("100"))
+    uncertainty_penalty = min(Decimal("0.20"), incertidumbre_modelo_pct / Decimal("100"))
+    return _quantize(max(min(base + residual_boost + evidence_boost - uncertainty_penalty, Decimal("1")), Decimal("0")) * Decimal("100"))
 
 
 def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[date, tuple[str, str, int, Decimal]]:
@@ -301,7 +308,7 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
         random_state=42,
     )
 
-    evaluaciones: list[tuple[int, float, float, float, float, float | None, float, float, int, int]] = []
+    evaluaciones: list[tuple[int, float, float, float, float, float, float | None, float, float, int, int]] = []
     residuals_historial: list[float] = []
     variaciones_historial: list[float] = []
     for index in trainable_indexes:
@@ -314,6 +321,11 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
         model.fit(x_train, y_train)
         features = _features_anomalia_mensual(puntos, index)
         predicted = float(model.predict([features])[0])
+        tree_predictions = [float(tree.predict([features])[0]) for tree in model.estimators_]
+        prediction_center = sum(tree_predictions) / len(tree_predictions)
+        prediction_variance = sum((value - prediction_center) ** 2 for value in tree_predictions) / len(tree_predictions)
+        prediction_std = prediction_variance**0.5
+        incertidumbre_modelo_pct = _pct_cambio(predicted + prediction_std, predicted)
         actual = float(puntos[index].precio_promedio_normalizado)
         residual_pct = _pct_cambio(actual, predicted)
         tendencia_local = _baseline_tendencia_local(puntos, index)
@@ -333,6 +345,7 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
         )
         variacion_actual = abs(float(puntos[index].variacion_porcentual_anterior or Decimal("0")))
         residual_limit = _limite_adaptativo_desde_valores(residuals_historial, fallback=15.0)
+        residual_limit = max(residual_limit, Decimal(f"{incertidumbre_modelo_pct * 1.50:.6f}"))
         variacion_limit = _limite_adaptativo_desde_valores(variaciones_historial, fallback=12.0)
         trend_limit = max(Decimal("8.000000"), variacion_limit * Decimal("0.85"))
         seasonal_limit = max(Decimal("10.000000"), variacion_limit)
@@ -347,6 +360,7 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
                 index,
                 residual_pct,
                 predicted,
+                incertidumbre_modelo_pct,
                 variacion_actual,
                 float(residual_limit),
                 seasonal_gap,
@@ -363,7 +377,19 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
         return {}
 
     anomalies: dict[date, tuple[str, str, int, Decimal]] = {}
-    for index, residual_pct, predicted, variacion_actual, residual_limit_float, seasonal_gap, tendencia_gap, variacion_limit_float, score, required_signals in evaluaciones:
+    for (
+        index,
+        residual_pct,
+        predicted,
+        incertidumbre_modelo_pct,
+        variacion_actual,
+        residual_limit_float,
+        seasonal_gap,
+        tendencia_gap,
+        variacion_limit_float,
+        score,
+        required_signals,
+    ) in evaluaciones:
         residual_decimal = Decimal(f"{residual_pct:.6f}")
         variacion = puntos[index].variacion_porcentual_anterior
         if variacion is None:
@@ -381,7 +407,8 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
             continue
 
         severidad = _clasificar_severidad_anomalia(residual_decimal, residual_limit, score, required_signals)
-        confianza = _confianza_anomalia(score, required_signals, residual_decimal, residual_limit)
+        incertidumbre_decimal = Decimal(f"{incertidumbre_modelo_pct:.6f}")
+        confianza = _confianza_anomalia(score, required_signals, residual_decimal, residual_limit, incertidumbre_decimal)
         signalos = []
         if residual_signal:
             signalos.append(f"residuo {Decimal(f'{residual_pct:.4f}').quantize(Decimal('0.0001'))}% > limite {residual_limit}")
@@ -395,6 +422,7 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
             "Anomalia detectada por Random Forest (ensemble robusto): "
             f"precio esperado {Decimal(f'{predicted:.4f}').quantize(Decimal('0.0001'))}, "
             f"residuo {Decimal(f'{residual_pct:.4f}').quantize(Decimal('0.0001'))}%, "
+            f"incertidumbre modelo {Decimal(f'{incertidumbre_modelo_pct:.4f}').quantize(Decimal('0.0001'))}%, "
             f"variacion mensual {variacion}%, "
             f"score {score}/{4}; "
             + "; ".join(signalos),

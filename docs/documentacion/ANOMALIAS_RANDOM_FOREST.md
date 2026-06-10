@@ -29,7 +29,8 @@ Para cada material:
 4. Se entrena un `RandomForestRegressor` sobre la propia serie mensual.
 5. El modelo estima el precio esperado para cada mes evaluable.
 6. Se calcula el residuo porcentual entre precio observado y precio esperado.
-7. Se marca anomalia cuando el residuo queda fuera de una banda dinamica calculada con IQR sobre los residuos del modelo.
+7. Se mide la incertidumbre interna del modelo a partir de la dispersion de predicciones entre arboles.
+8. Se marca anomalia cuando el residuo queda fuera de una banda dinamica calculada con IQR sobre los residuos del modelo y supera el margen requerido por la incertidumbre del ensemble.
 
 ## Variables usadas
 
@@ -40,6 +41,9 @@ El modelo usa features simples y trazables:
 - precio del mes anterior;
 - variacion porcentual anterior;
 - promedio movil corto de precios previos;
+- rezagos de precio y variacion;
+- dispersion robusta reciente;
+- desvio contra tendencia local y referencia estacional;
 - cantidad de registros del mes.
 
 Estas variables permiten capturar tendencia, estacionalidad simple, inercia de precio y robustez de la muestra mensual.
@@ -62,6 +66,10 @@ Q3 + 1.5 * IQR
 
 donde `IQR` es el rango intercuartil de los residuos porcentuales.
 
+Ese limite se vuelve mas conservador si el Random Forest muestra alta dispersion entre sus arboles. En terminos practicos, si el modelo no tiene un precio esperado estable, el sistema exige un residuo mayor antes de marcar una alerta.
+
+Ademas del residuo, la marca requiere evidencia complementaria: variacion mensual atipica, desvio contra tendencia local o desvio contra una referencia estacional cuando existe. Esto reduce falsos positivos por cambios esperables de mercado.
+
 ## Series cortas
 
 Si la serie tiene menos de 6 meses, no se entrena Random Forest y no se fuerzan anomalias.
@@ -74,12 +82,14 @@ Cada punto mensual puede incluir:
 
 - `es_anomalia`: indica si el mes fue marcado como atipico;
 - `severidad_anomalia`: clasifica la magnitud relativa de la desviacion detectada;
-- `motivo_anomalia`: describe la deteccion, incluyendo precio esperado, residuo porcentual y variacion mensual.
+- `score_anomalia`: cantidad de senales que respaldan la alerta;
+- `confianza_anomalia`: confianza porcentual ajustada por evidencia e incertidumbre del modelo;
+- `motivo_anomalia`: describe la deteccion, incluyendo precio esperado, residuo porcentual, incertidumbre, variacion mensual y senales activadas.
 
 Ejemplo conceptual:
 
 ```text
-Anomalia detectada por Random Forest: precio esperado 120.0000, residuo 35.0000% y variacion mensual 41.6667%
+Anomalia detectada por Random Forest: precio esperado 120.0000, residuo 35.0000%, incertidumbre modelo 4.2000%, variacion mensual 41.6667% y score 3/4
 ```
 
 ## Limitaciones

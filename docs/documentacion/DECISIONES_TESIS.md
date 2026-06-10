@@ -416,8 +416,8 @@ Cada decision incluye:
   - mantener el umbral fijo del `8%`;
   - usar solo reglas estadisticas simples sobre variacion mensual;
   - incorporar modelos mas complejos de deteccion no supervisada.
-- Justificacion: la recomendacion docente fue evitar un umbral fijo y usar un modelo de aprendizaje automatico. La solucion adoptada entrena un Random Forest sobre features temporales y rezagos de la serie mensual, estima el precio esperado y marca como anomalo aquello cuyo residuo porcentual queda por encima de un umbral robusto calculado con IQR. Asi el criterio se adapta al comportamiento historico de la serie.
-- Impacto en el sistema: la salida de anomalias deja de explicar la deteccion como "supera 8%" y pasa a informar precio esperado, residuo porcentual y variacion mensual. El frontend incorpora un grafico de serie con puntos anomalo destacados para hacerlo defendible visualmente.
+- Justificacion: la recomendacion docente fue evitar un umbral fijo y usar un modelo de aprendizaje automatico. La solucion adoptada entrena un Random Forest sobre features temporales y rezagos de la serie mensual, estima el precio esperado y marca como anomalo aquello cuyo residuo porcentual queda por encima de un umbral robusto calculado con IQR. El umbral se ajusta ademas con la dispersion entre arboles del ensemble, de modo que una prediccion poco estable exige mas evidencia antes de disparar una alerta. Asi el criterio se adapta al comportamiento historico de la serie y reduce falsos positivos.
+- Impacto en el sistema: la salida de anomalias deja de explicar la deteccion como "supera 8%" y pasa a informar precio esperado, residuo porcentual, incertidumbre del modelo, variacion mensual y score de senales. El frontend incorpora un grafico de serie con puntos anomalo destacados para hacerlo defendible visualmente.
 - Limitaciones o trabajo futuro: con series muy cortas no se fuerza un modelo porque no hay suficiente evidencia. A futuro puede compararse Random Forest contra Isolation Forest, modelos robustos de regresion o validaciones etiquetadas si se cuenta con anomalias reales confirmadas.
 
 ## DT-28

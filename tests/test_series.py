@@ -66,6 +66,7 @@ def test_construir_serie_mensual_promedia_y_detecta_anomalias_con_random_forest(
     assert serie[6].motivo_anomalia is not None
     assert "Random Forest" in serie[6].motivo_anomalia
     assert "score" in serie[6].motivo_anomalia
+    assert "incertidumbre modelo" in serie[6].motivo_anomalia
 
 
 def test_evaluar_anomalias_detectadas_calcula_precision_recall_f1() -> None:
