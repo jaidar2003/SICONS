@@ -67,6 +67,21 @@ def test_construir_serie_mensual_promedia_y_detecta_anomalias_con_random_forest(
     assert "Random Forest" in serie[6].motivo_anomalia
     assert "score" in serie[6].motivo_anomalia
     assert "incertidumbre modelo" in serie[6].motivo_anomalia
+    assert serie[6].precio_esperado_anomalia is not None
+    assert serie[6].residuo_anomalia_pct is not None
+    assert serie[6].limite_residuo_anomalia_pct is not None
+    assert serie[6].rango_esperado_min_anomalia is not None
+    assert serie[6].rango_esperado_max_anomalia is not None
+    assert serie[6].tipo_anomalia in {
+        "cambio_sostenido",
+        "desvio_estacional",
+        "salto_puntual",
+        "desvio_tendencia",
+        "residuo_extremo",
+        "mixta",
+    }
+    assert serie[6].explicacion_anomalia is not None
+    assert serie[6].variables_relevantes_anomalia
 
 
 def test_evaluar_anomalias_detectadas_calcula_precision_recall_f1() -> None:
@@ -134,6 +149,14 @@ def test_evaluar_anomalias_detectadas_calcula_precision_recall_f1() -> None:
     assert result.f1 == Decimal("0.5000")
     assert result.exactitud == Decimal("0.5000")
     assert result.coincidencias == [date(2026, 2, 1)]
+    assert result.baseline_umbral_pct == Decimal("8.0000")
+    assert result.baseline_total_detectadas == 3
+    assert result.baseline_verdaderos_positivos == 2
+    assert result.baseline_falsos_positivos == 1
+    assert result.baseline_falsos_negativos == 0
+    assert result.baseline_precision == Decimal("0.6667")
+    assert result.baseline_recall == Decimal("1.0000")
+    assert result.baseline_f1 == Decimal("0.8000")
 
 
 def test_construir_serie_mensual_cuenta_facturas_distintas() -> None:

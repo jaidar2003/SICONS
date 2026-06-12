@@ -66,6 +66,31 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
       },
     ];
   }, [evaluation]);
+  const baselineSummary = useMemo(() => {
+    if (!evaluation) return null;
+    return [
+      {
+        label: "Precisión",
+        value: formatRatio(evaluation.baseline_precision),
+        helper: `Regla fija > ${formatPercent(evaluation.baseline_umbral_pct)}`,
+      },
+      {
+        label: "Recall",
+        value: formatRatio(evaluation.baseline_recall),
+        helper: "Confirmadas encontradas",
+      },
+      {
+        label: "F1",
+        value: formatRatio(evaluation.baseline_f1),
+        helper: "Balance baseline",
+      },
+      {
+        label: "Detectadas",
+        value: String(evaluation.baseline_total_detectadas),
+        helper: "Marcas por umbral fijo",
+      },
+    ];
+  }, [evaluation]);
 
   useEffect(() => {
     setConfirmedDatesInput("");
@@ -205,6 +230,13 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
           <Box className="grid gap-3 xl:grid-cols-2">
             {anomalies.map((point) => {
               const parsedMotivo = parseAnomalyMotivo(point.motivo_anomalia);
+              const expectedRangeVisible =
+                point.precio_esperado_anomalia !== null &&
+                point.precio_esperado_anomalia !== undefined &&
+                point.rango_esperado_min_anomalia !== null &&
+                point.rango_esperado_min_anomalia !== undefined &&
+                point.rango_esperado_max_anomalia !== null &&
+                point.rango_esperado_max_anomalia !== undefined;
               return (
                 <Box
                   key={point.fecha}
@@ -263,6 +295,14 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
                         sx={{ fontWeight: 800 }}
                       />
                     ) : null}
+                    {point.tipo_anomalia ? (
+                      <Chip
+                        label={formatAnomalyType(point.tipo_anomalia)}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontWeight: 800, backgroundColor: "#FFFFFF" }}
+                      />
+                    ) : null}
                     {point.confianza_anomalia !== null && point.confianza_anomalia !== undefined ? (
                       <Chip
                         label={`Confianza ${formatPercent(point.confianza_anomalia)}`}
@@ -296,9 +336,48 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
                         Explicación del modelo
                       </Typography>
                       <Typography mt={0.5} variant="body2" color="text.primary">
-                        {parsedMotivo.summary}
+                        {point.explicacion_anomalia || parsedMotivo.summary}
                       </Typography>
                     </Box>
+
+                    {expectedRangeVisible ? (
+                      <Box className="mt-2 grid gap-2 sm:grid-cols-3">
+                        <MetricTile
+                          label="Esperado"
+                          value={formatCurrency(getDisplayPrice(point.precio_esperado_anomalia, selectedMaterial?.nombre, point.unidad_base))}
+                          helper="Estimación RF"
+                        />
+                        <MetricTile
+                          label="Rango normal"
+                          value={`${formatCurrency(getDisplayPrice(point.rango_esperado_min_anomalia, selectedMaterial?.nombre, point.unidad_base))} a ${formatCurrency(getDisplayPrice(point.rango_esperado_max_anomalia, selectedMaterial?.nombre, point.unidad_base))}`}
+                          helper={`Límite ${formatPercent(point.limite_residuo_anomalia_pct)}`}
+                        />
+                        <MetricTile
+                          label="Residuo"
+                          value={formatPercent(point.residuo_anomalia_pct)}
+                          helper="Distancia observada"
+                        />
+                      </Box>
+                    ) : null}
+
+                    {point.variables_relevantes_anomalia?.length ? (
+                      <Box className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
+                        <Typography color="text.secondary" variant="caption" fontWeight={900} letterSpacing={0}>
+                          Variables relevantes
+                        </Typography>
+                        <Box className="mt-1.5 flex flex-wrap gap-1.5">
+                          {point.variables_relevantes_anomalia.map((variable) => (
+                            <Chip
+                              key={variable}
+                              label={variable}
+                              size="small"
+                              variant="outlined"
+                              sx={{ fontSize: 12, height: 26, backgroundColor: "#F8FAFC" }}
+                            />
+                          ))}
+                        </Box>
+                      </Box>
+                    ) : null}
 
                     {parsedMotivo.signals.length ? (
                       <Box className="mt-2 flex flex-wrap gap-1.5">
@@ -380,6 +459,19 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
                 ))}
               </Box>
 
+              <Box className="mt-4">
+                <Typography variant="h4">Comparación contra baseline</Typography>
+                <Typography color="text.secondary" variant="body2" mt={0.5}>
+                  Regla simple: marcar cualquier mes con variación mensual mayor al umbral fijo.
+                </Typography>
+              </Box>
+
+              <Box className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {baselineSummary.map((item) => (
+                  <MetricTile key={`baseline-${item.label}`} label={item.label} value={item.value} helper={item.helper} />
+                ))}
+              </Box>
+
               <Box className="mt-4 grid gap-3 sm:grid-cols-3">
                 <MetricTile label="Confirmadas" value={String(evaluation.total_confirmadas)} helper="Fechas ingresadas" />
                 <MetricTile label="Detectadas" value={String(evaluation.total_detectadas)} helper="Marcas del modelo" />
@@ -396,7 +488,10 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
                 <DetailList title="Fechas detectadas" values={evaluation.fechas_detectadas} emptyText="El modelo no marcó anomalías en el rango." />
               </Box>
 
-              <DetailList className="mt-3" title="Fechas confirmadas" values={evaluation.fechas_confirmadas} emptyText="No se cargaron fechas confirmadas." />
+              <Box className="mt-3 grid gap-3 lg:grid-cols-2">
+                <DetailList title="Fechas baseline" values={evaluation.baseline_fechas_detectadas} emptyText="El baseline no marcó anomalías en el rango." />
+                <DetailList title="Fechas confirmadas" values={evaluation.fechas_confirmadas} emptyText="No se cargaron fechas confirmadas." />
+              </Box>
             </Box>
           ) : (
             <Box className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
@@ -439,6 +534,18 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
               <GlossaryItem
                 term="Severidad"
                 definition="Etiqueta cualitativa que resume qué tan fuerte fue la desviación detectada."
+              />
+              <GlossaryItem
+                term="Rango normal"
+                definition="Banda esperada alrededor del precio estimado por Random Forest, calculada con el límite dinámico de residuo."
+              />
+              <GlossaryItem
+                term="Tipo"
+                definition="Clasificación operativa de la alerta: salto puntual, desvío de tendencia, desvío estacional, cambio sostenido o residuo extremo."
+              />
+              <GlossaryItem
+                term="Baseline"
+                definition="Regla simple de comparación que marca meses con variación mensual mayor a un umbral fijo."
               />
               <GlossaryItem
                 term="Precisión"
@@ -518,6 +625,18 @@ function formatRatio(value) {
 function formatPercent(value) {
   if (value === null || value === undefined) return "Sin dato";
   return `${formatNumber(Number(value))}%`;
+}
+
+function formatAnomalyType(value) {
+  const labels = {
+    cambio_sostenido: "Cambio sostenido",
+    desvio_estacional: "Desvío estacional",
+    salto_puntual: "Salto puntual",
+    desvio_tendencia: "Desvío de tendencia",
+    residuo_extremo: "Residuo extremo",
+    mixta: "Señal mixta",
+  };
+  return labels[value] || String(value).replaceAll("_", " ");
 }
 
 function parseAnomalyMotivo(value) {

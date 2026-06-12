@@ -98,6 +98,15 @@ def test_endpoint_evaluacion_anomalias_devuelve_metricas() -> None:
         fechas_detectadas=[date(2026, 2, 1)],
         fechas_confirmadas=[date(2026, 2, 1)],
         coincidencias=[date(2026, 2, 1)],
+        baseline_umbral_pct=Decimal("8.0000"),
+        baseline_total_detectadas=1,
+        baseline_verdaderos_positivos=1,
+        baseline_falsos_positivos=0,
+        baseline_falsos_negativos=0,
+        baseline_precision=Decimal("1.0000"),
+        baseline_recall=Decimal("1.0000"),
+        baseline_f1=Decimal("1.0000"),
+        baseline_fechas_detectadas=[date(2026, 2, 1)],
     )
 
     class FakePricingRepo:
@@ -148,5 +157,8 @@ def test_endpoint_evaluacion_anomalias_devuelve_metricas() -> None:
     assert body["total_puntos"] == 3
     assert body["total_detectadas"] == 1
     assert body["precision"] == "1.0000"
+    assert body["baseline_umbral_pct"] == "8.0000"
+    assert body["baseline_total_detectadas"] == 1
+    assert body["baseline_precision"] == "1.0000"
     assert body["recall"] == "1.0000"
     assert body["f1"] == "1.0000"

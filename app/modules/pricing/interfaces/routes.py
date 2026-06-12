@@ -249,6 +249,15 @@ def evaluar_anomalias_material(
         fechas_detectadas=result.fechas_detectadas,
         fechas_confirmadas=result.fechas_confirmadas,
         coincidencias=result.coincidencias,
+        baseline_umbral_pct=result.baseline_umbral_pct,
+        baseline_total_detectadas=result.baseline_total_detectadas,
+        baseline_verdaderos_positivos=result.baseline_verdaderos_positivos,
+        baseline_falsos_positivos=result.baseline_falsos_positivos,
+        baseline_falsos_negativos=result.baseline_falsos_negativos,
+        baseline_precision=result.baseline_precision,
+        baseline_recall=result.baseline_recall,
+        baseline_f1=result.baseline_f1,
+        baseline_fechas_detectadas=result.baseline_fechas_detectadas,
     )
 
 

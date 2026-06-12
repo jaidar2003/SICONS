@@ -31,6 +31,8 @@ Para cada material:
 6. Se calcula el residuo porcentual entre precio observado y precio esperado.
 7. Se mide la incertidumbre interna del modelo a partir de la dispersion de predicciones entre arboles.
 8. Se marca anomalia cuando el residuo queda fuera de una banda dinamica calculada con IQR sobre los residuos del modelo y supera el margen requerido por la incertidumbre del ensemble.
+9. Se expone el rango normal esperado, el tipo operativo de anomalia, una explicacion legible y las variables mas relevantes del Random Forest.
+10. La evaluacion contra fechas confirmadas compara el detector contra un baseline simple de variacion mensual mayor a `8%`.
 
 ## Variables usadas
 
@@ -84,13 +86,29 @@ Cada punto mensual puede incluir:
 - `severidad_anomalia`: clasifica la magnitud relativa de la desviacion detectada;
 - `score_anomalia`: cantidad de senales que respaldan la alerta;
 - `confianza_anomalia`: confianza porcentual ajustada por evidencia e incertidumbre del modelo;
-- `motivo_anomalia`: describe la deteccion, incluyendo precio esperado, residuo porcentual, incertidumbre, variacion mensual y senales activadas.
+- `precio_esperado_anomalia`: estimacion puntual del Random Forest;
+- `rango_esperado_min_anomalia` y `rango_esperado_max_anomalia`: banda normal estimada a partir del limite dinamico de residuo;
+- `residuo_anomalia_pct`: distancia porcentual entre precio observado y esperado;
+- `limite_residuo_anomalia_pct`: margen dinamico usado para evaluar el residuo;
+- `tipo_anomalia`: clasificacion operativa (`salto_puntual`, `cambio_sostenido`, `desvio_tendencia`, `desvio_estacional`, `residuo_extremo` o `mixta`);
+- `explicacion_anomalia`: lectura resumida en lenguaje claro;
+- `variables_relevantes_anomalia`: principales variables usadas por el Random Forest para esa evaluacion;
+- `motivo_anomalia`: describe la deteccion, incluyendo precio esperado, rango normal, residuo porcentual, incertidumbre, variacion mensual y senales activadas.
 
 Ejemplo conceptual:
 
 ```text
 Anomalia detectada por Random Forest: precio esperado 120.0000, residuo 35.0000%, incertidumbre modelo 4.2000%, variacion mensual 41.6667% y score 3/4
 ```
+
+## Comparacion contra baseline
+
+Para defender que Random Forest aporta mas que una regla fija, la evaluacion de anomalias permite cargar fechas confirmadas y calcula metricas para dos enfoques:
+
+- detector Random Forest con residuo dinamico;
+- baseline simple que marca cualquier mes con variacion mensual mayor al `8%`.
+
+La salida incluye precision, recall, F1, falsos positivos y falsos negativos del detector principal, mas las metricas equivalentes del baseline. Esto permite explicar si Random Forest reduce falsos positivos o mejora la cobertura frente a una regla porcentual fija.
 
 ## Limitaciones
 

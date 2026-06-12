@@ -30,6 +30,30 @@ class PuntoSeriePrecio:
     score_anomalia: int | None = None
     confianza_anomalia: Decimal | None = None
     motivo_anomalia: str | None = None
+    precio_esperado_anomalia: Decimal | None = None
+    residuo_anomalia_pct: Decimal | None = None
+    limite_residuo_anomalia_pct: Decimal | None = None
+    rango_esperado_min_anomalia: Decimal | None = None
+    rango_esperado_max_anomalia: Decimal | None = None
+    tipo_anomalia: str | None = None
+    explicacion_anomalia: str | None = None
+    variables_relevantes_anomalia: list[str] | None = None
+
+
+@dataclass(frozen=True)
+class AnomalyDetectionMetadata:
+    motivo: str
+    severidad: str
+    score: int
+    confianza: Decimal
+    precio_esperado: Decimal
+    residuo_pct: Decimal
+    limite_residuo_pct: Decimal
+    rango_esperado_min: Decimal
+    rango_esperado_max: Decimal
+    tipo: str
+    explicacion: str
+    variables_relevantes: list[str]
 
 
 @dataclass(frozen=True)
@@ -56,6 +80,15 @@ class AnomalyEvaluationResult:
     fechas_detectadas: list[date]
     fechas_confirmadas: list[date]
     coincidencias: list[date]
+    baseline_umbral_pct: Decimal
+    baseline_total_detectadas: int
+    baseline_verdaderos_positivos: int
+    baseline_falsos_positivos: int
+    baseline_falsos_negativos: int
+    baseline_precision: Decimal | None
+    baseline_recall: Decimal | None
+    baseline_f1: Decimal | None
+    baseline_fechas_detectadas: list[date]
 
 
 @dataclass(frozen=True)
@@ -98,6 +131,12 @@ def _pct_cambio(actual: float, referencia: float) -> float:
     return abs((actual - referencia) / referencia) * 100
 
 
+def _pct_diferencia_firmada(actual: float, referencia: float) -> float:
+    if referencia == 0:
+        return 0.0
+    return ((actual - referencia) / referencia) * 100
+
+
 def _punto_retrasado(puntos: list[PuntoSeriePrecio], index: int, lag: int) -> PuntoSeriePrecio:
     return puntos[index - lag] if index - lag >= 0 else puntos[0]
 
@@ -130,6 +169,30 @@ def _gap_porcentual(valor_actual: float, referencia: float | None) -> float:
     if referencia is None:
         return 0.0
     return _pct_cambio(valor_actual, referencia)
+
+
+ANOMALY_FEATURE_LABELS = [
+    "posición temporal",
+    "mes calendario",
+    "trimestre",
+    "precio mes anterior",
+    "precio hace 2 meses",
+    "precio hace 3 meses",
+    "precio hace 6 meses",
+    "variación anterior",
+    "variación hace 2 meses",
+    "variación hace 3 meses",
+    "promedio móvil 3 meses",
+    "promedio móvil 6 meses",
+    "dispersión reciente 3 meses",
+    "dispersión reciente 6 meses",
+    "cantidad de registros",
+    "referencia estacional",
+    "desvío estacional previo",
+    "desvío estacional actual",
+    "desvío de tendencia local",
+    "pendiente local",
+]
 
 
 def _ultimo_precio_hasta_fecha(registros: list[PrecioSerieInput], fecha_objetivo: date) -> tuple[date, Decimal] | None:
@@ -291,7 +354,49 @@ def _confianza_anomalia(
     return _quantize(max(min(base + residual_boost + evidence_boost - uncertainty_penalty, Decimal("1")), Decimal("0")) * Decimal("100"))
 
 
-def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[date, tuple[str, str, int, Decimal]]:
+def _variables_relevantes_anomalia(importances: list[float], limit: int = 3) -> list[str]:
+    ranked = sorted(enumerate(importances), key=lambda item: item[1], reverse=True)
+    return [ANOMALY_FEATURE_LABELS[index] for index, importance in ranked[:limit] if importance > 0 and index < len(ANOMALY_FEATURE_LABELS)]
+
+
+def _clasificar_tipo_anomalia(
+    residual_signal: bool,
+    variacion_signal: bool,
+    seasonal_signal: bool,
+    trend_signal: bool,
+) -> str:
+    if trend_signal and variacion_signal:
+        return "cambio_sostenido"
+    if seasonal_signal:
+        return "desvio_estacional"
+    if variacion_signal:
+        return "salto_puntual"
+    if trend_signal:
+        return "desvio_tendencia"
+    if residual_signal:
+        return "residuo_extremo"
+    return "mixta"
+
+
+def _explicar_anomalia(
+    actual: Decimal,
+    predicted: Decimal,
+    residual_signed_pct: Decimal,
+    residual_limit: Decimal,
+    tipo: str,
+    signals: list[str],
+) -> str:
+    direccion = "por encima" if actual >= predicted else "por debajo"
+    tipo_label = tipo.replace("_", " ")
+    detalle = f" Además, activó {len(signals)} señal(es): {', '.join(signals)}." if signals else ""
+    return (
+        f"El precio observado estuvo {abs(residual_signed_pct)}% {direccion} del precio esperado. "
+        f"Superó el margen normal de {residual_limit}% y se clasificó como {tipo_label}."
+        f"{detalle}"
+    )
+
+
+def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[date, AnomalyDetectionMetadata]:
     if len(puntos) < 6:
         return {}
 
@@ -308,7 +413,7 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
         random_state=42,
     )
 
-    evaluaciones: list[tuple[int, float, float, float, float, float, float | None, float, float, int, int]] = []
+    evaluaciones: list[tuple[int, float, float, float, float, float, float | None, float, float, int, int, float, list[float]]] = []
     residuals_historial: list[float] = []
     variaciones_historial: list[float] = []
     for index in trainable_indexes:
@@ -328,6 +433,7 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
         incertidumbre_modelo_pct = _pct_cambio(predicted + prediction_std, predicted)
         actual = float(puntos[index].precio_promedio_normalizado)
         residual_pct = _pct_cambio(actual, predicted)
+        residual_signed_pct = _pct_diferencia_firmada(actual, predicted)
         tendencia_local = _baseline_tendencia_local(puntos, index)
         tendencia_gap = _gap_porcentual(actual, tendencia_local)
         mismo_mes_anterior = next(
@@ -368,6 +474,8 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
                 float(variacion_limit),
                 score,
                 required_signals,
+                residual_signed_pct,
+                [float(value) for value in model.feature_importances_],
             )
         )
         residuals_historial.append(residual_pct)
@@ -376,7 +484,7 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
     if not evaluaciones:
         return {}
 
-    anomalies: dict[date, tuple[str, str, int, Decimal]] = {}
+    anomalies: dict[date, AnomalyDetectionMetadata] = {}
     for (
         index,
         residual_pct,
@@ -389,6 +497,8 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
         variacion_limit_float,
         score,
         required_signals,
+        residual_signed_pct,
+        feature_importances,
     ) in evaluaciones:
         residual_decimal = Decimal(f"{residual_pct:.6f}")
         variacion = puntos[index].variacion_porcentual_anterior
@@ -418,17 +528,46 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
             signalos.append(f"gap estacional {Decimal(f'{seasonal_gap:.4f}').quantize(Decimal('0.0001'))}% > limite {seasonal_limit}")
         if trend_signal:
             signalos.append(f"desvio de tendencia {Decimal(f'{tendencia_gap:.4f}').quantize(Decimal('0.0001'))}% > limite {trend_limit}")
-        anomalies[puntos[index].fecha] = (
+        predicted_decimal = Decimal(f"{predicted:.4f}").quantize(Decimal("0.0001"))
+        residual_display = Decimal(f"{residual_pct:.4f}").quantize(Decimal("0.0001"))
+        residual_signed_decimal = Decimal(f"{residual_signed_pct:.4f}").quantize(Decimal("0.0001"))
+        lower_expected = _quantize(predicted_decimal * (Decimal("1") - (residual_limit / Decimal("100"))))
+        upper_expected = _quantize(predicted_decimal * (Decimal("1") + (residual_limit / Decimal("100"))))
+        tipo = _clasificar_tipo_anomalia(residual_signal, variacion_signal, seasonal_signal, trend_signal)
+        variables_relevantes = _variables_relevantes_anomalia(feature_importances)
+        explicacion = _explicar_anomalia(
+            puntos[index].precio_promedio_normalizado,
+            predicted_decimal,
+            residual_signed_decimal,
+            residual_limit,
+            tipo,
+            signalos,
+        )
+        motivo = (
             "Anomalia detectada por Random Forest (ensemble robusto): "
-            f"precio esperado {Decimal(f'{predicted:.4f}').quantize(Decimal('0.0001'))}, "
-            f"residuo {Decimal(f'{residual_pct:.4f}').quantize(Decimal('0.0001'))}%, "
+            f"precio esperado {predicted_decimal}, "
+            f"rango normal {lower_expected} a {upper_expected}, "
+            f"residuo {residual_display}%, "
+            f"limite residuo {residual_limit}%, "
             f"incertidumbre modelo {Decimal(f'{incertidumbre_modelo_pct:.4f}').quantize(Decimal('0.0001'))}%, "
             f"variacion mensual {variacion}%, "
+            f"tipo {tipo}, "
             f"score {score}/{4}; "
-            + "; ".join(signalos),
-            severidad,
-            score,
-            confianza,
+            + "; ".join(signalos)
+        )
+        anomalies[puntos[index].fecha] = AnomalyDetectionMetadata(
+            motivo=motivo,
+            severidad=severidad,
+            score=score,
+            confianza=confianza,
+            precio_esperado=predicted_decimal,
+            residuo_pct=residual_display,
+            limite_residuo_pct=residual_limit,
+            rango_esperado_min=lower_expected,
+            rango_esperado_max=upper_expected,
+            tipo=tipo,
+            explicacion=explicacion,
+            variables_relevantes=variables_relevantes,
         )
 
     return anomalies
@@ -468,11 +607,20 @@ def evaluar_anomalias_detectadas(
     fechas_confirmadas: set[date],
 ) -> AnomalyEvaluationResult:
     detectadas = {punto.fecha for punto in puntos if punto.es_anomalia}
+    baseline_umbral_pct = Decimal("8.0000")
+    baseline_detectadas = {
+        punto.fecha
+        for punto in puntos
+        if punto.variacion_porcentual_anterior is not None and abs(punto.variacion_porcentual_anterior) > baseline_umbral_pct
+    }
     confirmadas = set(fechas_confirmadas)
     verdaderos_positivos = len(detectadas & confirmadas)
     falsos_positivos = len(detectadas - confirmadas)
     falsos_negativos = len(confirmadas - detectadas)
     verdaderos_negativos = len(puntos) - verdaderos_positivos - falsos_positivos - falsos_negativos
+    baseline_verdaderos_positivos = len(baseline_detectadas & confirmadas)
+    baseline_falsos_positivos = len(baseline_detectadas - confirmadas)
+    baseline_falsos_negativos = len(confirmadas - baseline_detectadas)
 
     def _ratio(numerator: int, denominator: int) -> Decimal | None:
         if denominator <= 0:
@@ -485,6 +633,11 @@ def evaluar_anomalias_detectadas(
     if precision is not None and recall is not None and precision + recall > 0:
         f1 = _quantize((Decimal("2") * precision * recall) / (precision + recall))
     exactitud = _ratio(verdaderos_negativos + verdaderos_positivos, len(puntos))
+    baseline_precision = _ratio(baseline_verdaderos_positivos, baseline_verdaderos_positivos + baseline_falsos_positivos)
+    baseline_recall = _ratio(baseline_verdaderos_positivos, baseline_verdaderos_positivos + baseline_falsos_negativos)
+    baseline_f1 = None
+    if baseline_precision is not None and baseline_recall is not None and baseline_precision + baseline_recall > 0:
+        baseline_f1 = _quantize((Decimal("2") * baseline_precision * baseline_recall) / (baseline_precision + baseline_recall))
 
     return AnomalyEvaluationResult(
         total_puntos=len(puntos),
@@ -500,6 +653,15 @@ def evaluar_anomalias_detectadas(
         fechas_detectadas=sorted(detectadas),
         fechas_confirmadas=sorted(confirmadas),
         coincidencias=sorted(detectadas & confirmadas),
+        baseline_umbral_pct=baseline_umbral_pct,
+        baseline_total_detectadas=len(baseline_detectadas),
+        baseline_verdaderos_positivos=baseline_verdaderos_positivos,
+        baseline_falsos_positivos=baseline_falsos_positivos,
+        baseline_falsos_negativos=baseline_falsos_negativos,
+        baseline_precision=baseline_precision,
+        baseline_recall=baseline_recall,
+        baseline_f1=baseline_f1,
+        baseline_fechas_detectadas=sorted(baseline_detectadas),
     )
 
 
@@ -542,22 +704,33 @@ def construir_serie_mensual(registros: list[PrecioSerieInput]) -> list[PuntoSeri
     anomalies = _detectar_anomalias_random_forest(puntos)
     if anomalies:
         puntos = [
-            PuntoSeriePrecio(
-                fecha=punto.fecha,
-                precio_promedio_normalizado=punto.precio_promedio_normalizado,
-                unidad_base=punto.unidad_base,
-                precio_equivalente_25kg=punto.precio_equivalente_25kg,
-                precio_equivalente_50kg=punto.precio_equivalente_50kg,
-                cantidad_registros=punto.cantidad_registros,
-                cantidad_facturas=punto.cantidad_facturas,
-                fuentes=punto.fuentes,
-                variacion_porcentual_anterior=punto.variacion_porcentual_anterior,
-                es_anomalia=punto.fecha in anomalies,
-                severidad_anomalia=anomalies.get(punto.fecha, (None, None))[1],
-                motivo_anomalia=anomalies.get(punto.fecha, (None, None))[0],
-                score_anomalia=anomalies.get(punto.fecha, (None, None, None, None))[2],
-                confianza_anomalia=anomalies.get(punto.fecha, (None, None, None, None))[3],
-            )
+            (
+                anomaly := anomalies.get(punto.fecha),
+                PuntoSeriePrecio(
+                    fecha=punto.fecha,
+                    precio_promedio_normalizado=punto.precio_promedio_normalizado,
+                    unidad_base=punto.unidad_base,
+                    precio_equivalente_25kg=punto.precio_equivalente_25kg,
+                    precio_equivalente_50kg=punto.precio_equivalente_50kg,
+                    cantidad_registros=punto.cantidad_registros,
+                    cantidad_facturas=punto.cantidad_facturas,
+                    fuentes=punto.fuentes,
+                    variacion_porcentual_anterior=punto.variacion_porcentual_anterior,
+                    es_anomalia=anomaly is not None,
+                    severidad_anomalia=anomaly.severidad if anomaly else None,
+                    motivo_anomalia=anomaly.motivo if anomaly else None,
+                    score_anomalia=anomaly.score if anomaly else None,
+                    confianza_anomalia=anomaly.confianza if anomaly else None,
+                    precio_esperado_anomalia=anomaly.precio_esperado if anomaly else None,
+                    residuo_anomalia_pct=anomaly.residuo_pct if anomaly else None,
+                    limite_residuo_anomalia_pct=anomaly.limite_residuo_pct if anomaly else None,
+                    rango_esperado_min_anomalia=anomaly.rango_esperado_min if anomaly else None,
+                    rango_esperado_max_anomalia=anomaly.rango_esperado_max if anomaly else None,
+                    tipo_anomalia=anomaly.tipo if anomaly else None,
+                    explicacion_anomalia=anomaly.explicacion if anomaly else None,
+                    variables_relevantes_anomalia=anomaly.variables_relevantes if anomaly else None,
+                ),
+            )[1]
             for punto in puntos
         ]
 

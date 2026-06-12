@@ -49,6 +49,14 @@ class PuntoSeriePrecioRead(BaseModel):
     score_anomalia: int | None = None
     confianza_anomalia: Decimal | None = None
     motivo_anomalia: str | None = None
+    precio_esperado_anomalia: Decimal | None = None
+    residuo_anomalia_pct: Decimal | None = None
+    limite_residuo_anomalia_pct: Decimal | None = None
+    rango_esperado_min_anomalia: Decimal | None = None
+    rango_esperado_max_anomalia: Decimal | None = None
+    tipo_anomalia: str | None = None
+    explicacion_anomalia: str | None = None
+    variables_relevantes_anomalia: list[str] | None = None
 
 
 class AnomalyEvaluationCreate(BaseModel):
@@ -69,6 +77,15 @@ class AnomalyEvaluationRead(BaseModel):
     fechas_detectadas: list[date] = Field(default_factory=list)
     fechas_confirmadas: list[date] = Field(default_factory=list)
     coincidencias: list[date] = Field(default_factory=list)
+    baseline_umbral_pct: Decimal
+    baseline_total_detectadas: int
+    baseline_verdaderos_positivos: int
+    baseline_falsos_positivos: int
+    baseline_falsos_negativos: int
+    baseline_precision: Decimal | None = None
+    baseline_recall: Decimal | None = None
+    baseline_f1: Decimal | None = None
+    baseline_fechas_detectadas: list[date] = Field(default_factory=list)
 
 
 class PriceVariationBetweenDatesRead(BaseModel):

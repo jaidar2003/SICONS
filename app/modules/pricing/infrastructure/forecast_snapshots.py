@@ -55,6 +55,14 @@ def _serializar_punto_mensual(punto) -> dict:
         "score_anomalia": getattr(punto, "score_anomalia", None),
         "confianza_anomalia": None if getattr(punto, "confianza_anomalia", None) is None else str(punto.confianza_anomalia),
         "motivo_anomalia": punto.motivo_anomalia,
+        "precio_esperado_anomalia": None if getattr(punto, "precio_esperado_anomalia", None) is None else str(punto.precio_esperado_anomalia),
+        "residuo_anomalia_pct": None if getattr(punto, "residuo_anomalia_pct", None) is None else str(punto.residuo_anomalia_pct),
+        "limite_residuo_anomalia_pct": None if getattr(punto, "limite_residuo_anomalia_pct", None) is None else str(punto.limite_residuo_anomalia_pct),
+        "rango_esperado_min_anomalia": None if getattr(punto, "rango_esperado_min_anomalia", None) is None else str(punto.rango_esperado_min_anomalia),
+        "rango_esperado_max_anomalia": None if getattr(punto, "rango_esperado_max_anomalia", None) is None else str(punto.rango_esperado_max_anomalia),
+        "tipo_anomalia": getattr(punto, "tipo_anomalia", None),
+        "explicacion_anomalia": getattr(punto, "explicacion_anomalia", None),
+        "variables_relevantes_anomalia": getattr(punto, "variables_relevantes_anomalia", None),
     }
 
 
@@ -96,6 +104,14 @@ def _deserializar_result(data: dict):
                 score_anomalia=int(punto["score_anomalia"]) if punto.get("score_anomalia") is not None else None,
                 confianza_anomalia=None if punto.get("confianza_anomalia") is None else Decimal(punto["confianza_anomalia"]),
                 motivo_anomalia=punto.get("motivo_anomalia"),
+                precio_esperado_anomalia=None if punto.get("precio_esperado_anomalia") is None else Decimal(punto["precio_esperado_anomalia"]),
+                residuo_anomalia_pct=None if punto.get("residuo_anomalia_pct") is None else Decimal(punto["residuo_anomalia_pct"]),
+                limite_residuo_anomalia_pct=None if punto.get("limite_residuo_anomalia_pct") is None else Decimal(punto["limite_residuo_anomalia_pct"]),
+                rango_esperado_min_anomalia=None if punto.get("rango_esperado_min_anomalia") is None else Decimal(punto["rango_esperado_min_anomalia"]),
+                rango_esperado_max_anomalia=None if punto.get("rango_esperado_max_anomalia") is None else Decimal(punto["rango_esperado_max_anomalia"]),
+                tipo_anomalia=punto.get("tipo_anomalia"),
+                explicacion_anomalia=punto.get("explicacion_anomalia"),
+                variables_relevantes_anomalia=punto.get("variables_relevantes_anomalia"),
             )
             for punto in data.get("serie_mensual", [])
         ],
