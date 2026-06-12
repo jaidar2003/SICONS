@@ -306,6 +306,8 @@ Verificacion enfocada del DSS:
 ## Documentacion
 
 - [docs/documentacion/MEDICIONES_FORECASTING.md](docs/documentacion/MEDICIONES_FORECASTING.md): metricas, backtesting y comparativas
+- [docs/documentacion/ENTREGABLE_METODOLOGIA_TIF3.md](docs/documentacion/ENTREGABLE_METODOLOGIA_TIF3.md): borrador principal del marco metodologico y analisis de resultados
+- [docs/documentacion/GUIA_MARCO_METODOLOGICO_Y_RESULTADOS.md](docs/documentacion/GUIA_MARCO_METODOLOGICO_Y_RESULTADOS.md): lineamientos de escritura segun TIF 3
 - [docs/documentacion/ESTADO_MVP.md](docs/documentacion/ESTADO_MVP.md): alcance, evidencia y checklist end-to-end del MVP
 - [docs/documentacion/DECISIONES_TESIS.md](docs/documentacion/DECISIONES_TESIS.md): decisiones metodologicas
 - [docs/documentacion/REGISTRO_DECISIONES_TRABAJO.md](docs/documentacion/REGISTRO_DECISIONES_TRABAJO.md): decisiones operativas de cierre MVP
@@ -324,7 +326,6 @@ Verificacion enfocada del DSS:
 - [docs/HU/DISENO_EPICA_6.md](docs/HU/DISENO_EPICA_6.md): asistencia conversacional
 - [docs/documentacion/DISENO_SELECTOR_MODELOS.md](docs/documentacion/DISENO_SELECTOR_MODELOS.md): seleccion de modelos
 - [docs/documentacion/DISENO_INTEGRACION_SELECTOR_FORECAST.md](docs/documentacion/DISENO_INTEGRACION_SELECTOR_FORECAST.md): integracion futura del selector
-- [docs/documentacion/TESIS_BORRADOR.md](docs/documentacion/TESIS_BORRADOR.md): redaccion de tesis en curso
 
 ## Nota de alcance
 

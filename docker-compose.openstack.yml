@@ -71,6 +71,16 @@ services:
       timeout: 5s
       retries: 10
 
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: buildwise-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - api
+
 volumes:
   postgres_data:
   caddy_data:

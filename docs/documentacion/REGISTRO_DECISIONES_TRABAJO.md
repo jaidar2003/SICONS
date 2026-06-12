@@ -199,6 +199,7 @@ La visualizacion es la interfaz; el nucleo metodologico es la decision trazable 
 - Motivo: asegurar que el Marco Metodológico y el Análisis de Resultados cumplan con el rigor académico exigido por los docentes (Mag. Ing. Diego Navarro / Prof. Dra. Ruth Leiton).
 - Cambios realizados:
   - Creación de `docs/documentacion/GUIA_MARCO_METODOLOGICO_Y_RESULTADOS.md` como referencia permanente.
-  - Reorganización de `docs/documentacion/TESIS_BORRADOR.md` en tres partes: Marco Teórico, Desarrollo de Ingeniería (Marco Metodológico + Análisis de Resultados) y Cierre (Conclusiones).
+  - Consolidación de la redacción principal en `docs/documentacion/ENTREGABLE_METODOLOGIA_TIF3.md`.
+  - Eliminación de borradores parciales reemplazados para evitar contradicciones metodológicas.
   - Incorporación de justificaciones técnicas explícitas (elección de FastAPI, Prophet, PostgreSQL) y separación de análisis de métricas vs. conclusiones generales.
-- Evidencia: `docs/documentacion/TESIS_BORRADOR.md` actualizado con estructura académica.
+- Evidencia: `docs/documentacion/ENTREGABLE_METODOLOGIA_TIF3.md` como documento base actualizado.

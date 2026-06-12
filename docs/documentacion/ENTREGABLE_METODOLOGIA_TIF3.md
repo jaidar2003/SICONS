@@ -152,7 +152,7 @@ La elección del stack tecnológico respondió a criterios de compatibilidad con
 
 **Prophet.** Prophet fue elegido como familia principal para forecasting por su capacidad de trabajar con series temporales relativamente cortas, manejar cambios de tendencia e incorporar regresores externos. No se eligió ARIMA/SARIMA como base principal porque exige supuestos más estrictos de estacionariedad y puede resultar menos flexible ante saltos o cambios de nivel frecuentes en contextos inflacionarios. Tampoco se eligieron redes neuronales profundas como LSTM o Transformers para el MVP, porque la cantidad de datos mensuales disponibles no justifica el aumento de complejidad ni el riesgo de sobreajuste.
 
-**Scikit-learn y Random Forest.** Scikit-learn se utilizó para la detección de anomalías. Random Forest Regressor fue seleccionado para estimar un precio mensual esperado a partir de variables simples y trazables: índice temporal, mes calendario, precio previo, variación previa, promedio móvil corto y cantidad de registros del mes. La salida se analiza mediante residuos e IQR. Esta elección permite reemplazar un umbral fijo por una banda dinámica aprendida sobre la propia serie.
+**Scikit-learn y Random Forest.** Scikit-learn se utilizó para la detección de anomalías. Random Forest Regressor fue seleccionado para estimar un precio mensual esperado a partir de variables simples y trazables: índice temporal, mes calendario, rezagos de precio, variaciones previas, promedios móviles, dispersión reciente, cantidad de registros, tendencia local y referencia estacional cuando existe. La salida se analiza mediante residuos, una banda robusta basada en IQR y un ajuste por incertidumbre interna del ensemble. Esta elección permite reemplazar un umbral fijo por una banda dinámica aprendida sobre la propia serie y volver más conservadora la alerta cuando los árboles del modelo no coinciden entre sí.
 
 **PuLP.** PuLP se adoptó para resolver la optimización presupuestaria inicial. El problema actual puede expresarse como un modelo lineal: decidir cuánto comprar ahora y cuánto postergar por material, respetando presupuesto disponible, cantidades objetivo y no negatividad. OR-Tools fue considerado como alternativa, pero se reservó para problemas combinatorios más complejos, por ejemplo múltiples cotizaciones, lotes enteros obligatorios o ventanas temporales de compra.
 
@@ -297,29 +297,41 @@ La detección de anomalías se incorporó para identificar meses que merecen rev
 
 La primera alternativa considerada fue un umbral porcentual fijo. Esta alternativa es simple de implementar y explicar, pero débil metodológicamente. En una economía inflacionaria, una suba mensual elevada puede ser normal. A la inversa, una variación menor puede ser atípica si el material venía mostrando estabilidad. Por eso, un porcentaje único aplicado a todos los materiales puede ser demasiado rígido o demasiado permisivo.
 
-La solución implementada usa `RandomForestRegressor` sobre la serie mensual normalizada. El modelo aprende un precio esperado a partir de variables simples:
+La solución implementada usa `RandomForestRegressor` sobre la serie mensual normalizada. El modelo aprende un precio esperado a partir de variables simples y trazables:
 
 - índice temporal del mes;
 - mes calendario;
 - precio del mes anterior;
 - variación porcentual anterior;
-- promedio móvil corto;
-- cantidad de registros del mes.
+- rezagos de precio y variación;
+- promedios móviles cortos;
+- dispersión robusta reciente;
+- cantidad de registros del mes;
+- desvío contra tendencia local;
+- referencia estacional cuando existe.
 
-Luego se calcula el residuo porcentual entre el precio observado y el precio esperado. El límite dinámico se obtiene mediante `Q3 + 1.5 * IQR` sobre los residuos. Si el residuo de un mes supera ese límite, el mes se marca como anomalía.
+Luego se calcula el residuo porcentual entre el precio observado y el precio esperado. El límite dinámico se obtiene mediante `Q3 + 1.5 * IQR` sobre los residuos históricos del propio modelo. Además, se calcula la incertidumbre interna del Random Forest a partir de la dispersión entre las predicciones de sus árboles. Si esa dispersión es alta, el margen de tolerancia se amplía y el sistema exige más evidencia antes de disparar una alerta.
+
+La marca final no depende solamente del residuo. También se evalúan señales complementarias: variación mensual, desvío respecto de tendencia local y desvío contra una referencia estacional cuando existe. La salida incluye `score_anomalia`, `severidad_anomalia`, `confianza_anomalia` y una explicación textual con precio esperado, residuo, incertidumbre del modelo y señales activadas.
 
 **Fragmento representativo del criterio de decisión:**
 
 ```python
 residual_limit = q3 + (1.5 * iqr)
+residual_limit = max(residual_limit, model_uncertainty_pct * 1.5)
 
-for index, residual_pct, predicted in predictions:
-    if residual_pct <= residual_limit:
+for index, residual_pct, predicted, score in predictions:
+    if residual_pct <= residual_limit or score < required_signals:
         continue
-    anomalies[puntos[index].fecha] = build_anomaly_reason(predicted, residual_pct)
+    anomalies[puntos[index].fecha] = build_anomaly_reason(
+        predicted,
+        residual_pct,
+        model_uncertainty_pct,
+        score,
+    )
 ```
 
-La justificación técnica es que el criterio deja de preguntar “¿subió más que X%?” y pasa a preguntar “¿se alejó más de lo esperable para esta serie?”. Esto mejora la defensa frente al docente porque elimina el porcentaje fijo en código y lo reemplaza por una regla dinámica basada en el comportamiento histórico del material.
+La justificación técnica es que el criterio deja de preguntar “¿subió más que X%?” y pasa a preguntar “¿se alejó más de lo esperable para esta serie, con suficiente evidencia y con un modelo razonablemente estable?”. Esto mejora la defensa frente al docente porque elimina el porcentaje fijo en código y lo reemplaza por una regla dinámica basada en el comportamiento histórico del material y en la incertidumbre del propio modelo.
 
 La principal limitación es que Random Forest detecta atipicidad, no causalidad. Una anomalía puede deberse a un error de carga, un cambio real de precio, un cambio de presentación, un shock de mercado o una particularidad de la muestra. Por eso, la interfaz debe presentar la marca como una alerta de revisión, no como una sentencia automática.
 
@@ -347,14 +359,14 @@ El core de BuildWise se compone de cuatro piezas:
 
 1. **Pronóstico de precios:** modelos de forecasting entrenados con series históricas del sistema y evaluados mediante backtesting temporal.
 2. **Selección de modelos:** política que elige variante por material y horizonte en función de evidencia empírica, no por preferencia manual.
-3. **Detección de anomalías:** Random Forest aplicado a la serie histórica para detectar precios fuera del comportamiento esperado.
+3. **Detección de anomalías:** Random Forest aplicado a la serie histórica para detectar precios fuera del comportamiento esperado, con residuo, score de señales e incertidumbre del ensemble.
 4. **Armador de presupuesto y recomendación:** cálculo determinístico que combina precio vigente, forecast, cantidad, fecha, criticidad, tolerancia al riesgo y presupuesto disponible.
 
 Esta organización hace que el armador de presupuesto forme parte del núcleo del proyecto. No es una pantalla auxiliar ni una funcionalidad administrativa: es la capa que convierte el resultado de los modelos en una decisión concreta de compra. El forecast estima escenarios futuros; la detección de anomalías controla calidad y comportamiento atípico; el armador de presupuesto traduce esa información en importes, diferencias proyectadas y acciones recomendadas.
 
 El sistema aumenta el determinismo de tres maneras. Primero, los modelos predictivos se entrenan o calibran con datos propios del dominio, no con conocimiento general de un modelo generativo. Segundo, las reglas de decisión se ejecutan en backend y producen salidas estructuradas. Tercero, el LLM no puede modificar importes, métricas ni acciones recomendadas. Por lo tanto, dos ejecuciones con los mismos datos, parámetros y modelo seleccionado deben producir la misma recomendación económica, salvo cambios explícitos en la serie o en la configuración.
 
-Random Forest se utiliza como IA no generativa. Su objetivo no es redactar, conversar ni crear valores nuevos, sino estimar un comportamiento esperado de la serie y marcar observaciones atípicas mediante residuos. Esta elección aporta valor metodológico porque reemplaza criterios arbitrarios por un modelo entrenado sobre el patrón histórico del material. La pregunta que responde no es “qué texto conviene mostrar”, sino “este precio está fuera de lo esperable para esta serie”.
+Random Forest se utiliza como IA no generativa. Su objetivo no es redactar, conversar ni crear valores nuevos, sino estimar un comportamiento esperado de la serie y marcar observaciones atípicas mediante residuos, evidencia complementaria e incertidumbre del ensemble. Esta elección aporta valor metodológico porque reemplaza criterios arbitrarios por un modelo entrenado sobre el patrón histórico del material. La pregunta que responde no es “qué texto conviene mostrar”, sino “este precio está fuera de lo esperable para esta serie y el modelo tiene evidencia suficiente para alertarlo”.
 
 El aporte de ingeniería se encuentra precisamente en evitar que la solución dependa de prompt engineering. Un prompt puede mejorar la presentación de una respuesta, pero no constituye por sí mismo una base sólida para una tesis de ingeniería si el sistema no controla de dónde provienen los valores. En BuildWise, los valores provienen de datos de la aplicación, modelos evaluados y reglas de negocio. La capa generativa puede ayudar a que el usuario exprese su necesidad o entienda la salida, pero no reemplaza el entrenamiento, la validación ni el cálculo.
 
@@ -392,7 +404,7 @@ Docker Compose orquesta los servicios principales: frontend, API y PostgreSQL. T
 
 El desarrollo se organizó alrededor de aprendizajes concretos. La primera lección fue que la normalización por unidad base era indispensable para que el forecast tuviera sentido. La segunda fue que un único modelo global no era suficiente: los materiales y horizontes presentan comportamientos distintos. La tercera fue que la decisión de compra no podía quedar implícita en gráficos; debía generarse una salida operativa.
 
-La evolución de anomalías también dejó un aprendizaje importante. Un umbral fijo era fácil de implementar, pero difícil de defender. Random Forest con residuos e IQR permitió justificar la detección desde el comportamiento histórico de cada material.
+La evolución de anomalías también dejó un aprendizaje importante. Un umbral fijo era fácil de implementar, pero difícil de defender. Random Forest con residuos, IQR, score de señales e incertidumbre del ensemble permitió justificar la detección desde el comportamiento histórico de cada material y reducir falsos positivos cuando el propio modelo no presenta una predicción estable.
 
 La capa de asistencia de compra mostró otra distinción metodológica: IA generativa no equivale a decisión automática. El sistema usa LLM para interpretación y redacción, pero mantiene los cálculos en servicios auditables. Esa separación reduce el riesgo de alucinación y mejora la defendibilidad del proyecto.
 
@@ -409,7 +421,7 @@ La siguiente tabla resume las iteraciones principales desde el punto de vista me
 | Forecast inicial | Primeras proyecciones | Prophet base y métricas iniciales | Tomar MAPE como métrica principal de lectura |
 | Regresores | Contexto económico externo | Variantes con IPIM, ICC, CAC y dólar | Validar regresores por backtesting, no por intuición |
 | Selector | Diferencias por material y horizonte | Tabla de mejores modelos | Resolver modelo por `material_key` y horizonte |
-| Anomalías | Revisión de precios atípicos | Random Forest + residuos + IQR | Reemplazar umbral fijo por criterio dinámico |
+| Anomalías | Revisión de precios atípicos | Random Forest + residuos + IQR + incertidumbre del ensemble | Reemplazar umbral fijo por criterio dinámico y conservador |
 | Armador de presupuesto | Conversión de forecast en importes | Presupuesto actual, proyectado y diferencia | Integrar el core de decisión económica |
 | DSS | Conversión de forecast en decisión | Recomendaciones y optimización | Traducir predicción en acción operativa |
 | Asistente de compra | Necesidad de obra en lenguaje natural | Interpretación, validación y propuesta | Usar LLM como interfaz, no como motor de cálculo |
@@ -430,12 +442,12 @@ Para que el marco metodológico sea defendible, cada objetivo del proyecto debe 
 | Comparar precios en una unidad consistente | Normalización por unidad base | Campo de precio normalizado y series mensuales | Confundir presentación de compra con variación real |
 | Proyectar precios futuros | Módulo de forecasting | Backtesting, MAPE, MAE y folds | Elegir modelos sin validación temporal |
 | Adaptar el modelo al material y horizonte | Selector de modelos | Tabla de mejores variantes por horizonte | Forzar un único modelo global |
-| Detectar comportamientos atípicos | Random Forest + residuos + IQR | Alertas de anomalías por serie | Depender de porcentajes fijos en código |
+| Detectar comportamientos atípicos | Random Forest + residuos + IQR + score + incertidumbre | Alertas de anomalías por serie | Depender de porcentajes fijos en código |
 | Armar presupuestos de compra | Cálculo de precio vigente, proyectado y totales | Presupuesto estimado y diferencia futura | Que la recomendación quede desconectada del impacto económico |
 | Traducir forecast en decisión | Recomendaciones y optimización | Acciones `COMPRAR_AHORA`, `POSTERGAR`, `ESCALONAR` y `SIN_VENTAJA_CLARA` | Dejar al usuario interpretar curvas manualmente |
 | Atender necesidades de compra | Asistente de compra | Interpretación editable y propuesta validada | Convertir la IA en una caja negra de decisión |
 | Aumentar determinismo | Backend de cálculo, modelos propios y LLM periférico | Salidas estructuradas y pruebas automatizadas | Depender de valores generados por prompt |
-| Mantener calidad funcional | Pruebas automatizadas | 148 pruebas exitosas en módulos críticos | Regresiones silenciosas entre capas |
+| Mantener calidad funcional | Pruebas automatizadas | 389 pruebas exitosas y cobertura global superior al 90% | Regresiones silenciosas entre capas |
 
 La tabla muestra que el proyecto no se apoya en una única técnica. El valor surge de la integración controlada de varias piezas: ingeniería de datos, modelos temporales, detección de anomalías, reglas de negocio, optimización lineal e interfaz conversacional. Esta integración es precisamente el punto metodológico central del trabajo: no alcanza con obtener una curva de forecast si esa curva no se conecta con una decisión y con una explicación verificable.
 
@@ -544,7 +556,7 @@ La primera evidencia corresponde a los datos disponibles para el material princi
 | Pastina | 10 registros | 41 | 9 | media |
 | Membrana Megaflex | 9 registros | 43 | 5 | media-baja |
 
-Además de las métricas de forecast, el sistema cuenta con pruebas automatizadas. En la verificación ampliada realizada sobre módulos de asistente de compra, chat, recomendaciones, estrategias de compra, optimización, series y schemas, se obtuvieron 148 pruebas exitosas. Esta evidencia no mide precisión predictiva, pero sí estabilidad funcional de las reglas y contratos implementados.
+Además de las métricas de forecast, el sistema cuenta con pruebas automatizadas. En la verificación ampliada realizada sobre módulos de asistente de compra, chat, recomendaciones, estrategias de compra, optimización, series, schemas, autenticación, catálogo, forecasting, alertas y endpoints, se obtuvieron 389 pruebas exitosas con una cobertura global superior al 90%. Esta evidencia no mide precisión predictiva, pero sí estabilidad funcional de las reglas y contratos implementados.
 
 **Tabla 2.4. Evidencia funcional del DSS y del asistente de compra**
 
@@ -553,7 +565,7 @@ Además de las métricas de forecast, el sistema cuenta con pruebas automatizada
 | Forecast por material | Material y horizonte | Precio proyectado, métricas y confianza | Proyección trazable por modelo seleccionado |
 | Recomendación contextual | Material, cantidad, fecha de uso, riesgo y presupuesto | Comprar, postergar, escalonar o sin ventaja clara | Decisión basada en forecast y reglas explícitas |
 | Optimización presupuestaria | Lista de materiales, cantidades y presupuesto | Cantidad a comprar ahora y cantidad a postergar | Asignación lineal bajo restricción económica |
-| Detección de anomalías | Serie histórica mensual | Meses marcados para revisión | Residuos dinámicos en lugar de umbral fijo |
+| Detección de anomalías | Serie histórica mensual | Meses marcados para revisión | Residuos dinámicos, score e incertidumbre en lugar de umbral fijo |
 | Asistente de compra | Consulta en lenguaje natural | Campos interpretados y presupuesto calculado | LLM limitado a interpretación y redacción |
 
 [INSERTAR CAPTURA: pantalla de forecast de Cemento Portland con métricas visibles]
@@ -606,7 +618,7 @@ La segunda discrepancia aparece en `Membrana Megaflex` a 12 meses. La exploraci�
 
 La tercera discrepancia está relacionada con la interpretación visual del forecast. Algunas curvas pueden parecer plausibles sin ser las mejores en backtesting. Esto justificó documentar explícitamente que la selección no se hace por forma visual de la curva.
 
-La cuarta observación surgió en anomalías. Un umbral fijo era más simple, pero no explicaba adecuadamente la volatilidad esperada de cada serie. El paso a Random Forest + IQR mejoró la defendibilidad, aunque no elimina la necesidad de revisión humana de las marcas.
+La cuarta observación surgió en anomalías. Un umbral fijo era más simple, pero no explicaba adecuadamente la volatilidad esperada de cada serie. El paso a Random Forest + IQR + incertidumbre del ensemble mejoró la defendibilidad, aunque no elimina la necesidad de revisión humana de las marcas.
 
 Finalmente, el asistente de compra introdujo una distinción importante: la IA generativa mejora la experiencia, pero no debe confundirse con el motor de decisión. Esta separación evitó que el proyecto dependa de la exactitud factual del LLM para cálculos críticos.
 
