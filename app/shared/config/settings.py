@@ -5,7 +5,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://sicons:sicons@localhost:5432/sicons"
     auth_secret_key: str
     auth_token_ttl_minutes: int = 480
-    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
+    cors_origins: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,"
+        "http://localhost:3001,http://127.0.0.1:3001,"
+        "https://buildwise-tif.vercel.app"
+    )
     forecast_cache_ttl_seconds: int = 1800
     forecast_snapshot_path: str = "tmp/forecast_snapshots.json"
     smtp_host: str | None = None

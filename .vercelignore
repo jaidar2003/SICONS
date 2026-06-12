@@ -1,0 +1,15 @@
+app
+backups
+data
+db
+scripts
+tests
+tmp
+__pycache__
+.venv
+Dockerfile
+docker-compose.yml
+requirements*.txt
+pyproject.toml
+pytest.ini
+alembic.ini
