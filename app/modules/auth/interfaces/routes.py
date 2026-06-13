@@ -5,6 +5,8 @@ from app.modules.auth.application.service import (
     autenticar_usuario,
     listar_usuarios_registrados,
     registrar_cliente,
+    restablecer_password,
+    solicitar_recuperacion_password,
 )
 from app.modules.auth.application.service import (
     eliminar_usuario as eliminar_usuario_service,
@@ -17,6 +19,9 @@ from app.modules.auth.interfaces.dependencies import get_current_user, require_a
 from app.modules.auth.interfaces.schemas import (
     LoginRequest,
     LoginResponse,
+    MessageResponse,
+    PasswordRecoveryRequest,
+    PasswordResetRequest,
     RegisterRequest,
     RegisterResponse,
     UsuarioAdminRead,
@@ -43,6 +48,18 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> Registe
         password=payload.password,
     )
     return RegisterResponse(message=result.message, usuario=result.usuario)
+
+
+@router.post("/password-recovery", response_model=MessageResponse)
+def password_recovery(payload: PasswordRecoveryRequest, db: Session = Depends(get_db)) -> MessageResponse:
+    result = solicitar_recuperacion_password(db, identifier=payload.identifier)
+    return MessageResponse(message=result.message)
+
+
+@router.post("/password-reset", response_model=MessageResponse)
+def password_reset(payload: PasswordResetRequest, db: Session = Depends(get_db)) -> MessageResponse:
+    result = restablecer_password(db, token=payload.token, password=payload.password)
+    return MessageResponse(message=result.message)
 
 
 @router.get("/me", response_model=UsuarioRead)

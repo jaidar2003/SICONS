@@ -116,6 +116,41 @@ def test_register_crea_usuario_pendiente_y_bloquea_login() -> None:
     assert login_response.status_code == 401
 
 
+def test_password_recovery_informa_mail_no_registrado(monkeypatch) -> None:
+    session, _engine = make_session()
+    add_user(session, username="cliente", email="cliente@example.com", password="password123")
+    monkeypatch.setattr("app.modules.auth.application.service.send_password_recovery_email", lambda **_kwargs: True)
+
+    with with_test_client(session) as client:
+        response = client.post("/auth/password-recovery", json={"identifier": "cliente@example.com"})
+        missing_response = client.post("/auth/password-recovery", json={"identifier": "missing@example.com"})
+
+    assert response.status_code == 200
+    assert missing_response.status_code == 404
+    assert response.json()["message"] == "Te enviamos un enlace para restablecer la clave."
+    assert missing_response.json()["detail"] == "Este mail no esta registrado"
+
+
+def test_password_reset_cambia_clave_desde_token(monkeypatch) -> None:
+    session, _engine = make_session()
+    sent_payload = {}
+    add_user(session, username="cliente", email="cliente@example.com", password="password123")
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_password_recovery_email",
+        lambda **kwargs: sent_payload.update(kwargs) or True,
+    )
+
+    with with_test_client(session) as client:
+        recovery_response = client.post("/auth/password-recovery", json={"identifier": "cliente@example.com"})
+        token = sent_payload["reset_url"].split("reset_token=", 1)[1]
+        reset_response = client.post("/auth/password-reset", json={"token": token, "password": "newpassword123"})
+        login_response = client.post("/auth/login", json={"username": "cliente", "password": "newpassword123"})
+
+    assert recovery_response.status_code == 200
+    assert reset_response.status_code == 200
+    assert login_response.status_code == 200
+
+
 def test_admin_habilita_usuario_pendiente() -> None:
     session, _engine = make_session()
     admin = add_user(session, username="admin", email="admin@example.com", password="admin123", rol="admin")

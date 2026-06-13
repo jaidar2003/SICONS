@@ -30,3 +30,20 @@ def test_decode_access_token_expired():
     
     with pytest.raises(ValueError, match="Token expirado"):
         tokens.decode_access_token(token)
+
+
+def test_password_reset_token_roundtrip():
+    token, expires_at = tokens.create_password_reset_token(user_id=1, password_hash="hash")
+    payload = tokens.decode_password_reset_token(token)
+
+    assert expires_at
+    assert payload["sub"] == 1
+    assert payload["purpose"] == "password_reset"
+    assert payload["pwd"] == tokens.password_reset_fingerprint("hash")
+
+
+def test_decode_password_reset_token_rejects_access_token():
+    token, _ = tokens.create_access_token(user_id=1, username="u", rol="admin")
+
+    with pytest.raises(ValueError, match="Token invalido"):
+        tokens.decode_password_reset_token(token)

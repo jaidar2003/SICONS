@@ -1,19 +1,26 @@
 import LoginIconModule from "@mui/icons-material/Login";
 import PersonAddAlt1IconModule from "@mui/icons-material/PersonAddAlt1";
+import VpnKeyIconModule from "@mui/icons-material/VpnKey";
 import { Alert, Box, Button, ButtonGroup, Card, CardContent, Stack, TextField, Typography } from "@mui/material";
 import { useMemo, useState } from "react";
 
 import bwLogo from "../../../bwlogo.png";
 import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
+import { requestPasswordRecoveryRequest, requestPasswordResetRequest } from "./auth.api.js";
 
 const LOGIN_MODE = "login";
 const REGISTER_MODE = "register";
+const RECOVERY_MODE = "recovery";
+const RESET_MODE = "reset";
 const MIN_PASSWORD_LENGTH = 8;
 const LoginIcon = resolveMuiIcon(LoginIconModule);
 const PersonAddAlt1Icon = resolveMuiIcon(PersonAddAlt1IconModule);
+const VpnKeyIcon = resolveMuiIcon(VpnKeyIconModule);
 
 export function LoginPage({ onLogin, onRegister }) {
-  const [mode, setMode] = useState(LOGIN_MODE);
+  const initialResetToken = new URLSearchParams(window.location.search).get("reset_token") || "";
+  const [mode, setMode] = useState(initialResetToken ? RESET_MODE : LOGIN_MODE);
+  const [resetToken, setResetToken] = useState(initialResetToken);
   const [username, setUsername] = useState("");
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
@@ -24,7 +31,13 @@ export function LoginPage({ onLogin, onRegister }) {
   const [loading, setLoading] = useState(false);
 
   const isRegisterMode = mode === REGISTER_MODE;
-  const submitLabel = useMemo(() => (isRegisterMode ? "Crear cuenta" : "Ingresar"), [isRegisterMode]);
+  const isRecoveryMode = mode === RECOVERY_MODE;
+  const isResetMode = mode === RESET_MODE;
+  const submitLabel = useMemo(() => {
+    if (isResetMode) return "Cambiar clave";
+    if (isRecoveryMode) return "Enviar enlace";
+    return isRegisterMode ? "Crear cuenta" : "Ingresar";
+  }, [isResetMode, isRecoveryMode, isRegisterMode]);
 
   function resetForm() {
     setUsername("");
@@ -39,19 +52,31 @@ export function LoginPage({ onLogin, onRegister }) {
     setError("");
     setSuccess("");
 
-    if (isRegisterMode && password !== confirmPassword) {
+    if ((isRegisterMode || isResetMode) && password !== confirmPassword) {
       setError("Las claves no coinciden");
       return;
     }
 
-    if (isRegisterMode && password.length < MIN_PASSWORD_LENGTH) {
+    if ((isRegisterMode || isResetMode) && password.length < MIN_PASSWORD_LENGTH) {
       setError(`La clave debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`);
       return;
     }
 
     setLoading(true);
     try {
-      if (isRegisterMode) {
+      if (isResetMode) {
+        const result = await requestPasswordResetRequest({ token: resetToken, password });
+        setSuccess(result?.message || "La clave fue actualizada. Ya podés ingresar con la nueva contraseña.");
+        setMode(LOGIN_MODE);
+        setResetToken("");
+        setPassword("");
+        setConfirmPassword("");
+        window.history.replaceState({}, "", window.location.pathname);
+      } else if (isRecoveryMode) {
+        const result = await requestPasswordRecoveryRequest({ identifier: username.trim() });
+        setSuccess(result?.message || "Si el usuario existe, enviaremos un enlace para restablecer la clave.");
+        setPassword("");
+      } else if (isRegisterMode) {
         const result = await onRegister({
           username: username.trim(),
           nombre: nombre.trim(),
@@ -63,8 +88,10 @@ export function LoginPage({ onLogin, onRegister }) {
       } else {
         await onLogin({ username: username.trim(), password });
       }
-      if (!isRegisterMode) {
+      if (!isRegisterMode && !isRecoveryMode && !isResetMode) {
         resetForm();
+      } else if (isRecoveryMode) {
+        setUsername("");
       } else {
         setPassword("");
         setConfirmPassword("");
@@ -87,28 +114,34 @@ export function LoginPage({ onLogin, onRegister }) {
               <img src={bwLogo} alt="BuildWise" className="h-auto w-full object-contain" />
             </Box>
             <Typography color="primary" fontSize={13} fontWeight={800}>
-              {isRegisterMode ? "Registro" : "Acceso"}
+              {isResetMode ? "Nueva clave" : isRecoveryMode ? "Recuperacion" : isRegisterMode ? "Registro" : "Acceso"}
             </Typography>
             <Typography variant="h2" mt={0.5}>
-              {isRegisterMode ? "Crear cuenta en BuildWise" : "Ingresar a BuildWise"}
+              {isResetMode ? "Cambiar clave" : isRecoveryMode ? "Recuperar clave" : isRegisterMode ? "Crear cuenta en BuildWise" : "Ingresar a BuildWise"}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {isRegisterMode
+              {isResetMode
+                ? "Definí una nueva contraseña para volver a ingresar a BuildWise."
+                : isRecoveryMode
+                ? "Ingresá tu email registrado para recibir un enlace de cambio de contraseña."
+                : isRegisterMode
                 ? "Creá tu usuario para acceder como cliente y usar forecast, costos y optimización."
                 : "Entrá con tu usuario demo o con una cuenta registrada."}
             </Typography>
           </Box>
 
-          <Box className="flex justify-center">
-            <ButtonGroup size="small" variant="outlined" aria-label="Seleccion de acceso">
-              <Button variant={mode === LOGIN_MODE ? "contained" : "outlined"} onClick={() => setMode(LOGIN_MODE)}>
-                Ingresar
-              </Button>
-              <Button variant={mode === REGISTER_MODE ? "contained" : "outlined"} onClick={() => setMode(REGISTER_MODE)}>
-                Registrarse
-              </Button>
-            </ButtonGroup>
-          </Box>
+          {isResetMode ? null : (
+            <Box className="flex justify-center">
+              <ButtonGroup size="small" variant="outlined" aria-label="Seleccion de acceso">
+                <Button variant={mode === LOGIN_MODE ? "contained" : "outlined"} onClick={() => setMode(LOGIN_MODE)}>
+                  Ingresar
+                </Button>
+                <Button variant={mode === REGISTER_MODE ? "contained" : "outlined"} onClick={() => setMode(REGISTER_MODE)}>
+                  Registrarse
+                </Button>
+              </ButtonGroup>
+            </Box>
+          )}
 
           {error ? <Alert severity="error">{error}</Alert> : null}
           {success ? <Alert severity="success">{success}</Alert> : null}
@@ -122,19 +155,29 @@ export function LoginPage({ onLogin, onRegister }) {
                 </>
               ) : null}
 
-              <TextField label="Usuario" value={username} autoComplete="username" required onChange={(event) => setUsername(event.target.value)} />
-              <TextField
-                label="Clave"
-                type="password"
-                value={password}
-                autoComplete={isRegisterMode ? "new-password" : "current-password"}
-                required
-                helperText={isRegisterMode ? `Minimo ${MIN_PASSWORD_LENGTH} caracteres` : undefined}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-              {isRegisterMode ? (
+              {isResetMode ? null : (
                 <TextField
-                  label="Repetir clave"
+                  label={isRecoveryMode ? "Email registrado" : "Usuario"}
+                  value={username}
+                  autoComplete={isRecoveryMode ? "email" : "username"}
+                  required
+                  onChange={(event) => setUsername(event.target.value)}
+                />
+              )}
+              {isRecoveryMode ? null : (
+                <TextField
+                  label={isResetMode ? "Nueva clave" : "Clave"}
+                  type="password"
+                  value={password}
+                  autoComplete={isRegisterMode || isResetMode ? "new-password" : "current-password"}
+                  required
+                  helperText={isRegisterMode || isResetMode ? `Minimo ${MIN_PASSWORD_LENGTH} caracteres` : undefined}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              )}
+              {isRegisterMode || isResetMode ? (
+                <TextField
+                  label={isResetMode ? "Repetir nueva clave" : "Repetir clave"}
                   type="password"
                   value={confirmPassword}
                   autoComplete="new-password"
@@ -144,9 +187,32 @@ export function LoginPage({ onLogin, onRegister }) {
               ) : null}
             </Stack>
 
-            <Button type="submit" variant="contained" startIcon={isRegisterMode ? <PersonAddAlt1Icon /> : <LoginIcon />} disabled={loading}>
-              {loading ? (isRegisterMode ? "Creando" : "Ingresando") : submitLabel}
+            <Button
+              type="submit"
+              variant="contained"
+              startIcon={isRecoveryMode || isResetMode ? <VpnKeyIcon /> : isRegisterMode ? <PersonAddAlt1Icon /> : <LoginIcon />}
+              disabled={loading}
+            >
+              {loading ? (isResetMode ? "Actualizando" : isRecoveryMode ? "Enviando" : isRegisterMode ? "Creando" : "Ingresando") : submitLabel}
             </Button>
+            {isRegisterMode ? null : (
+              <Button
+                type="button"
+                variant="text"
+                size="small"
+                onClick={() => {
+                  setMode(isRecoveryMode || isResetMode ? LOGIN_MODE : RECOVERY_MODE);
+                  setError("");
+                  setSuccess("");
+                  setPassword("");
+                  setConfirmPassword("");
+                  setResetToken("");
+                  window.history.replaceState({}, "", window.location.pathname);
+                }}
+              >
+                {isRecoveryMode || isResetMode ? "Volver al ingreso" : "Olvide mi clave"}
+              </Button>
+            )}
           </Box>
         </CardContent>
       </Card>

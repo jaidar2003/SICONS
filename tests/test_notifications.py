@@ -32,6 +32,19 @@ def test_build_welcome_message_no_logo(monkeypatch):
     msg = email._build_welcome_message(to_email="user@example.com", nombre="User", username="user")
     assert msg["To"] == "user@example.com"
 
+
+def test_build_password_recovery_message():
+    msg = email._build_password_recovery_message(
+        to_email="user@example.com",
+        nombre="User",
+        username="user",
+        reset_url="https://buildwise.com.ar/?reset_token=abc",
+    )
+    assert msg["To"] == "user@example.com"
+    assert msg["Subject"] == "Restablecer clave de BuildWise"
+    assert "https://buildwise.com.ar/?reset_token=abc" in msg.get_payload()[0].get_content()
+
+
 def test_send_welcome_email_success(mock_settings):
     with patch("app.shared.notifications.email.smtplib.SMTP") as mock_smtp:
         mock_server = mock_smtp.return_value
@@ -90,3 +103,18 @@ def test_send_account_deleted_email_ssl(mock_settings, monkeypatch):
         result = email.send_account_deleted_email(to_email="user@example.com", nombre="User", username="user")
         
         assert result is True
+
+
+def test_send_password_recovery_email_success(mock_settings):
+    with patch("app.shared.notifications.email.smtplib.SMTP") as mock_smtp:
+        mock_server = mock_smtp.return_value
+
+        result = email.send_password_recovery_email(
+            to_email="user@example.com",
+            nombre="User",
+            username="user",
+            reset_url="https://buildwise.com.ar/?reset_token=abc",
+        )
+
+        assert result is True
+        mock_server.send_message.assert_called_once()

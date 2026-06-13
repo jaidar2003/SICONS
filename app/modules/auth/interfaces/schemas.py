@@ -15,6 +15,19 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=8, max_length=200)
 
 
+class PasswordRecoveryRequest(BaseModel):
+    identifier: str = Field(min_length=1, max_length=160)
+
+
+class PasswordResetRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=2000)
+    password: str = Field(min_length=8, max_length=200)
+
+
+class MessageResponse(BaseModel):
+    message: str
+
+
 class UsuarioRead(BaseModel):
     id: int
     username: str

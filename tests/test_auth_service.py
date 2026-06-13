@@ -10,8 +10,11 @@ from app.modules.auth.application.service import (
     eliminar_usuario,
     habilitar_usuario,
     registrar_cliente,
+    restablecer_password,
+    solicitar_recuperacion_password,
 )
 from app.modules.auth.infrastructure.models import Usuario
+from app.shared.security.tokens import hash_password, verify_password
 
 
 def make_session():
@@ -192,3 +195,145 @@ def test_habilitar_usuario_sin_email() -> None:
         habilitar_usuario(session, user_id=user.id)
     assert exc.value.status_code == 400
     assert "no tiene email" in exc.value.detail
+
+
+def test_solicitar_recuperacion_password_actualiza_clave_y_envia_email(monkeypatch) -> None:
+    session, _engine = make_session()
+    sent_payload = {}
+
+    user = Usuario(
+        username="cliente",
+        email="cliente@example.com",
+        nombre="Cliente",
+        password_hash=hash_password("password123"),
+        rol="cliente",
+        activo=True,
+    )
+    session.add(user)
+    session.commit()
+
+    def fake_send_password_recovery_email(**kwargs):
+        sent_payload.update(kwargs)
+        return True
+
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_password_recovery_email",
+        fake_send_password_recovery_email,
+    )
+
+    result = solicitar_recuperacion_password(session, identifier="cliente@example.com")
+    session.refresh(user)
+
+    assert result.email_sent is True
+    assert result.message == "Te enviamos un enlace para restablecer la clave."
+    assert sent_payload["to_email"] == "cliente@example.com"
+    assert sent_payload["username"] == "cliente"
+    assert "reset_token=" in sent_payload["reset_url"]
+    assert verify_password("password123", user.password_hash) is True
+
+
+def test_solicitar_recuperacion_password_informa_mail_no_registrado(monkeypatch) -> None:
+    session, _engine = make_session()
+    called = False
+
+    def fake_send_password_recovery_email(**_kwargs):
+        nonlocal called
+        called = True
+        return True
+
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_password_recovery_email",
+        fake_send_password_recovery_email,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        solicitar_recuperacion_password(session, identifier="nadie@example.com")
+
+    assert exc.value.status_code == 404
+    assert exc.value.detail == "Este mail no esta registrado"
+    assert called is False
+
+
+def test_solicitar_recuperacion_password_no_registra_auditoria_si_falla_email(monkeypatch) -> None:
+    session, _engine = make_session()
+    user = Usuario(
+        username="cliente",
+        email="cliente@example.com",
+        nombre="Cliente",
+        password_hash=hash_password("password123"),
+        rol="cliente",
+        activo=True,
+    )
+    session.add(user)
+    session.commit()
+
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_password_recovery_email",
+        lambda **_kwargs: False,
+    )
+
+    result = solicitar_recuperacion_password(session, identifier="cliente")
+    session.refresh(user)
+
+    assert result.email_sent is False
+    assert verify_password("password123", user.password_hash) is True
+
+
+def test_restablecer_password_actualiza_clave_y_autentica(monkeypatch) -> None:
+    session, _engine = make_session()
+    sent_payload = {}
+    user = Usuario(
+        username="cliente",
+        email="cliente@example.com",
+        nombre="Cliente",
+        password_hash=hash_password("password123"),
+        rol="cliente",
+        activo=True,
+    )
+    session.add(user)
+    session.commit()
+
+    def fake_send_password_recovery_email(**kwargs):
+        sent_payload.update(kwargs)
+        return True
+
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_password_recovery_email",
+        fake_send_password_recovery_email,
+    )
+
+    solicitar_recuperacion_password(session, identifier="cliente")
+    token = sent_payload["reset_url"].split("reset_token=", 1)[1]
+    result = restablecer_password(session, token=token, password="newpassword123")
+
+    assert result.message == "La clave fue actualizada. Ya podés ingresar con la nueva contraseña."
+    assert autenticar_usuario(session, username="cliente", password="newpassword123").usuario.id == user.id
+
+
+def test_restablecer_password_rechaza_token_reutilizado(monkeypatch) -> None:
+    session, _engine = make_session()
+    sent_payload = {}
+    user = Usuario(
+        username="cliente",
+        email="cliente@example.com",
+        nombre="Cliente",
+        password_hash=hash_password("password123"),
+        rol="cliente",
+        activo=True,
+    )
+    session.add(user)
+    session.commit()
+
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_password_recovery_email",
+        lambda **kwargs: sent_payload.update(kwargs) or True,
+    )
+
+    solicitar_recuperacion_password(session, identifier="cliente")
+    token = sent_payload["reset_url"].split("reset_token=", 1)[1]
+    restablecer_password(session, token=token, password="newpassword123")
+
+    with pytest.raises(HTTPException) as exc:
+        restablecer_password(session, token=token, password="otherpassword123")
+
+    assert exc.value.status_code == 400

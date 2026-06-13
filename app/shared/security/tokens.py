@@ -52,6 +52,24 @@ def create_access_token(*, user_id: int, username: str, rol: str) -> tuple[str, 
     return f"{payload_part}.{_b64url_encode(signature)}", expires_at
 
 
+def password_reset_fingerprint(password_hash: str) -> str:
+    digest = hmac.new(settings.auth_secret_key.encode("utf-8"), password_hash.encode("utf-8"), hashlib.sha256).hexdigest()
+    return digest[:32]
+
+
+def create_password_reset_token(*, user_id: int, password_hash: str) -> tuple[str, datetime]:
+    expires_at = datetime.now(UTC) + timedelta(minutes=settings.password_reset_token_ttl_minutes)
+    payload = {
+        "sub": user_id,
+        "purpose": "password_reset",
+        "pwd": password_reset_fingerprint(password_hash),
+        "exp": int(expires_at.timestamp()),
+    }
+    payload_part = _b64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    signature = hmac.new(settings.auth_secret_key.encode("utf-8"), payload_part.encode("ascii"), hashlib.sha256).digest()
+    return f"{payload_part}.{_b64url_encode(signature)}", expires_at
+
+
 def decode_access_token(token: str) -> dict:
     try:
         payload_part, signature_part = token.split(".", 1)
@@ -66,4 +84,11 @@ def decode_access_token(token: str) -> dict:
     payload = json.loads(_b64url_decode(payload_part))
     if int(payload.get("exp", 0)) < int(datetime.now(UTC).timestamp()):
         raise ValueError("Token expirado")
+    return payload
+
+
+def decode_password_reset_token(token: str) -> dict:
+    payload = decode_access_token(token)
+    if payload.get("purpose") != "password_reset":
+        raise ValueError("Token invalido")
     return payload

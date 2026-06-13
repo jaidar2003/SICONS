@@ -170,13 +170,96 @@ Equipo BuildWise
     return message
 
 
-def send_welcome_email(*, to_email: str, nombre: str, username: str) -> bool:
+def _build_password_recovery_message(*, to_email: str, nombre: str, username: str, reset_url: str) -> EmailMessage:
+    sender = settings.smtp_sender or settings.smtp_username or "noreply@buildwise.local"
+    safe_nombre = escape(nombre)
+    safe_username = escape(username)
+    safe_email = escape(to_email)
+    safe_reset_url = escape(reset_url, quote=True)
+    logo_cid = "buildwise-logo"
+
+    message = EmailMessage()
+    message["Subject"] = "Restablecer clave de BuildWise"
+    message["From"] = sender
+    message["To"] = to_email
+    message.set_content(
+        f"""Hola {nombre},
+
+Recibimos una solicitud para recuperar la clave de tu cuenta de BuildWise.
+
+Usuario: {username}
+Email: {to_email}
+
+Abrí este enlace para definir una nueva clave:
+{reset_url}
+
+El enlace vence por seguridad. Si no solicitaste este cambio, podés ignorar este mensaje.
+
+Saludos,
+Equipo BuildWise
+"""
+    )
+    message.add_alternative(
+        f"""
+        <html>
+          <body style="margin:0; padding:0; background:#f5f7fb; font-family:Arial,Helvetica,sans-serif; color:#0f172a;">
+            <div style="max-width:640px; margin:0 auto; padding:32px 16px;">
+              <div style="background:#ffffff; border-radius:20px; overflow:hidden; box-shadow:0 10px 30px rgba(15,23,42,.08); border:1px solid #e2e8f0;">
+                <div style="background:linear-gradient(135deg,#0f172a 0%,#1f3c88 100%); padding:28px 28px 20px; text-align:center;">
+                  <img src="cid:{logo_cid}" alt="BuildWise" style="max-width:220px; width:100%; height:auto; display:block; margin:0 auto 14px;" />
+                  <div style="font-size:14px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.78); font-weight:700;">Recuperacion de clave</div>
+                </div>
+                <div style="padding:28px;">
+                  <h1 style="margin:0 0 16px; font-size:24px; line-height:1.2; color:#0f172a;">Hola {safe_nombre}</h1>
+                  <p style="margin:0 0 18px; font-size:16px; line-height:1.6; color:#334155;">
+                    Recibimos una solicitud para recuperar la clave de tu cuenta en <strong>BuildWise</strong>.
+                  </p>
+                  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px; padding:16px 18px; margin:0 0 20px;">
+                    <div style="font-size:13px; color:#64748b; text-transform:uppercase; letter-spacing:.08em; font-weight:700; margin-bottom:10px;">Datos de acceso</div>
+                    <div style="font-size:15px; line-height:1.7; color:#0f172a;">
+                      <div><strong>Usuario:</strong> {safe_username}</div>
+                      <div><strong>Email:</strong> {safe_email}</div>
+                    </div>
+                  </div>
+                  <div style="text-align:center; margin:0 0 20px;">
+                    <a href="{safe_reset_url}" style="display:inline-block; background:#1f3c88; color:#ffffff; text-decoration:none; padding:12px 20px; border-radius:999px; font-weight:700; font-size:14px;">
+                      Cambiar mi clave
+                    </a>
+                  </div>
+                  <p style="margin:0; font-size:15px; line-height:1.6; color:#334155;">
+                    El enlace vence por seguridad. Si no solicitaste este cambio, podés ignorar este mensaje.
+                  </p>
+                </div>
+              </div>
+              <p style="margin:14px 0 0; text-align:center; font-size:12px; color:#94a3b8;">
+                Este es un correo automático. No respondas este mensaje.
+              </p>
+            </div>
+          </body>
+        </html>
+        """,
+        subtype="html",
+    )
+
+    if LOGO_PATH.exists():
+        with LOGO_PATH.open("rb") as logo_file:
+            message.get_payload()[1].add_related(
+                logo_file.read(),
+                maintype="image",
+                subtype="png",
+                cid=logo_cid,
+                filename="bwlogo.png",
+            )
+
+    return message
+
+
+def _send_email(message: EmailMessage, *, to_email: str, log_label: str) -> bool:
     if not settings.smtp_host or not settings.smtp_sender:
-        logger.info("SMTP no configurado, se omite el mail de bienvenida para %s", to_email)
+        logger.info("SMTP no configurado, se omite el mail de %s para %s", log_label, to_email)
         return False
 
     sender = settings.smtp_sender or settings.smtp_username or "noreply@buildwise.local"
-    message = _build_welcome_message(to_email=to_email, nombre=nombre, username=username)
     try:
         if settings.smtp_use_ssl:
             server: smtplib.SMTP | smtplib.SMTP_SSL = smtplib.SMTP_SSL(
@@ -197,42 +280,28 @@ def send_welcome_email(*, to_email: str, nombre: str, username: str) -> bool:
             if settings.smtp_username and settings.smtp_password:
                 server.login(settings.smtp_username, settings.smtp_password)
             server.send_message(message)
-        logger.info("Mail de bienvenida enviado a %s desde %s", to_email, sender)
+        logger.info("Mail de %s enviado a %s desde %s", log_label, to_email, sender)
         return True
     except Exception:
-        logger.exception("No se pudo enviar el mail de bienvenida a %s", to_email)
+        logger.exception("No se pudo enviar el mail de %s a %s", log_label, to_email)
         return False
+
+
+def send_welcome_email(*, to_email: str, nombre: str, username: str) -> bool:
+    message = _build_welcome_message(to_email=to_email, nombre=nombre, username=username)
+    return _send_email(message, to_email=to_email, log_label="bienvenida")
 
 
 def send_account_deleted_email(*, to_email: str, nombre: str, username: str) -> bool:
-    if not settings.smtp_host or not settings.smtp_sender:
-        logger.info("SMTP no configurado, se omite el mail de baja para %s", to_email)
-        return False
-
-    sender = settings.smtp_sender or settings.smtp_username or "noreply@buildwise.local"
     message = _build_account_deleted_message(to_email=to_email, nombre=nombre, username=username)
-    try:
-        if settings.smtp_use_ssl:
-            server: smtplib.SMTP | smtplib.SMTP_SSL = smtplib.SMTP_SSL(
-                settings.smtp_host,
-                settings.smtp_port,
-                timeout=settings.smtp_timeout_seconds,
-            )
-        else:
-            server = smtplib.SMTP(
-                settings.smtp_host,
-                settings.smtp_port,
-                timeout=settings.smtp_timeout_seconds,
-            )
+    return _send_email(message, to_email=to_email, log_label="baja")
 
-        with server:
-            if settings.smtp_use_tls and not settings.smtp_use_ssl:
-                server.starttls()
-            if settings.smtp_username and settings.smtp_password:
-                server.login(settings.smtp_username, settings.smtp_password)
-            server.send_message(message)
-        logger.info("Mail de baja enviado a %s desde %s", to_email, sender)
-        return True
-    except Exception:
-        logger.exception("No se pudo enviar el mail de baja a %s", to_email)
-        return False
+
+def send_password_recovery_email(*, to_email: str, nombre: str, username: str, reset_url: str) -> bool:
+    message = _build_password_recovery_message(
+        to_email=to_email,
+        nombre=nombre,
+        username=username,
+        reset_url=reset_url,
+    )
+    return _send_email(message, to_email=to_email, log_label="recuperacion de clave")
