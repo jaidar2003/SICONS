@@ -151,6 +151,28 @@ def test_password_reset_cambia_clave_desde_token(monkeypatch) -> None:
     assert login_response.status_code == 200
 
 
+def test_password_reset_validate_rechaza_acceso_sin_token_valido(monkeypatch) -> None:
+    session, _engine = make_session()
+    sent_payload = {}
+    add_user(session, username="cliente", email="cliente@example.com", password="password123")
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_password_recovery_email",
+        lambda **kwargs: sent_payload.update(kwargs) or True,
+    )
+
+    with with_test_client(session) as client:
+        recovery_response = client.post("/auth/password-recovery", json={"identifier": "cliente@example.com"})
+        token = sent_payload["reset_url"].split("reset_token=", 1)[1]
+        valid_response = client.post("/auth/password-reset/validate", json={"token": token})
+        invalid_response = client.post("/auth/password-reset/validate", json={"token": "token-invalido"})
+
+    assert recovery_response.status_code == 200
+    assert valid_response.status_code == 200
+    assert valid_response.json()["message"] == "Token de recuperacion valido"
+    assert invalid_response.status_code == 400
+    assert invalid_response.json()["detail"] == "El enlace de recuperacion no es valido o expiro"
+
+
 def test_admin_habilita_usuario_pendiente() -> None:
     session, _engine = make_session()
     admin = add_user(session, username="admin", email="admin@example.com", password="admin123", rol="admin")

@@ -7,6 +7,7 @@ from app.modules.auth.application.service import (
     registrar_cliente,
     restablecer_password,
     solicitar_recuperacion_password,
+    validar_token_recuperacion_password,
 )
 from app.modules.auth.application.service import (
     eliminar_usuario as eliminar_usuario_service,
@@ -22,6 +23,7 @@ from app.modules.auth.interfaces.schemas import (
     MessageResponse,
     PasswordRecoveryRequest,
     PasswordResetRequest,
+    PasswordResetTokenValidationRequest,
     RegisterRequest,
     RegisterResponse,
     UsuarioAdminRead,
@@ -59,6 +61,15 @@ def password_recovery(payload: PasswordRecoveryRequest, db: Session = Depends(ge
 @router.post("/password-reset", response_model=MessageResponse)
 def password_reset(payload: PasswordResetRequest, db: Session = Depends(get_db)) -> MessageResponse:
     result = restablecer_password(db, token=payload.token, password=payload.password)
+    return MessageResponse(message=result.message)
+
+
+@router.post("/password-reset/validate", response_model=MessageResponse)
+def validate_password_reset_token(
+    payload: PasswordResetTokenValidationRequest,
+    db: Session = Depends(get_db),
+) -> MessageResponse:
+    result = validar_token_recuperacion_password(db, token=payload.token)
     return MessageResponse(message=result.message)
 
 

@@ -12,6 +12,7 @@ from app.modules.auth.application.service import (
     registrar_cliente,
     restablecer_password,
     solicitar_recuperacion_password,
+    validar_token_recuperacion_password,
 )
 from app.modules.auth.infrastructure.models import Usuario
 from app.shared.security.tokens import hash_password, verify_password
@@ -308,6 +309,32 @@ def test_restablecer_password_actualiza_clave_y_autentica(monkeypatch) -> None:
 
     assert result.message == "La clave fue actualizada. Ya podés ingresar con la nueva contraseña."
     assert autenticar_usuario(session, username="cliente", password="newpassword123").usuario.id == user.id
+
+
+def test_validar_token_recuperacion_password_acepta_token_vigente(monkeypatch) -> None:
+    session, _engine = make_session()
+    sent_payload = {}
+    user = Usuario(
+        username="cliente",
+        email="cliente@example.com",
+        nombre="Cliente",
+        password_hash=hash_password("password123"),
+        rol="cliente",
+        activo=True,
+    )
+    session.add(user)
+    session.commit()
+
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_password_recovery_email",
+        lambda **kwargs: sent_payload.update(kwargs) or True,
+    )
+
+    solicitar_recuperacion_password(session, identifier="cliente")
+    token = sent_payload["reset_url"].split("reset_token=", 1)[1]
+    result = validar_token_recuperacion_password(session, token=token)
+
+    assert result.message == "Token de recuperacion valido"
 
 
 def test_restablecer_password_rechaza_token_reutilizado(monkeypatch) -> None:

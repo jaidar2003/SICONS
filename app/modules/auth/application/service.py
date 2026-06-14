@@ -39,7 +39,32 @@ class PasswordRecoveryResult:
     email_sent: bool = False
 
 
+@dataclass(frozen=True)
+class PasswordResetTokenValidationResult:
+    message: str
+
+
 PASSWORD_RECOVERY_MESSAGE = "Te enviamos un enlace para restablecer la clave."
+
+
+def _get_password_reset_user(db: Session, *, token: str) -> Usuario:
+    try:
+        payload = decode_password_reset_token(token)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace de recuperacion no es valido o expiro") from exc
+
+    user_id = payload.get("sub")
+    if not isinstance(user_id, int):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace de recuperacion no es valido o expiro")
+
+    user = db.get(Usuario, user_id)
+    if user is None or not user.activo:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace de recuperacion no es valido o expiro")
+
+    if payload.get("pwd") != password_reset_fingerprint(user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace de recuperacion no es valido o expiro")
+
+    return user
 
 
 def autenticar_usuario(db: Session, *, username: str, password: str) -> LoginResult:
@@ -156,22 +181,7 @@ def solicitar_recuperacion_password(db: Session, *, identifier: str) -> Password
 
 
 def restablecer_password(db: Session, *, token: str, password: str) -> PasswordRecoveryResult:
-    try:
-        payload = decode_password_reset_token(token)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace de recuperacion no es valido o expiro") from exc
-
-    user_id = payload.get("sub")
-    if not isinstance(user_id, int):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace de recuperacion no es valido o expiro")
-
-    user = db.get(Usuario, user_id)
-    if user is None or not user.activo:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace de recuperacion no es valido o expiro")
-
-    if payload.get("pwd") != password_reset_fingerprint(user.password_hash):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace de recuperacion no es valido o expiro")
-
+    user = _get_password_reset_user(db, token=token)
     user.password_hash = hash_password(password)
     register_audit_log(
         db,
@@ -183,6 +193,11 @@ def restablecer_password(db: Session, *, token: str, password: str) -> PasswordR
     db.commit()
 
     return PasswordRecoveryResult(message="La clave fue actualizada. Ya podés ingresar con la nueva contraseña.", email_sent=False)
+
+
+def validar_token_recuperacion_password(db: Session, *, token: str) -> PasswordResetTokenValidationResult:
+    _get_password_reset_user(db, token=token)
+    return PasswordResetTokenValidationResult(message="Token de recuperacion valido")
 
 
 def listar_usuarios_registrados(db: Session) -> list[Usuario]:
