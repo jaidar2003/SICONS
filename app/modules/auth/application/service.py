@@ -132,7 +132,7 @@ def solicitar_recuperacion_password(db: Session, *, identifier: str) -> Password
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Este usuario no esta habilitado")
 
     reset_token, _expires_at = create_password_reset_token(user_id=user.id, password_hash=user.password_hash)
-    reset_url = f"{settings.frontend_base_url.rstrip('/')}/?reset_token={quote(reset_token)}"
+    reset_url = f"{settings.frontend_base_url.rstrip('/')}/reset-password?reset_token={quote(reset_token)}"
     email_sent = send_password_recovery_email(
         to_email=user.email,
         nombre=user.nombre,

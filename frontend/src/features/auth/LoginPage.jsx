@@ -17,10 +17,18 @@ const LoginIcon = resolveMuiIcon(LoginIconModule);
 const PersonAddAlt1Icon = resolveMuiIcon(PersonAddAlt1IconModule);
 const VpnKeyIcon = resolveMuiIcon(VpnKeyIconModule);
 
+function getResetRouteState() {
+  const url = new URL(window.location.href);
+  const pathname = url.pathname.replace(/\/+$/, "") || "/";
+  const resetToken = url.searchParams.get("reset_token") || "";
+  const isResetRoute = pathname === "/reset-password";
+  return { resetToken, isResetRoute };
+}
+
 export function LoginPage({ onLogin, onRegister }) {
-  const initialResetToken = new URLSearchParams(window.location.search).get("reset_token") || "";
-  const [mode, setMode] = useState(initialResetToken ? RESET_MODE : LOGIN_MODE);
-  const [resetToken, setResetToken] = useState(initialResetToken);
+  const initialResetState = getResetRouteState();
+  const [mode, setMode] = useState(initialResetState.isResetRoute ? RESET_MODE : LOGIN_MODE);
+  const [resetToken, setResetToken] = useState(initialResetState.resetToken);
   const [username, setUsername] = useState("");
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
@@ -47,10 +55,19 @@ export function LoginPage({ onLogin, onRegister }) {
     setConfirmPassword("");
   }
 
+  function clearResetRoute() {
+    window.history.replaceState({}, "", "/");
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
     setSuccess("");
+
+    if (isResetMode && !resetToken) {
+      setError("El enlace de recuperacion no es valido o ya no contiene el token necesario.");
+      return;
+    }
 
     if ((isRegisterMode || isResetMode) && password !== confirmPassword) {
       setError("Las claves no coinciden");
@@ -71,7 +88,7 @@ export function LoginPage({ onLogin, onRegister }) {
         setResetToken("");
         setPassword("");
         setConfirmPassword("");
-        window.history.replaceState({}, "", window.location.pathname);
+        clearResetRoute();
       } else if (isRecoveryMode) {
         const result = await requestPasswordRecoveryRequest({ identifier: username.trim() });
         setSuccess(result?.message || "Si el usuario existe, enviaremos un enlace para restablecer la clave.");
@@ -207,7 +224,7 @@ export function LoginPage({ onLogin, onRegister }) {
                   setPassword("");
                   setConfirmPassword("");
                   setResetToken("");
-                  window.history.replaceState({}, "", window.location.pathname);
+                  clearResetRoute();
                 }}
               >
                 {isRecoveryMode || isResetMode ? "Volver al ingreso" : "Olvide mi clave"}
