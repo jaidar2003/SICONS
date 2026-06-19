@@ -76,6 +76,7 @@ export function ChatConfigAdmin({ token }) {
         modelo_facultad: result.modelo_facultad || "",
         modelo_claude: result.modelo_claude || "",
       });
+      window.dispatchEvent(new CustomEvent("buildwise:chat-config-updated", { detail: result }));
       setMessage("Configuracion de IA actualizada correctamente.");
     } catch (saveError) {
       setError(saveError.message);
@@ -129,7 +130,7 @@ export function ChatConfigAdmin({ token }) {
               label="Modelo de la facultad"
               value={form.modelo_facultad}
               onChange={(event) => updateField("modelo_facultad", event.target.value)}
-              helperText="Ej.: un nombre de modelo compatible con la API de la facultad."
+              helperText="Identificador real del modelo enviado a la API compatible de la facultad. Ej.: gemma4-26b."
             />
 
             <TextField
@@ -137,7 +138,7 @@ export function ChatConfigAdmin({ token }) {
               label="Modelo Claude"
               value={form.modelo_claude}
               onChange={(event) => updateField("modelo_claude", event.target.value)}
-              helperText="Se usa cuando Claude queda como proveedor primario o fallback."
+              helperText="Identificador real del modelo de Anthropic. Se usa cuando Claude queda como primario o fallback."
             />
 
             <Box className="flex flex-wrap gap-2">

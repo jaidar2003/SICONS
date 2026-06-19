@@ -115,6 +115,29 @@ def test_fallback_chat_client_usa_fallback_si_falla_el_primario():
     assert fallback.calls == 1
 
 
+def test_fallback_chat_client_reporta_ambos_errores_si_fallan_ambos():
+    class FailingClient:
+        def __init__(self, provider_name, message) -> None:
+            self.provider_name = provider_name
+            self.message = message
+
+        def complete(self, messages):
+            raise LLMProviderError(self.message)
+
+    client = FallbackChatClient(
+        FailingClient("facultad", "um down"),
+        FailingClient("claude", "claude down"),
+    )
+
+    with pytest.raises(LLMProviderError) as error:
+        client.complete([{"role": "user", "content": "hi"}])
+
+    assert "proveedor primario (facultad)" in str(error.value)
+    assert "fallback (claude)" in str(error.value)
+    assert "um down" in str(error.value)
+    assert "claude down" in str(error.value)
+
+
 def test_fallback_chat_client_prefiere_el_primario():
     class WorkingClient:
         def __init__(self) -> None:

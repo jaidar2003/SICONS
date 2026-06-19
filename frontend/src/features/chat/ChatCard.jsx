@@ -30,13 +30,18 @@ const ExpandMoreIcon = resolveMuiIcon(ExpandMoreIconModule);
 const OpenInNewIcon = resolveMuiIcon(OpenInNewIconModule);
 const TimelineOutlinedIcon = resolveMuiIcon(TimelineOutlinedIconModule);
 const PROVIDER_LABELS = {
-  facultad: "API de la facultad",
+  facultad: "UM",
   claude: "Claude",
 };
 const VISUALIZATION_LABELS = {
   PRICE_HISTORY: "Histórico de precios",
   FORECAST: "Forecast",
   PRICE_HISTORY_FORECAST: "Histórico + forecast",
+};
+const MATERIAL_RESOLUTION_LABELS = {
+  pregunta: "Pregunta",
+  contexto: "Conversación",
+  seleccionado: "Selector",
 };
 const PHASES = [
   { value: "estructura", label: "Estructura" },
@@ -116,6 +121,7 @@ function mapStoredMessage(message) {
     question: null,
     text: message.content,
     provider: message.proveedor_ia,
+    providerUsed: Boolean(message.proveedor_ia),
     fallbackUsed: Boolean(message.fallback_usado),
     contextUsed: Boolean(message.contexto_usado),
     intent: message.tipo_intencion,
@@ -123,6 +129,7 @@ function mapStoredMessage(message) {
     sourceEvidence: message.fuentes_evidencia || [],
     resolvedMaterialId: message.material_resuelto_id || null,
     resolvedMaterial: message.material_resuelto,
+    materialResolutionSource: message.material_resolution_source || null,
     resolvedHorizon: message.horizonte_resuelto,
     visualization: message.visualizacion_sugerida || null,
     rejected: message.tipo_intencion === "FUERA_ALCANCE",
@@ -377,6 +384,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
             role: "assistant",
             text: "Detecté una necesidad de compra. Revisá los datos interpretados y confirmá la propuesta desde el panel de validación.",
             provider: result.proveedor_ia,
+            providerUsed: Boolean(result.proveedor_utilizado),
             fallbackUsed: Boolean(result.fallback_usado),
           },
         ]);
@@ -418,6 +426,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           question: trimmed,
           text: result.respuesta,
           provider: result.proveedor_ia,
+          providerUsed: Boolean(result.proveedor_utilizado),
           fallbackUsed: Boolean(result.fallback_usado),
           contextUsed: Boolean(result.contexto_usado),
           intent: result.tipo_intencion,
@@ -425,11 +434,13 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           sourceEvidence: result.fuentes_evidencia || [],
           resolvedMaterialId: result.material_resuelto_id || null,
           resolvedMaterial: result.material_resuelto,
+          materialResolutionSource: result.material_resolution_source || null,
           resolvedHorizon: result.horizonte_resuelto,
           visualization: result.visualizacion_sugerida || null,
           rejected: !result.aceptada,
         },
       ]);
+      window.dispatchEvent(new Event("buildwise:chat-config-updated"));
       if (createdConversation) {
         setConversations((current) => [createdConversation, ...current]);
         setActiveConversationId(createdConversation.id);
@@ -477,6 +488,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
       const budget = Number(draft.budget);
       if (Number.isFinite(budget) && budget > 0) payload.presupuesto_maximo = budget;
       const result = await generateCommercialProposal(payload, token);
+      window.dispatchEvent(new Event("buildwise:chat-config-updated"));
       setProposal(result);
       setMessages((current) => [
         ...current,
@@ -484,6 +496,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           role: "assistant",
           text: result.propuesta,
           provider: result.proveedor_ia,
+          providerUsed: Boolean(result.proveedor_utilizado),
           fallbackUsed: Boolean(result.fallback_usado),
           contextUsed: true,
           intent: "PRESUPUESTO",
@@ -577,17 +590,12 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
               </Typography>
               {message.role === "assistant" && !message.rejected ? (
                 <Box className="mt-2 flex flex-wrap gap-1.5">
-                  <Chip
-                    label={`IA usada: ${PROVIDER_LABELS[message.provider] || message.provider || "no disponible"}`}
-                    size="small"
-                    variant="outlined"
-                    sx={{ fontWeight: 800 }}
-                  />
+                  <Chip label={message.providerUsed ? `IA usada: ${PROVIDER_LABELS[message.provider] || message.provider || "desconocida"}` : "Sin IA"} size="small" variant="outlined" sx={{ fontWeight: 800 }} />
                   {message.fallbackUsed ? <Chip label="Fallback activado" size="small" color="warning" sx={{ fontWeight: 800 }} /> : null}
                   {message.intent ? <Chip label={`Intención: ${message.intent}`} size="small" variant="outlined" sx={{ fontWeight: 800 }} /> : null}
                   {message.contextUsed ? <Chip label="RAG backend" size="small" color="success" variant="outlined" sx={{ fontWeight: 800 }} /> : null}
                   {message.resolvedMaterial ? <Chip label={`Material: ${message.resolvedMaterial}`} size="small" variant="outlined" sx={{ fontWeight: 800 }} /> : null}
-                  {message.resolvedHorizon ? <Chip label={`Horizonte: ${message.resolvedHorizon} meses`} size="small" variant="outlined" sx={{ fontWeight: 800 }} /> : null}
+                  {message.intent !== "HISTORICO" && message.resolvedHorizon ? <Chip label={`Horizonte: ${message.resolvedHorizon} meses`} size="small" variant="outlined" sx={{ fontWeight: 800 }} /> : null}
                   {(message.sources || []).map((source) => (
                     <Chip key={source} label={source} size="small" variant="outlined" sx={{ fontWeight: 800 }} />
                   ))}
@@ -774,7 +782,8 @@ function RagEvidencePanel({ message }) {
   const rows = [
     ["Intención", message.intent || "-"],
     ["Material", message.resolvedMaterial || "-"],
-    ["Horizonte", message.resolvedHorizon ? `${message.resolvedHorizon} meses` : "-"],
+    ["Resolución material", MATERIAL_RESOLUTION_LABELS[message.materialResolutionSource] || message.materialResolutionSource || "-"],
+    ...(message.intent === "HISTORICO" ? [] : [["Horizonte", message.resolvedHorizon ? `${message.resolvedHorizon} meses` : "-"]]),
     ["Fuentes", message.sources?.length ? message.sources.join(", ") : "-"],
     ["Visualización", message.visualization ? VISUALIZATION_LABELS[message.visualization.tipo] || message.visualization.tipo : "-"],
   ];
@@ -853,7 +862,9 @@ function buildEvidencePayload(message) {
     fuentes_evidencia: message.sourceEvidence || [],
     material_resuelto_id: message.resolvedMaterialId || null,
     material_resuelto: message.resolvedMaterial || null,
-    horizonte_resuelto: message.resolvedHorizon || null,
+    material_resolution_source: message.materialResolutionSource || null,
+    horizonte_resuelto: message.intent === "HISTORICO" ? null : message.resolvedHorizon || null,
+    proveedor_utilizado: Boolean(message.providerUsed),
     proveedor_ia: message.provider || null,
     fallback_usado: Boolean(message.fallbackUsed),
     visualizacion_sugerida: message.visualization || null,
@@ -867,7 +878,7 @@ function buildSummaryText(message) {
     `Respuesta: ${payload.respuesta || "-"}`,
     `Intención: ${payload.tipo_intencion || "-"}`,
     `Material: ${payload.material_resuelto || "-"}`,
-    `Horizonte: ${payload.horizonte_resuelto ? `${payload.horizonte_resuelto} meses` : "-"}`,
+    ...(payload.tipo_intencion === "HISTORICO" ? [] : [`Horizonte: ${payload.horizonte_resuelto ? `${payload.horizonte_resuelto} meses` : "-"}`]),
     `Fuentes: ${payload.fuentes_recuperadas.length ? payload.fuentes_recuperadas.join(", ") : "-"}`,
     `Visualización: ${payload.visualizacion_sugerida ? VISUALIZATION_LABELS[payload.visualizacion_sugerida.tipo] || payload.visualizacion_sugerida.tipo : "-"}`,
   ].join("\n");

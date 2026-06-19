@@ -30,6 +30,7 @@ class BackendRetrievalResult:
     horizon: int
     sources: tuple[str, ...] = ()
     source_evidence: tuple[dict, ...] = ()
+    material_resolution_source: str | None = None
 
 
 def _normalized(text: str) -> str:
@@ -137,39 +138,51 @@ def classify_chat_intent(question: str, *, accepted_scope: bool = True, admin_on
     return "CATALOGO"
 
 
-def resolve_material_from_question(question: str, material_repo, selected_material_id: int | None = None):
+def resolve_material_from_question_with_source(question: str, material_repo, selected_material_id: int | None = None):
+    if hasattr(material_repo, "list_active"):
+        question_tokens = _tokens(question)
+        candidates = []
+        for material in material_repo.list_active():
+            name_tokens = _tokens(material.nombre)
+            if not name_tokens:
+                continue
+            overlap = len(question_tokens & name_tokens)
+            overlap += _alias_score(question, material.nombre)
+            normalized_name = _normalized(material.nombre)
+            normalized_question = _normalized(question)
+            if normalized_name in normalized_question:
+                overlap += len(name_tokens) + 2
+            if overlap:
+                candidates.append((overlap, material))
+        if candidates:
+            candidates.sort(key=lambda item: (-item[0], item[1].id))
+            return candidates[0][1], "pregunta"
+
     if selected_material_id is not None:
         material = material_repo.get_by_id(selected_material_id)
         if material is not None:
-            return material
+            return material, "contexto"
+    return None, None
 
-    if not hasattr(material_repo, "list_active"):
-        return None
 
-    question_tokens = _tokens(question)
-    candidates = []
-    for material in material_repo.list_active():
-        name_tokens = _tokens(material.nombre)
-        if not name_tokens:
-            continue
-        overlap = len(question_tokens & name_tokens)
-        overlap += _alias_score(question, material.nombre)
-        normalized_name = _normalized(material.nombre)
-        normalized_question = _normalized(question)
-        if normalized_name in normalized_question:
-            overlap += len(name_tokens) + 2
-        if overlap:
-            candidates.append((overlap, material))
-    if not candidates:
-        return None
-    candidates.sort(key=lambda item: (-item[0], item[1].id))
-    return candidates[0][1]
+def resolve_material_from_question(question: str, material_repo, selected_material_id: int | None = None):
+    material, _source = resolve_material_from_question_with_source(question, material_repo, selected_material_id)
+    return material
 
 
 def _format_decimal(value) -> str:
     if isinstance(value, Decimal):
         return str(value.normalize())
     return str(value)
+
+
+def _source_priority(price) -> int:
+    source_name = _normalized(price.fuente.nombre) if getattr(price, "fuente", None) is not None else ""
+    if "factura" in source_name:
+        return 2
+    if "canonico" in source_name or "canonico" in source_name:
+        return 0
+    return 1
 
 
 def _catalog_context(materials: list, db: Session) -> list[str]:
@@ -231,26 +244,38 @@ def _material_catalog_context(material, db: Session) -> list[str]:
 
 
 def _history_context(material, pricing_repo, db: Session) -> tuple[list[str], dict | None]:
-    prices = pricing_repo.get_historical_prices(material.id, date(2000, 1, 1))
+    prices = [
+        price
+        for price in pricing_repo.get_historical_prices(material.id, date(2000, 1, 1))
+        if price.fecha <= date.today()
+    ]
     if not prices:
-        return ["FUENTE precios_historicos:", "- No hay precios historicos registrados para este material."], {
+        return ["FUENTE precios_historicos:", "- No hay precios historicos observados hasta hoy para este material."], {
             "source": "precios_historicos",
             "records": [],
         }
 
-    latest = max(prices, key=lambda price: (price.fecha, price.id))
+    latest = max(prices, key=lambda price: (price.fecha, _source_priority(price), price.id))
     first = min(prices, key=lambda price: (price.fecha, price.id))
     min_price = min(prices, key=lambda price: price.precio_normalizado)
     max_price = max(prices, key=lambda price: price.precio_normalizado)
     real_count = db.scalar(
         select(func.count())
         .select_from(PrecioHistorico)
-        .where(PrecioHistorico.material_id == material.id, PrecioHistorico.origen_dato == "REAL")
+        .where(
+            PrecioHistorico.material_id == material.id,
+            PrecioHistorico.origen_dato == "REAL",
+            PrecioHistorico.fecha <= date.today(),
+        )
     )
     estimated_count = db.scalar(
         select(func.count())
         .select_from(PrecioHistorico)
-        .where(PrecioHistorico.material_id == material.id, PrecioHistorico.origen_dato == "ESTIMADO")
+        .where(
+            PrecioHistorico.material_id == material.id,
+            PrecioHistorico.origen_dato == "ESTIMADO",
+            PrecioHistorico.fecha <= date.today(),
+        )
     )
     source_names = sorted({price.fuente.nombre for price in prices if getattr(price, "fuente", None) is not None})
 
@@ -274,7 +299,7 @@ def _history_context(material, pricing_repo, db: Session) -> tuple[list[str], di
     if source_names:
         lines.append(f"- Fuentes presentes: {', '.join(source_names[:8])}.")
 
-    recent = sorted(prices, key=lambda price: (price.fecha, price.id), reverse=True)[:5]
+    recent = sorted(prices, key=lambda price: (price.fecha, _source_priority(price), price.id), reverse=True)[:5]
     lines.append("- Ultimos registros:")
     evidence_records = []
     for price in recent:
@@ -356,7 +381,7 @@ def build_backend_retrieval_context(
     is_admin: bool = False,
 ) -> BackendRetrievalResult:
     horizon = resolve_horizon(question, fallback_horizon)
-    material = resolve_material_from_question(question, material_repo, selected_material_id)
+    material, material_resolution_source = resolve_material_from_question_with_source(question, material_repo, selected_material_id)
     wants_catalog = _wants_catalog(question)
     wants_history = _wants_history(question)
     wants_forecast = _wants_forecast_or_decision(question)
@@ -401,7 +426,7 @@ def build_backend_retrieval_context(
         retrieved_any = True
 
     if not retrieved_any:
-        return BackendRetrievalResult(context=None, material=material, horizon=horizon)
+        return BackendRetrievalResult(context=None, material=material, horizon=horizon, material_resolution_source=material_resolution_source)
 
     lines.append(
         "REGLA DE RESPUESTA: responde solo con los datos recuperados/calculados. "
@@ -414,4 +439,5 @@ def build_backend_retrieval_context(
         horizon=horizon,
         sources=unique_sources,
         source_evidence=tuple(source_evidence),
+        material_resolution_source=material_resolution_source,
     )

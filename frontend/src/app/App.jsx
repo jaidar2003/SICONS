@@ -19,14 +19,15 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 
 import { LoginPage } from "../features/auth/LoginPage.jsx";
 import { useAuthSession } from "../features/auth/useAuthSession.js";
+import { fetchChatProviderStatus } from "../features/chat/chat.api.js";
 import { AppHeader } from "../features/layout/AppHeader.jsx";
 import { FiltersBar } from "../features/pricing/FiltersBar.jsx";
-import { createPrecioHistorico } from "../features/pricing/pricing.api.js";
+import { createPrecioHistorico, fetchCommercialPrice, fetchForecast } from "../features/pricing/pricing.api.js";
 import { getDisplayPrice } from "../features/pricing/materialPresentation.js";
 import { apiGet } from "../shared/api/http.js";
 import { resolveMuiIcon } from "../shared/components/resolveMuiIcon.js";
 import { formatCurrency, formatNumber } from "../shared/utils/formatters.js";
-import { loadComparisonRows, loadForecastExtras, loadInitialAppData, loadMaterialAnalysis } from "./appData.js";
+import { loadComparisonRows, loadInitialAppData, loadMaterialAnalysis } from "./appData.js";
 import { AppViewHeader } from "./AppViewHeader.jsx";
 import { brand } from "./brand.js";
 
@@ -211,6 +212,7 @@ export function App() {
   const { token, user, login, register, loadCurrentUser, clearSession } = useAuthSession();
   const [showPrices, setShowPrices] = useState(() => localStorage.getItem(SHOW_PRICES_KEY) !== "false");
   const [apiStatus, setApiStatus] = useState({ mode: "", label: "Conectando API" });
+  const [chatStatus, setChatStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [materiales, setMateriales] = useState([]);
@@ -306,14 +308,19 @@ export function App() {
       setForecastLoading(true);
 
       try {
-        const result = await loadForecastExtras({ materialId, horizon, token: activeToken });
+        const forecastResult = await fetchForecast({ materialId, horizonteMeses: horizon, token: activeToken });
         if (forecastRequestRef.current !== requestId) return;
-        setForecast(result.forecast);
-        setCommercialPrice(result.commercialPrice);
+        setForecast(forecastResult);
+        setForecastLoading(false);
+
+        const commercialResult = await fetchCommercialPrice({ materialId, horizonteMeses: horizon, token: activeToken }).catch(() => null);
+        if (forecastRequestRef.current !== requestId) return;
+        setCommercialPrice(commercialResult);
       } catch {
         if (forecastRequestRef.current !== requestId) return;
         setForecast(null);
         setCommercialPrice(null);
+        setForecastLoading(false);
       } finally {
         if (forecastRequestRef.current === requestId) {
           setForecastLoading(false);
@@ -379,6 +386,7 @@ export function App() {
     setComparisonRows([]);
     setComparisonLoading(false);
     setComparisonReady(false);
+    setChatStatus(null);
   }, []);
 
   const bootstrapApp = useCallback(
@@ -439,6 +447,13 @@ export function App() {
       try {
         await loadCurrentUser(token);
         if (cancelled) return;
+        fetchChatProviderStatus(token, { verificar: true })
+          .then((status) => {
+            if (!cancelled) setChatStatus({ ...status, mode: status.estado_ultima_llamada === "error" ? "error" : status.fallback_habilitado ? "ok" : "" });
+          })
+          .catch(() => {
+            if (!cancelled) setChatStatus({ mode: "error", proveedor_activo: null, fallback_habilitado: false });
+          });
         await bootstrapApp(token);
       } catch {
         if (cancelled) return;
@@ -453,6 +468,26 @@ export function App() {
       cancelled = true;
     };
   }, [bootstrapApp, clearSession, loadCurrentUser, resetWorkspaceState, token]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+
+    let cancelled = false;
+    async function refreshChatStatus() {
+      try {
+        const status = await fetchChatProviderStatus(token, { verificar: true });
+        if (!cancelled) setChatStatus({ ...status, mode: status.estado_ultima_llamada === "error" ? "error" : status.fallback_habilitado ? "ok" : "" });
+      } catch {
+        if (!cancelled) setChatStatus({ mode: "error", proveedor_activo: null, fallback_habilitado: false });
+      }
+    }
+
+    window.addEventListener("buildwise:chat-config-updated", refreshChatStatus);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("buildwise:chat-config-updated", refreshChatStatus);
+    };
+  }, [token]);
 
   function handleLogout() {
     clearSession();
@@ -512,6 +547,7 @@ export function App() {
     <Box className="min-h-screen bg-md-surface-container">
       <AppHeader
         apiStatus={apiStatus}
+        chatStatus={chatStatus}
         user={user}
         token={token}
         onLogout={handleLogout}

@@ -426,9 +426,19 @@ def forecast_material(
         )
         return guardar_forecast_cacheado(material.id, horizonte_meses, dataset_signature, forecast_result)
 
+    material_key = derive_material_key(material.nombre)
+    selection = resolve_model_selection(material_key, horizonte_meses)
+    dataset_signature = f"{signature_base}:{FORECAST_SELECTOR_ENABLED_SIGNATURE}:{selection.modelo}"
+    forecast_cacheado = _cargar_forecast_cacheado_o_snapshot(
+        material_id=material.id,
+        horizonte_meses=horizonte_meses,
+        dataset_signature=dataset_signature,
+    )
+    if forecast_cacheado is not None:
+        return forecast_cacheado
+
     cmdstanpy, pd, Prophet, CmdStanPyBackend, IStanBackend = importar_dependencias_forecast()
     configurar_cmdstan(cmdstanpy, CmdStanPyBackend, IStanBackend)
-    material_key = derive_material_key(material.nombre)
     plan = _resolver_plan_ejecucion(material_key, horizonte_meses, usar_selector_modelo, pd)
 
     dataset_signature = f"{signature_base}:{plan.cache_signature}"
@@ -457,11 +467,17 @@ def precomputar_forecasts_materiales(
     material_repo: MaterialRepository,
     pricing_repo: PricingRepository,
     horizontes: tuple[int, ...] = (3, 6, 12),
+    usar_selector_modelo: bool = True,
 ) -> list[tuple[int, int]]:
     materiales = material_repo.list_active()
     completados: list[tuple[int, int]] = []
     for material in materiales:
         for horizonte in horizontes:
-            forecast_material(material, horizonte, pricing_repo)
+            forecast_material(
+                material,
+                horizonte,
+                pricing_repo,
+                usar_selector_modelo=usar_selector_modelo,
+            )
             completados.append((material.id, horizonte))
     return completados

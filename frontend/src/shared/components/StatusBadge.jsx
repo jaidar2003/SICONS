@@ -13,6 +13,12 @@ export function StatusBadge({ mode, label }) {
           color: brand.colors.success,
           border: `1px solid ${brand.colors.success}33`,
           fontWeight: 800,
+          maxWidth: 320,
+          "& .MuiChip-label": {
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          },
         }}
       />
     );
@@ -31,6 +37,12 @@ export function StatusBadge({ mode, label }) {
         color,
         borderColor: color,
         fontWeight: 800,
+        maxWidth: 320,
+        "& .MuiChip-label": {
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        },
       }}
     />
   );

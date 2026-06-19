@@ -22,6 +22,10 @@ export function fetchChatConversationMessages(conversationId, token, options = {
   return apiGet(`/chat/conversaciones/${conversationId}/mensajes${query ? `?${query}` : ""}`, token);
 }
 
+export function fetchChatProviderStatus(token, options = {}) {
+  return apiGet(`/chat/status${options.verificar ? "?verificar=true" : ""}`, token);
+}
+
 export function updateChatConversation(conversationId, payload, token) {
   return apiPatch(`/chat/conversaciones/${conversationId}`, payload, token);
 }

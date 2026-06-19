@@ -1,4 +1,5 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -411,6 +412,24 @@ def test_plan_operation_extrae_accion_estructurada() -> None:
     assert result["cantidad"] == 100
 
 
+def test_plan_operation_comparacion_comun_no_invoca_ia() -> None:
+    client = FakeChatClient('{"action":"NONE"}')
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+
+    result = plan_operation(
+        "Compara estrategias para 100 kg de cemento en 6 meses",
+        client,
+        materials=[material],
+        selected_material_id=None,
+        horizon=6,
+    )
+
+    assert result["action"] == "COMPARE_STRATEGIES"
+    assert result["material_id"] == 1
+    assert result["cantidad"] == Decimal("100")
+    assert client.calls == []
+
+
 def test_plan_operation_cliente_descarta_accion_admin() -> None:
     client = FakeChatClient('{"action":"LIST_USERS"}')
     material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
@@ -631,6 +650,131 @@ def test_endpoint_chat_rechaza_fuera_de_alcance_sin_proveedor() -> None:
     assert provider.calls == []
 
 
+def test_endpoint_chat_precio_historico_directo_no_invoca_ia() -> None:
+    provider = FakeChatClient()
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg", categoria=None, marca=None, descripcion=None)
+    prices = [
+        SimpleNamespace(
+            id=1,
+            fecha=date(2026, 3, 25),
+            precio_normalizado=Decimal("196.6115"),
+            fuente=SimpleNamespace(nombre="Factura compra"),
+            numero_comprobante="FC-1",
+        ),
+        SimpleNamespace(
+            id=2,
+            fecha=date.today() + timedelta(days=30),
+            precio_normalizado=Decimal("999.0000"),
+            fuente=SimpleNamespace(nombre="Dato futuro"),
+            numero_comprobante="FUT-1",
+        ),
+    ]
+    material_repo = SimpleNamespace(get_by_id=lambda _id: None, list_active=lambda: [material])
+    pricing_repo = SimpleNamespace(get_historical_prices=lambda *_args: prices)
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: material_repo
+    app.dependency_overrides[get_pricing_repository] = lambda: pricing_repo
+    app.dependency_overrides[get_db] = lambda: FakeDb()
+    try:
+        response = TestClient(app).post("/chat/consultas", json={"pregunta": "cual es el precio del cemento"})
+    finally:
+        app.dependency_overrides.clear()
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["proveedor_utilizado"] is False
+    assert body["proveedor_ia"] is None
+    assert body["tipo_intencion"] == "HISTORICO"
+    assert body["horizonte_resuelto"] is None
+    assert "ARS 196.6115 por kg" in body["respuesta"]
+    assert "999.0000" not in body["respuesta"]
+    assert provider.calls == []
+
+
+def test_endpoint_chat_precio_bolsa_25kg_multiplica_precio_normalizado() -> None:
+    provider = FakeChatClient()
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg", categoria=None, marca=None, descripcion=None)
+    prices = [
+        SimpleNamespace(
+            id=1,
+            fecha=date(2026, 3, 25),
+            precio_normalizado=Decimal("196.6115"),
+            fuente=SimpleNamespace(nombre="Factura compra"),
+            numero_comprobante="FC-1",
+        )
+    ]
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(get_by_id=lambda _id: None, list_active=lambda: [material])
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace(get_historical_prices=lambda *_args: prices)
+    app.dependency_overrides[get_db] = lambda: FakeDb()
+    try:
+        response = TestClient(app).post("/chat/consultas", json={"pregunta": "cual es el precio de la bolsa de 25kg de cemento"})
+    finally:
+        app.dependency_overrides.clear()
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["proveedor_utilizado"] is False
+    assert body["horizonte_resuelto"] is None
+    assert "bolsa de 25 kg" in body["respuesta"]
+    assert "ARS 4915.29" in body["respuesta"]
+    assert provider.calls == []
+
+
+def test_endpoint_chat_bolsa_de_cemento_sin_kg_asume_25kg() -> None:
+    provider = FakeChatClient()
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg", categoria=None, marca=None, descripcion=None)
+    prices = [
+        SimpleNamespace(
+            id=1,
+            fecha=date(2026, 3, 25),
+            precio_normalizado=Decimal("196.6115"),
+            fuente=SimpleNamespace(nombre="Factura compra"),
+            numero_comprobante="FC-1",
+        )
+    ]
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(get_by_id=lambda _id: None, list_active=lambda: [material])
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace(get_historical_prices=lambda *_args: prices)
+    app.dependency_overrides[get_db] = lambda: FakeDb()
+    try:
+        response = TestClient(app).post("/chat/consultas", json={"pregunta": "cual es el precio de la bolsa de cemento"})
+    finally:
+        app.dependency_overrides.clear()
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["proveedor_utilizado"] is False
+    assert body["horizonte_resuelto"] is None
+    assert "bolsa de 25 kg" in body["respuesta"]
+    assert "ARS 4915.29" in body["respuesta"]
+    assert provider.calls == []
+
+
+def test_endpoint_chat_catalogo_materiales_responde_sin_ia() -> None:
+    provider = FakeChatClient()
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg", categoria=None, marca=None, descripcion=None)
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(get_by_id=lambda _id: None, list_active=lambda: [material])
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace(get_historical_prices=lambda *_args: [])
+    app.dependency_overrides[get_db] = lambda: FakeDb()
+    try:
+        response = TestClient(app).post("/chat/consultas", json={"pregunta": "que materiales hay?"})
+    finally:
+        app.dependency_overrides.clear()
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["proveedor_utilizado"] is False
+    assert body["tipo_intencion"] == "CATALOGO"
+    assert "Cemento Portland (kg)" in body["respuesta"]
+    assert provider.calls == []
+
+
 def test_endpoint_chat_llama_proveedor_para_consulta_admitida(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = FakeChatClient(response="El forecast expresa una proyeccion del sistema.")
     material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg", categoria=None, marca=None, descripcion=None)
@@ -662,6 +806,7 @@ def test_endpoint_chat_llama_proveedor_para_consulta_admitida(monkeypatch: pytes
         "fuentes_evidencia": [],
         "material_resuelto_id": 1,
         "material_resuelto": "Cemento Portland",
+        "material_resolution_source": "pregunta",
         "horizonte_resuelto": 3,
         "visualizacion_sugerida": None,
         "conversation_id": None,
@@ -782,8 +927,8 @@ def test_endpoint_chat_ejecuta_operacion_analitica_planificada(monkeypatch: pyte
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert len(provider.calls) == 2
-    assert "RESULTADO REAL DE ESTRATEGIAS" in provider.calls[1][0]["content"]
+    assert len(provider.calls) == 1
+    assert "RESULTADO REAL DE ESTRATEGIAS" in provider.calls[0][0]["content"]
     assert response.json()["material_resuelto"] == "Cemento Portland"
     assert response.json()["horizonte_resuelto"] == 6
 
@@ -818,6 +963,7 @@ def test_endpoint_chat_cliente_rechaza_acciones_admin_sin_proveedor(question: st
         "fuentes_evidencia": [],
         "material_resuelto_id": None,
         "material_resuelto": None,
+        "material_resolution_source": None,
         "horizonte_resuelto": None,
         "visualizacion_sugerida": None,
         "conversation_id": None,
@@ -1160,8 +1306,8 @@ def test_admin_puede_ver_bateria_canonica() -> None:
                 "pregunta": "cual fue el ultimo precio de cemento?",
                 "tipo_intencion": "HISTORICO",
                 "material_resuelto": "Cemento Portland",
-                "horizonte_resuelto": 3,
-                "fuentes_recuperadas": ["operacion.price_history"],
+                "horizonte_resuelto": None,
+                "fuentes_recuperadas": ["catalogo.materiales", "precios_historicos"],
             },
             usuario_id=11,
         ),

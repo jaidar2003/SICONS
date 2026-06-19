@@ -30,7 +30,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
+      - .:/home/buildwise/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,7 +47,7 @@ services:
       AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-buildwise-dev-secret-change-me}
       AUTH_TOKEN_TTL_MINUTES: ${AUTH_TOKEN_TTL_MINUTES:-480}
     volumes:
-      - .:/app
+      - .:/home/buildwise/app
     depends_on:
       postgres:
         condition: service_healthy

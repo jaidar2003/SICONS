@@ -53,6 +53,7 @@ class ChatMessage(Base):
     fuentes_evidencia: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     material_resuelto_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("materiales.id", ondelete="SET NULL"), nullable=True)
     material_resuelto: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    material_resolution_source: Mapped[str | None] = mapped_column(String(30), nullable=True)
     horizonte_resuelto: Mapped[int | None] = mapped_column(Integer, nullable=True)
     visualizacion_sugerida: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     proveedor_ia: Mapped[str | None] = mapped_column(String(40), nullable=True)
@@ -60,3 +61,13 @@ class ChatMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     conversation: Mapped[ChatConversation] = relationship(back_populates="messages")
+
+
+class ChatProviderSetting(Base):
+    __tablename__ = "chat_provider_settings"
+
+    key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    proveedor_activo: Mapped[str] = mapped_column(String(20), nullable=False)
+    modelo_facultad: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    modelo_claude: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

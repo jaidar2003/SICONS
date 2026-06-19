@@ -97,7 +97,6 @@ def needs_operation_plan(question: str) -> bool:
         "usuario",
         "usuarios",
         "margen",
-        "precio",
         "registr",
         "carg",
         "habilit",
@@ -105,6 +104,106 @@ def needs_operation_plan(question: str) -> bool:
         "confirm",
     )
     return any(trigger in normalized for trigger in triggers)
+
+
+def _normalized(text: str) -> str:
+    return text.lower()
+
+
+def _extract_decimal_from_question(question: str, patterns: tuple[str, ...]) -> Decimal | None:
+    normalized = _normalized(question).replace(",", ".")
+    for pattern in patterns:
+        match = re.search(pattern, normalized)
+        if match:
+            try:
+                return Decimal(match.group(1))
+            except (InvalidOperation, TypeError, ValueError):
+                return None
+    return None
+
+
+def _resolve_material_id_by_text(question: str, materials: list, selected_material_id: int | None) -> int | None:
+    normalized = _normalized(question)
+    scored = []
+    for material in materials:
+        tokens = [token for token in re.findall(r"[a-z0-9]+", material.nombre.lower()) if len(token) >= 4]
+        score = sum(1 for token in tokens if token in normalized)
+        if material.nombre.lower() in normalized:
+            score += 3
+        if score:
+            scored.append((score, material.id))
+    if scored:
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        return int(scored[0][1])
+    return selected_material_id
+
+
+def deterministic_operation_plan(
+    question: str,
+    *,
+    materials: list,
+    selected_material_id: int | None,
+    horizon: int,
+    allow_admin: bool = False,
+) -> dict:
+    normalized = _normalized(question)
+    material_id = _resolve_material_id_by_text(question, materials, selected_material_id)
+    quantity = _extract_decimal_from_question(
+        question,
+        (
+            r"\b(\d+(?:\.\d+)?)\s*(?:kg|kilos?|unidades?|m2|m²)\b",
+            r"\bcantidad\s+(\d+(?:\.\d+)?)\b",
+            r"\bpara\s+(\d+(?:\.\d+)?)\b",
+        ),
+    )
+    budget = _extract_decimal_from_question(
+        question,
+        (
+            r"\$\s*(\d+(?:\.\d+)?)",
+            r"\bars\s*(\d+(?:\.\d+)?)",
+            r"\bpresupuesto\s+(?:de\s+)?(\d+(?:\.\d+)?)\b",
+        ),
+    )
+
+    if allow_admin and re.search(r"\b(usuario|usuarios)\b", normalized) and re.search(r"\b(lista|listar|mostra|mostrar|ver)\b", normalized):
+        return {"action": "LIST_USERS"}
+    if allow_admin and re.search(r"\b(margen|margenes)\b", normalized) and re.search(r"\b(lista|listar|mostra|mostrar|ver)\b", normalized):
+        return {"action": "LIST_MARGINS"}
+    if re.search(r"\b(histori|precio|ultimo|ultima)\b", normalized) and material_id is not None:
+        return {"action": "PRICE_HISTORY", "material_id": material_id, "horizonte_meses": horizon}
+    if re.search(r"\b(simul\w*|escenario\w*)\b", normalized):
+        return {
+            "action": "SIMULATE_SCENARIOS",
+            "material_id": material_id,
+            "cantidad": quantity,
+            "horizonte_meses": horizon,
+            "horizontes_meses": [3, 6, 12],
+        }
+    if re.search(r"\b(compar\w*|estrateg\w*)\b", normalized):
+        return {
+            "action": "COMPARE_STRATEGIES",
+            "material_id": material_id,
+            "cantidad": quantity,
+            "horizonte_meses": horizon,
+            "porcentaje_compra_inmediata": 0.5,
+        }
+    if re.search(r"\b(prioriz\w*|criticidad)\b", normalized) and material_id is not None:
+        return {
+            "action": "PRIORITIZE_MATERIALS",
+            "horizonte_meses": horizon,
+            "items": [{"material_id": material_id, "cantidad": quantity, "criticidad": "media"}],
+        }
+    if re.search(r"\b(optim\w*|decision final|que comprar|qué comprar)\b", normalized):
+        items = []
+        if material_id is not None and quantity is not None:
+            items.append({"material_id": material_id, "cantidad": quantity, "criticidad": "media"})
+        return {
+            "action": "OPTIMIZE_BUDGET" if "optim" in normalized else "OPERATIONAL_RECOMMENDATION",
+            "presupuesto": budget,
+            "horizonte_meses": horizon,
+            "items": items,
+        }
+    return {"action": "NONE"}
 
 
 def plan_operation(
@@ -118,6 +217,16 @@ def plan_operation(
     administrative_catalog: dict | None = None,
     allow_admin: bool = False,
 ) -> dict:
+    deterministic_plan = deterministic_operation_plan(
+        question,
+        materials=materials,
+        selected_material_id=selected_material_id,
+        horizon=horizon,
+        allow_admin=allow_admin,
+    )
+    if deterministic_plan.get("action") != "NONE":
+        return deterministic_plan
+
     catalog = [{"id": material.id, "nombre": material.nombre, "unidad": material.unidad_base} for material in materials]
     input_message = json.dumps(
         {
@@ -293,9 +402,13 @@ def execute_operation(
 
     if action == "PRICE_HISTORY":
         material = _material(plan, fallback_material, material_repo)
-        prices = pricing_repo.get_historical_prices(material.id, date(2000, 1, 1))
+        prices = [
+            price
+            for price in pricing_repo.get_historical_prices(material.id, date(2000, 1, 1))
+            if price.fecha <= date.today()
+        ]
         if not prices:
-            raise ValueError("No hay precios historicos registrados para ese material.")
+            raise ValueError("No hay precios historicos registrados hasta hoy para ese material.")
         latest = max(prices, key=lambda item: item.fecha)
         earliest = min(prices, key=lambda item: item.fecha)
         return OperationResult(

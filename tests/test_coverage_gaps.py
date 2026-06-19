@@ -478,7 +478,7 @@ def test_serie_mensual_y_precomputar_forecasts(monkeypatch: pytest.MonkeyPatch) 
     calls = []
     monkeypatch.setattr(
         "app.modules.pricing.application.forecast_service.forecast_material",
-        lambda material, horizonte, _pricing_repo: calls.append((material.id, horizonte)),
+        lambda material, horizonte, _pricing_repo, **_kwargs: calls.append((material.id, horizonte)),
     )
 
     completed = precomputar_forecasts_materiales(

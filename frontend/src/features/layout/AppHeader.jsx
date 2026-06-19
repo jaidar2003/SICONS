@@ -4,7 +4,19 @@ import { brand } from "../../app/brand.js";
 import { StatusBadge } from "../../shared/components/StatusBadge.jsx";
 import bwLogo from "../../../bwlogo.png";
 
-export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowPrices }) {
+const CHAT_PROVIDER_LABELS = {
+  facultad: "UM",
+  claude: "Claude",
+};
+
+function buildChatStatusLabel(chatStatus) {
+  if (!chatStatus) return "IA sin verificar";
+
+  const provider = CHAT_PROVIDER_LABELS[chatStatus.proveedor_activo] || chatStatus.proveedor_activo || "IA";
+  return `IA: ${provider}`;
+}
+
+export function AppHeader({ apiStatus, chatStatus, user, onLogout, showPrices, onToggleShowPrices }) {
   return (
     <Box
       component="header"
@@ -32,6 +44,7 @@ export function AppHeader({ apiStatus, user, onLogout, showPrices, onToggleShowP
         <Box className="flex flex-col gap-2 rounded-xl border border-white/20 bg-white/10 p-2 shadow-md1 sm:flex-row sm:items-center lg:mt-0">
             <Box className="flex items-center gap-3">
               <StatusBadge mode={apiStatus.mode} label={apiStatus.label} />
+              {user ? <StatusBadge mode={chatStatus?.mode || ""} label={buildChatStatusLabel(chatStatus)} /> : null}
               {user && (
                 <Box className="flex items-center gap-2">
                   <Typography fontSize={13} fontWeight={800} sx={{ opacity: 0.9, whiteSpace: "nowrap" }}>

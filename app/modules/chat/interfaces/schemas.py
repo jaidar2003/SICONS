@@ -49,6 +49,7 @@ class ChatResponseRead(BaseModel):
     fuentes_evidencia: list[ChatSourceEvidenceRead] = Field(default_factory=list)
     material_resuelto_id: int | None = None
     material_resuelto: str | None = None
+    material_resolution_source: Literal["pregunta", "contexto", "seleccionado"] | None = None
     horizonte_resuelto: int | None = None
     visualizacion_sugerida: ChatVisualizationRead | None = None
     conversation_id: int | None = None
@@ -85,6 +86,7 @@ class ChatMessageRead(BaseModel):
     fuentes_evidencia: list[ChatSourceEvidenceRead] = Field(default_factory=list)
     material_resuelto_id: int | None = None
     material_resuelto: str | None = None
+    material_resolution_source: Literal["pregunta", "contexto", "seleccionado"] | None = None
     horizonte_resuelto: int | None = None
     visualizacion_sugerida: ChatVisualizationRead | None = None
     proveedor_ia: str | None = None
@@ -104,6 +106,7 @@ class ChatAuditLogRead(BaseModel):
     contexto_usado: bool | None = None
     fuentes_recuperadas: list[str] = Field(default_factory=list)
     material_resuelto: str | None = None
+    material_resolution_source: str | None = None
     horizonte_resuelto: int | None = None
     proveedor_ia: str | None = None
     fallback_usado: bool | None = None
@@ -173,6 +176,18 @@ class ChatProviderConfigRead(BaseModel):
     modelo_facultad: str | None = None
     modelo_claude: str | None = None
     fallback_habilitado: bool = True
+
+
+class ChatProviderStatusRead(BaseModel):
+    proveedor_activo: str
+    modelo_activo: str | None = None
+    fallback_habilitado: bool = True
+    proveedor_fallback: str | None = None
+    modelo_fallback: str | None = None
+    estado_ultima_llamada: Literal["sin_datos", "ok", "error"] = "sin_datos"
+    proveedor_ultima_llamada: str | None = None
+    fallback_ultima_llamada: bool | None = None
+    error_ultima_llamada: str | None = None
 
 
 class ChatProviderConfigUpdate(BaseModel):

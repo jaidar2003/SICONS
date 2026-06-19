@@ -2,6 +2,7 @@ import re
 import unicodedata
 from collections import Counter
 from datetime import UTC, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from math import ceil
 from time import perf_counter
 
@@ -45,7 +46,7 @@ from app.modules.chat.infrastructure.llm_client import (
     LLMProviderError,
     OpenAICompatibleChatClient,
 )
-from app.modules.chat.infrastructure.models import ChatConversation, ChatMessage
+from app.modules.chat.infrastructure.models import ChatConversation, ChatMessage, ChatProviderSetting
 from app.modules.chat.interfaces.schemas import (
     ChatAuditLogRead,
     ChatAuditMetricsRead,
@@ -58,6 +59,7 @@ from app.modules.chat.interfaces.schemas import (
     ChatDeterminismReportRead,
     ChatMessageRead,
     ChatProviderConfigRead,
+    ChatProviderStatusRead,
     ChatProviderConfigUpdate,
     ChatQueryCreate,
     ChatResponseRead,
@@ -67,14 +69,23 @@ from app.modules.chat.interfaces.schemas import (
     CommercialProposalRead,
 )
 from app.modules.pricing.domain.repositories import PricingRepository
+from app.modules.pricing.application.forecast_service import forecast_material
+from app.modules.pricing.application.purchase_recommendations import recomendar_momento_compra
 from app.modules.pricing.infrastructure.models import CommercialMargin
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
 from app.shared.config.settings import settings
 from app.shared.database.audit_models import AuditLog
 from app.shared.database.audit_service import register_audit_log
-from app.shared.database.session import get_db
+from app.shared.database.session import SessionLocal, get_db
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+_LAST_PROVIDER_STATUS: dict[str, object] = {
+    "estado_ultima_llamada": "sin_datos",
+    "proveedor_ultima_llamada": None,
+    "fallback_ultima_llamada": None,
+    "error_ultima_llamada": None,
+}
 
 
 def _conversation_title(question: str | None = None) -> str:
@@ -145,6 +156,7 @@ def _message_read(message: ChatMessage) -> ChatMessageRead:
         fuentes_evidencia=message.fuentes_evidencia or [],
         material_resuelto_id=message.material_resuelto_id,
         material_resuelto=message.material_resuelto,
+        material_resolution_source=message.material_resolution_source,
         horizonte_resuelto=message.horizonte_resuelto,
         visualizacion_sugerida=message.visualizacion_sugerida,
         proveedor_ia=message.proveedor_ia,
@@ -191,6 +203,7 @@ def _persist_conversation_turn(
             fuentes_evidencia=[item.model_dump(mode="json") for item in response.fuentes_evidencia],
             material_resuelto_id=response.material_resuelto_id,
             material_resuelto=response.material_resuelto,
+            material_resolution_source=response.material_resolution_source,
             horizonte_resuelto=response.horizonte_resuelto,
             visualizacion_sugerida=response.visualizacion_sugerida.model_dump(mode="json") if response.visualizacion_sugerida else None,
             proveedor_ia=response.proveedor_ia,
@@ -227,19 +240,234 @@ def _requires_calculated_material_context(question: str) -> bool:
 
 
 def _resolve_provider_metadata(client) -> tuple[str | None, bool]:
-    default_provider = "claude" if settings.chat_provider.strip().lower() == "anthropic" else "facultad"
+    default_provider = _provider_key_from_settings()
     provider_name = getattr(client, "last_provider_name", getattr(client, "provider_name", default_provider))
     fallback_used = bool(getattr(client, "last_fallback_used", False))
     return provider_name, fallback_used
 
 
+def _remember_provider_success(client) -> None:
+    provider_name, fallback_used = _resolve_provider_metadata(client)
+    _LAST_PROVIDER_STATUS.update(
+        {
+            "estado_ultima_llamada": "ok",
+            "proveedor_ultima_llamada": provider_name,
+            "fallback_ultima_llamada": fallback_used,
+            "error_ultima_llamada": None,
+        }
+    )
+
+
+def _remember_provider_error(client, error: Exception) -> None:
+    provider_name, fallback_used = _resolve_provider_metadata(client)
+    _LAST_PROVIDER_STATUS.update(
+        {
+            "estado_ultima_llamada": "error",
+            "proveedor_ultima_llamada": provider_name,
+            "fallback_ultima_llamada": fallback_used,
+            "error_ultima_llamada": str(error),
+        }
+    )
+
+
+def _historical_display_horizon(intent: str | None, horizon: int | None) -> int | None:
+    return None if intent == "HISTORICO" else horizon
+
+
+def _settings_provider_key() -> str:
+    return "claude" if settings.chat_provider.strip().lower() == "anthropic" else "facultad"
+
+
+def _chat_config_from_settings() -> dict[str, str | None]:
+    return {
+        "proveedor_activo": _settings_provider_key(),
+        "modelo_facultad": settings.openai_model,
+        "modelo_claude": settings.anthropic_model,
+    }
+
+
+def _read_persisted_chat_config(db: Session | None = None) -> dict[str, str | None]:
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+    try:
+        row = db.get(ChatProviderSetting, "default")
+        if row is None:
+            return _chat_config_from_settings()
+        return {
+            "proveedor_activo": row.proveedor_activo,
+            "modelo_facultad": row.modelo_facultad,
+            "modelo_claude": row.modelo_claude,
+        }
+    except SQLAlchemyError:
+        return _chat_config_from_settings()
+    finally:
+        if close_db:
+            db.close()
+
+
+def _apply_chat_config(config: dict[str, str | None]) -> None:
+    settings.chat_provider = "anthropic" if config["proveedor_activo"] == "claude" else "openai"
+    settings.openai_model = config.get("modelo_facultad")
+    settings.anthropic_model = config.get("modelo_claude")
+
+
+def _latest_price_answer(
+    *,
+    question: str,
+    material_name: str | None,
+    source_evidence: list[dict],
+) -> str | None:
+    for source in source_evidence:
+        if source.get("source") != "precios_historicos":
+            continue
+        records = source.get("records") or []
+        if not records:
+            return None
+        latest = records[0]
+        price = latest.get("precio_normalizado")
+        unit = latest.get("unidad_base")
+        observed_date = latest.get("fecha")
+        source_name = latest.get("fuente") or "sin fuente"
+        if not price or not unit or not observed_date:
+            return None
+        material_label = material_name or "el material"
+        normalized_question = unicodedata.normalize("NFKD", question.lower()).encode("ascii", "ignore").decode("ascii")
+        requested_kg = None
+        if re.search(r"\b25\s*(kg|kilos?)\b", normalized_question) or "bolsa de 25" in normalized_question:
+            requested_kg = Decimal("25")
+        elif re.search(r"\b50\s*(kg|kilos?)\b", normalized_question) or "bolsa de 50" in normalized_question:
+            requested_kg = Decimal("50")
+        elif "bolsa" in normalized_question and "cemento" in normalized_question:
+            requested_kg = Decimal("25")
+
+        if requested_kg is not None and unit == "kg":
+            bag_price = (Decimal(str(price)) * requested_kg).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            return (
+                f"El ultimo precio observado de la bolsa de {requested_kg.normalize()} kg de {material_label}, "
+                f"antes de las predicciones de Prophet, es ARS {bag_price}. "
+                f"Surge de ARS {price} por kg, registrado el {observed_date}. "
+                f"Fuente: {source_name}."
+            )
+
+        return (
+            f"El ultimo precio observado de {material_label}, antes de las predicciones de Prophet, "
+            f"es ARS {price} por {unit}, registrado el {observed_date}. "
+            f"Fuente: {source_name}."
+        )
+    return None
+
+
+def _catalog_direct_answer(
+    *,
+    question: str,
+    material,
+    material_repo: MaterialRepository,
+    db: Session,
+) -> str | None:
+    normalized = unicodedata.normalize("NFKD", question.lower()).encode("ascii", "ignore").decode("ascii")
+    if material is None and re.search(r"\b(materiales|catalogo|productos)\b", normalized):
+        materials = material_repo.list_active()
+        if not materials:
+            return "No hay materiales activos cargados en BuildWise."
+        items = ", ".join(f"{item.nombre} ({item.unidad_base})" for item in materials[:12])
+        suffix = f" Hay {len(materials) - 12} materiales activos adicionales." if len(materials) > 12 else ""
+        return f"Materiales activos disponibles en BuildWise: {items}.{suffix}"
+
+    if material is None:
+        return None
+
+    presentations = list(
+        db.scalars(
+            select(Presentacion)
+            .where(Presentacion.material_id == material.id, Presentacion.activa.is_(True))
+            .order_by(Presentacion.id.asc())
+        )
+    )
+    if re.search(r"\b(unidad|unidad base|kg|kilo|presentacion|presentaciones|bolsa|bolsas)\b", normalized):
+        lines = [f"{material.nombre} usa como unidad base: {material.unidad_base}."]
+        if presentations:
+            formatted = "; ".join(
+                f"{presentation.nombre_presentacion}: {presentation.cantidad_base.normalize()} {presentation.unidad_presentacion}"
+                for presentation in presentations
+            )
+            lines.append(f"Presentaciones activas: {formatted}.")
+        else:
+            lines.append("No tiene presentaciones activas registradas.")
+        return " ".join(lines)
+    return None
+
+
+def _calculated_direct_answer(
+    *,
+    question: str,
+    intent: str | None,
+    material,
+    horizon: int | None,
+    pricing_repo: PricingRepository,
+) -> str | None:
+    if material is None or horizon is None:
+        return None
+    normalized = unicodedata.normalize("NFKD", question.lower()).encode("ascii", "ignore").decode("ascii")
+    if intent == "FORECAST" or re.search(r"\b(forecast|proyeccion|proyectado|mape|confiabilidad)\b", normalized):
+        try:
+            result = forecast_material(material, horizon, pricing_repo, usar_selector_modelo=True)
+        except Exception:
+            return None
+        if not result.forecast or not result.dataset:
+            return None
+        latest = result.dataset[-1]
+        target = result.forecast[-1]
+        mape = getattr(result.metricas, "mape", None)
+        confidence = getattr(getattr(result, "seleccion_modelo", None), "confiabilidad", None)
+        details = [
+            f"Forecast de {material.nombre} a {horizon} meses:",
+            f"ultimo observado ARS {Decimal(f'{latest.y:.2f}')} por {material.unidad_base} el {latest.ds};",
+            f"precio proyectado ARS {target.precio_proyectado} por {material.unidad_base} para {target.fecha}.",
+        ]
+        if confidence:
+            details.append(f"Confiabilidad: {confidence}.")
+        if mape is not None:
+            details.append(f"MAPE: {mape}%.")
+        return " ".join(details)
+
+    if intent == "RECOMENDACION" or re.search(r"\b(conviene|recomendacion|comprar|esperar|decision)\b", normalized):
+        try:
+            recommendation = recomendar_momento_compra(
+                material,
+                horizon,
+                "media",
+                Decimal("1"),
+                pricing_repo,
+                usar_selector_modelo=True,
+            )
+        except Exception:
+            return None
+        parts = [
+            f"Decision para {material.nombre} a {horizon} meses: {recommendation.decision}.",
+            f"Confiabilidad: {recommendation.confiabilidad}.",
+            recommendation.justificacion,
+        ]
+        if recommendation.precio_actual is not None and recommendation.precio_proyectado_horizonte is not None:
+            parts.append(
+                f"Precio actual ARS {recommendation.precio_actual} y proyectado ARS {recommendation.precio_proyectado_horizonte} por {material.unidad_base}."
+            )
+        if recommendation.variacion_esperada_pct is not None:
+            parts.append(f"Variacion esperada: {recommendation.variacion_esperada_pct}%.")
+        return " ".join(parts)
+    return None
+
+
 def get_chat_client() -> ChatCompletionClient:
-    if settings.chat_provider.strip().lower() == "anthropic":
-        primary = AnthropicChatClient()
-        fallback = OpenAICompatibleChatClient()
+    config = _read_persisted_chat_config()
+    _apply_chat_config(config)
+    if config["proveedor_activo"] == "claude":
+        primary = AnthropicChatClient(model=config.get("modelo_claude"))
+        fallback = OpenAICompatibleChatClient(model=config.get("modelo_facultad"))
         return FallbackChatClient(primary, fallback)
-    primary = OpenAICompatibleChatClient()
-    fallback = AnthropicChatClient()
+    primary = OpenAICompatibleChatClient(model=config.get("modelo_facultad"))
+    fallback = AnthropicChatClient(model=config.get("modelo_claude"))
     return FallbackChatClient(primary, fallback)
 
 
@@ -318,19 +546,26 @@ def actualizar_conversacion(
 
 
 def _provider_key_from_settings() -> str:
-    return "claude" if settings.chat_provider.strip().lower() == "anthropic" else "facultad"
+    return _settings_provider_key()
 
 
-def _provider_configured(provider_key: str) -> bool:
+def _provider_configured(provider_key: str, config: dict[str, str | None] | None = None) -> bool:
+    config = config or _chat_config_from_settings()
     if provider_key == "claude":
-        return bool(settings.anthropic_base_url and settings.anthropic_api_key and settings.anthropic_model)
-    return bool(settings.openai_base_url and settings.openai_api_key and settings.openai_model)
+        return bool(settings.anthropic_base_url and settings.anthropic_api_key and config.get("modelo_claude"))
+    return bool(settings.openai_base_url and settings.openai_api_key and config.get("modelo_facultad"))
 
 
-def _fallback_enabled_from_settings() -> bool:
-    primary_key = _provider_key_from_settings()
+def _fallback_enabled_from_settings(config: dict[str, str | None] | None = None) -> bool:
+    config = config or _chat_config_from_settings()
+    primary_key = str(config["proveedor_activo"])
     fallback_key = "facultad" if primary_key == "claude" else "claude"
-    return _provider_configured(fallback_key)
+    return _provider_configured(fallback_key, config)
+
+
+def _provider_model_from_settings(provider_key: str, config: dict[str, str | None] | None = None) -> str | None:
+    config = config or _chat_config_from_settings()
+    return config.get("modelo_claude") if provider_key == "claude" else config.get("modelo_facultad")
 
 
 def _audit_changes(log: AuditLog) -> dict:
@@ -353,6 +588,7 @@ def _audit_log_read(log: AuditLog, username: str | None) -> ChatAuditLogRead:
         contexto_usado=changes.get("contexto_usado"),
         fuentes_recuperadas=sources,
         material_resuelto=changes.get("material_resuelto"),
+        material_resolution_source=changes.get("material_resolution_source"),
         horizonte_resuelto=changes.get("horizonte_resuelto"),
         proveedor_ia=changes.get("proveedor_ia"),
         fallback_usado=changes.get("fallback_usado"),
@@ -375,8 +611,8 @@ CANONICAL_DETERMINISM_BATTERY = (
         "pregunta": "cual fue el ultimo precio de cemento?",
         "tipo_intencion": "HISTORICO",
         "material_resuelto": "Cemento Portland",
-        "horizonte_resuelto": 3,
-        "fuentes_esperadas": ("operacion.price_history",),
+        "horizonte_resuelto": None,
+        "fuentes_esperadas": ("catalogo.materiales", "precios_historicos"),
     },
     {
         "pregunta": "explicame el forecast de cemento",
@@ -633,7 +869,9 @@ def _register_chat_audit(
                 "contexto_usado": response.contexto_usado,
                 "fuentes_recuperadas": response.fuentes_recuperadas,
                 "material_resuelto": response.material_resuelto,
+                "material_resolution_source": response.material_resolution_source,
                 "horizonte_resuelto": response.horizonte_resuelto,
+                "proveedor_utilizado": response.proveedor_utilizado,
                 "proveedor_ia": response.proveedor_ia,
                 "fallback_usado": response.fallback_usado,
                 "duration_ms": duration_ms,
@@ -647,15 +885,49 @@ def _register_chat_audit(
 
 @router.get("/config", response_model=ChatProviderConfigRead)
 def obtener_configuracion_chat(
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ) -> ChatProviderConfigRead:
     if current_user.rol != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un admin puede ver la configuracion de IA.")
+    config = _read_persisted_chat_config(db)
+    _apply_chat_config(config)
     return ChatProviderConfigRead(
-        proveedor_activo=_provider_key_from_settings(),
-        modelo_facultad=settings.openai_model,
-        modelo_claude=settings.anthropic_model,
-        fallback_habilitado=_fallback_enabled_from_settings(),
+        proveedor_activo=str(config["proveedor_activo"]),
+        modelo_facultad=config.get("modelo_facultad"),
+        modelo_claude=config.get("modelo_claude"),
+        fallback_habilitado=_fallback_enabled_from_settings(config),
+    )
+
+
+@router.get("/status", response_model=ChatProviderStatusRead)
+def obtener_estado_chat(
+    verificar: bool = False,
+    client: ChatCompletionClient = Depends(get_chat_client),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+) -> ChatProviderStatusRead:
+    config = _read_persisted_chat_config(db)
+    _apply_chat_config(config)
+    if verificar:
+        try:
+            client.complete([{"role": "user", "content": "Responde solo OK."}])
+            _remember_provider_success(client)
+        except (LLMConfigurationError, LLMProviderError) as exc:
+            _remember_provider_error(client, exc)
+    primary_key = str(config["proveedor_activo"])
+    fallback_key = "facultad" if primary_key == "claude" else "claude"
+    fallback_enabled = _provider_configured(fallback_key, config)
+    return ChatProviderStatusRead(
+        proveedor_activo=primary_key,
+        modelo_activo=_provider_model_from_settings(primary_key, config),
+        fallback_habilitado=fallback_enabled,
+        proveedor_fallback=fallback_key if fallback_enabled else None,
+        modelo_fallback=_provider_model_from_settings(fallback_key, config) if fallback_enabled else None,
+        estado_ultima_llamada=str(_LAST_PROVIDER_STATUS["estado_ultima_llamada"]),
+        proveedor_ultima_llamada=_LAST_PROVIDER_STATUS["proveedor_ultima_llamada"],
+        fallback_ultima_llamada=_LAST_PROVIDER_STATUS["fallback_ultima_llamada"],
+        error_ultima_llamada=_LAST_PROVIDER_STATUS["error_ultima_llamada"],
     )
 
 
@@ -754,18 +1026,34 @@ def medir_determinismo_canonicas(
 @router.patch("/config", response_model=ChatProviderConfigRead)
 def actualizar_configuracion_chat(
     payload: ChatProviderConfigUpdate,
+    db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ) -> ChatProviderConfigRead:
     if current_user.rol != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un admin puede modificar la configuracion de IA.")
-    settings.chat_provider = "anthropic" if payload.proveedor_activo == "claude" else "openai"
-    settings.openai_model = payload.modelo_facultad
-    settings.anthropic_model = payload.modelo_claude
+    config = {
+        "proveedor_activo": payload.proveedor_activo,
+        "modelo_facultad": payload.modelo_facultad,
+        "modelo_claude": payload.modelo_claude,
+    }
+    try:
+        row = db.get(ChatProviderSetting, "default")
+        if row is None:
+            row = ChatProviderSetting(key="default")
+            db.add(row)
+        row.proveedor_activo = payload.proveedor_activo
+        row.modelo_facultad = payload.modelo_facultad
+        row.modelo_claude = payload.modelo_claude
+        db.commit()
+        config = _read_persisted_chat_config(db)
+    except SQLAlchemyError:
+        db.rollback()
+    _apply_chat_config(config)
     return ChatProviderConfigRead(
-        proveedor_activo=_provider_key_from_settings(),
-        modelo_facultad=settings.openai_model,
-        modelo_claude=settings.anthropic_model,
-        fallback_habilitado=_fallback_enabled_from_settings(),
+        proveedor_activo=str(config["proveedor_activo"]),
+        modelo_facultad=config.get("modelo_facultad"),
+        modelo_claude=config.get("modelo_claude"),
+        fallback_habilitado=_fallback_enabled_from_settings(config),
     )
 
 
@@ -781,6 +1069,14 @@ def consultar_chat(
 ) -> ChatResponseRead:
     started_at = perf_counter()
     conversation = None
+    context = None
+    fuentes_recuperadas: list[str] = []
+    fuentes_evidencia: list[dict] = []
+    material_resuelto = None
+    material_resuelto_id = None
+    material_resolution_source = None
+    horizonte_resuelto = None
+    material_for_calculated_context = None
     if payload.conversation_id is not None:
         conversation = _get_owned_conversation(db, payload.conversation_id, current_user.id)
     latest_assistant = _latest_assistant_message(db, conversation) if conversation is not None else None
@@ -818,17 +1114,11 @@ def consultar_chat(
         )
         return response
     try:
-        context = None
-        fuentes_recuperadas: list[str] = []
-        fuentes_evidencia: list[dict] = []
-        material_resuelto = None
-        material_resuelto_id = None
-        horizonte_resuelto = None
-        material_for_calculated_context = None
         if should_load_context:
             material = material_repo.get_by_id(effective_material_id) if effective_material_id is not None else None
             if material is not None:
                 material_resuelto_id = getattr(material, "id", None)
+                material_resolution_source = "seleccionado" if payload.material_id is not None else "contexto"
             horizon = resolve_horizon(semantic_question, effective_horizon)
             horizonte_resuelto = horizon
             if needs_operation_plan(semantic_question):
@@ -862,6 +1152,11 @@ def consultar_chat(
                             if operation_material is not None:
                                 material_resuelto = getattr(operation_material, "nombre", None)
                                 material_resuelto_id = getattr(operation_material, "id", material_resuelto_id)
+                                material_resolution_source = (
+                                    "pregunta"
+                                    if plan.get("material_id") is not None
+                                    else ("seleccionado" if payload.material_id is not None else "contexto")
+                                )
                         try:
                             operation_horizon = int(plan.get("horizonte_meses") or horizon)
                         except (TypeError, ValueError):
@@ -889,6 +1184,11 @@ def consultar_chat(
                     if retrieval.material is not None:
                         material_resuelto = getattr(retrieval.material, "nombre", None)
                         material_resuelto_id = getattr(retrieval.material, "id", material_resuelto_id)
+                        material_resolution_source = (
+                            "seleccionado"
+                            if getattr(retrieval, "material_resolution_source", None) == "contexto" and payload.material_id is not None
+                            else getattr(retrieval, "material_resolution_source", None)
+                        )
                     horizonte_resuelto = retrieval.horizon
                 except SQLAlchemyError:
                     retrieval = None
@@ -937,6 +1237,65 @@ def consultar_chat(
                     material_resuelto = getattr(material_for_calculated_context, "nombre", None)
                     material_resuelto_id = getattr(material_for_calculated_context, "id", material_resuelto_id)
                     horizonte_resuelto = retrieval.horizon
+
+        direct_answer = (
+            _latest_price_answer(question=semantic_question, material_name=material_resuelto, source_evidence=fuentes_evidencia)
+            if tipo_intencion == "HISTORICO" and fuentes_evidencia
+            else None
+        )
+        if direct_answer is None and tipo_intencion == "CATALOGO":
+            direct_answer = _catalog_direct_answer(
+                question=semantic_question,
+                material=material_for_calculated_context,
+                material_repo=material_repo,
+                db=db,
+            )
+        if direct_answer is None and tipo_intencion in {"FORECAST", "RECOMENDACION"}:
+            direct_answer = _calculated_direct_answer(
+                question=semantic_question,
+                intent=tipo_intencion,
+                material=material_for_calculated_context,
+                horizon=horizonte_resuelto or effective_horizon,
+                pricing_repo=pricing_repo,
+            )
+        if direct_answer is not None:
+            display_horizon = _historical_display_horizon(tipo_intencion, horizonte_resuelto)
+            response = ChatResponseRead(
+                aceptada=True,
+                respuesta=direct_answer,
+                proveedor_utilizado=False,
+                proveedor_ia=None,
+                fallback_usado=False,
+                tipo_intencion=tipo_intencion,
+                contexto_usado=bool(context),
+                fuentes_recuperadas=list(dict.fromkeys(fuentes_recuperadas)),
+                fuentes_evidencia=fuentes_evidencia,
+                material_resuelto_id=material_resuelto_id,
+                material_resuelto=material_resuelto,
+                material_resolution_source=material_resolution_source,
+                horizonte_resuelto=display_horizon,
+                visualizacion_sugerida=suggest_visualization(
+                    semantic_question,
+                    intent=tipo_intencion,
+                    material=material_for_calculated_context,
+                    horizon=horizonte_resuelto or effective_horizon,
+                )
+                if context
+                else None,
+                conversation_id=conversation.id if conversation is not None else None,
+            )
+            if conversation is not None:
+                _persist_conversation_turn(db, conversation=conversation, question=payload.pregunta, response=response)
+            _register_chat_audit(
+                db,
+                current_user=current_user,
+                pregunta=payload.pregunta,
+                response=response,
+                duration_ms=int((perf_counter() - started_at) * 1000),
+                ip_address=request.client.host if request.client else None,
+            )
+            return response
+
         history = _conversation_history(db, conversation) if conversation is not None else [message.model_dump() for message in payload.historial]
         result = answer_question(
             semantic_question,
@@ -944,10 +1303,53 @@ def consultar_chat(
             context=context,
             history=history,
         )
+        if result.proveedor_utilizado:
+            _remember_provider_success(client)
     except LLMConfigurationError as exc:
+        _remember_provider_error(client, exc)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except LLMProviderError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        _remember_provider_error(client, exc)
+        if not context:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        response = ChatResponseRead(
+            aceptada=True,
+            respuesta=(
+                "No fue posible redactar la respuesta con IA, pero BuildWise recupero datos del backend. "
+                "Revisa las fuentes y la evidencia calculada de esta consulta."
+            ),
+            proveedor_utilizado=True,
+            proveedor_ia=_resolve_provider_metadata(client)[0],
+            fallback_usado=_resolve_provider_metadata(client)[1],
+            tipo_intencion=tipo_intencion,
+            contexto_usado=True,
+            fuentes_recuperadas=list(dict.fromkeys(fuentes_recuperadas)),
+            fuentes_evidencia=fuentes_evidencia,
+            material_resuelto_id=material_resuelto_id,
+            material_resuelto=material_resuelto,
+            material_resolution_source=material_resolution_source,
+            horizonte_resuelto=_historical_display_horizon(tipo_intencion, horizonte_resuelto),
+            visualizacion_sugerida=suggest_visualization(
+                semantic_question,
+                intent=tipo_intencion,
+                material=material_for_calculated_context,
+                horizon=horizonte_resuelto or effective_horizon,
+            )
+            if context
+            else None,
+            conversation_id=conversation.id if conversation is not None else None,
+        )
+        if conversation is not None:
+            _persist_conversation_turn(db, conversation=conversation, question=payload.pregunta, response=response)
+        _register_chat_audit(
+            db,
+            current_user=current_user,
+            pregunta=payload.pregunta,
+            response=response,
+            duration_ms=int((perf_counter() - started_at) * 1000),
+            ip_address=request.client.host if request.client else None,
+        )
+        return response
     response = ChatResponseRead(
         aceptada=result.aceptada,
         respuesta=result.respuesta,
@@ -960,7 +1362,8 @@ def consultar_chat(
         fuentes_evidencia=fuentes_evidencia,
         material_resuelto_id=material_resuelto_id,
         material_resuelto=material_resuelto,
-        horizonte_resuelto=horizonte_resuelto,
+        material_resolution_source=material_resolution_source,
+        horizonte_resuelto=_historical_display_horizon(tipo_intencion if result.aceptada else "FUERA_ALCANCE", horizonte_resuelto),
         visualizacion_sugerida=suggest_visualization(
             semantic_question,
             intent=tipo_intencion if result.aceptada else "FUERA_ALCANCE",

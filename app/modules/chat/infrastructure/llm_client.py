@@ -26,8 +26,17 @@ class FallbackChatClient:
             self.last_provider_name = getattr(self.primary, "provider_name", "facultad")
             self.last_fallback_used = False
             return response
-        except (LLMConfigurationError, LLMProviderError):
-            response = self.fallback.complete(messages)
+        except (LLMConfigurationError, LLMProviderError) as primary_exc:
+            try:
+                response = self.fallback.complete(messages)
+            except (LLMConfigurationError, LLMProviderError) as fallback_exc:
+                primary_name = getattr(self.primary, "provider_name", "proveedor primario")
+                fallback_name = getattr(self.fallback, "provider_name", "fallback")
+                raise LLMProviderError(
+                    f"No fue posible obtener respuesta del proveedor primario ({primary_name}) "
+                    f"ni del fallback ({fallback_name}). Detalle primario: {primary_exc}. "
+                    f"Detalle fallback: {fallback_exc}"
+                ) from fallback_exc
             self.last_provider_name = getattr(self.fallback, "provider_name", "claude")
             self.last_fallback_used = True
             return response
