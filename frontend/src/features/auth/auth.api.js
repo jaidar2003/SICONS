@@ -16,6 +16,10 @@ export function requestPasswordResetRequest(payload) {
   return apiPost("/auth/password-reset", payload);
 }
 
+export function validatePasswordResetTokenRequest(payload) {
+  return apiPost("/auth/password-reset/validate", payload);
+}
+
 export function activateUserRequest(userId, token) {
   return apiPost(`/auth/usuarios/${userId}/habilitar`, {}, token);
 }

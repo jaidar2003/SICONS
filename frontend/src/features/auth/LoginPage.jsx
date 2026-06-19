@@ -1,12 +1,12 @@
 import LoginIconModule from "@mui/icons-material/Login";
 import PersonAddAlt1IconModule from "@mui/icons-material/PersonAddAlt1";
 import VpnKeyIconModule from "@mui/icons-material/VpnKey";
-import { Alert, Box, Button, ButtonGroup, Card, CardContent, Stack, TextField, Typography } from "@mui/material";
-import { useMemo, useState } from "react";
+import { Alert, Box, Button, ButtonGroup, Card, CardContent, CircularProgress, Stack, TextField, Typography } from "@mui/material";
+import { useEffect, useMemo, useState } from "react";
 
 import bwLogo from "../../../bwlogo.png";
 import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
-import { requestPasswordRecoveryRequest, requestPasswordResetRequest } from "./auth.api.js";
+import { requestPasswordRecoveryRequest, requestPasswordResetRequest, validatePasswordResetTokenRequest } from "./auth.api.js";
 
 const LOGIN_MODE = "login";
 const REGISTER_MODE = "register";
@@ -17,10 +17,18 @@ const LoginIcon = resolveMuiIcon(LoginIconModule);
 const PersonAddAlt1Icon = resolveMuiIcon(PersonAddAlt1IconModule);
 const VpnKeyIcon = resolveMuiIcon(VpnKeyIconModule);
 
+function getResetRouteState() {
+  const url = new URL(window.location.href);
+  const pathname = url.pathname.replace(/\/+$/, "") || "/";
+  const resetToken = url.searchParams.get("reset_token") || "";
+  const isResetRoute = pathname === "/reset-password";
+  return { resetToken, isResetRoute };
+}
+
 export function LoginPage({ onLogin, onRegister }) {
-  const initialResetToken = new URLSearchParams(window.location.search).get("reset_token") || "";
-  const [mode, setMode] = useState(initialResetToken ? RESET_MODE : LOGIN_MODE);
-  const [resetToken, setResetToken] = useState(initialResetToken);
+  const initialResetState = getResetRouteState();
+  const [mode, setMode] = useState(LOGIN_MODE);
+  const [resetToken, setResetToken] = useState(initialResetState.resetToken);
   const [username, setUsername] = useState("");
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
@@ -29,6 +37,7 @@ export function LoginPage({ onLogin, onRegister }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [validatingResetToken, setValidatingResetToken] = useState(initialResetState.isResetRoute);
 
   const isRegisterMode = mode === REGISTER_MODE;
   const isRecoveryMode = mode === RECOVERY_MODE;
@@ -47,10 +56,62 @@ export function LoginPage({ onLogin, onRegister }) {
     setConfirmPassword("");
   }
 
+  function clearResetRoute() {
+    window.history.replaceState({}, "", "/");
+  }
+
+  useEffect(() => {
+    if (!initialResetState.isResetRoute) {
+      setValidatingResetToken(false);
+      return;
+    }
+
+    if (!initialResetState.resetToken) {
+      setMode(LOGIN_MODE);
+      setValidatingResetToken(false);
+      setError("No podés acceder a recuperacion de clave sin un enlace valido.");
+      clearResetRoute();
+      return;
+    }
+
+    let cancelled = false;
+
+    async function validateResetToken() {
+      setValidatingResetToken(true);
+      try {
+        await validatePasswordResetTokenRequest({ token: initialResetState.resetToken });
+        if (cancelled) return;
+        setMode(RESET_MODE);
+        setResetToken(initialResetState.resetToken);
+      } catch (_validationError) {
+        if (cancelled) return;
+        setMode(LOGIN_MODE);
+        setResetToken("");
+        setError("No podés acceder a recuperacion de clave sin un enlace valido.");
+        clearResetRoute();
+      } finally {
+        if (!cancelled) {
+          setValidatingResetToken(false);
+        }
+      }
+    }
+
+    validateResetToken();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialResetState.isResetRoute, initialResetState.resetToken]);
+
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
     setSuccess("");
+
+    if (isResetMode && !resetToken) {
+      setError("El enlace de recuperacion no es valido o ya no contiene el token necesario.");
+      return;
+    }
 
     if ((isRegisterMode || isResetMode) && password !== confirmPassword) {
       setError("Las claves no coinciden");
@@ -71,7 +132,7 @@ export function LoginPage({ onLogin, onRegister }) {
         setResetToken("");
         setPassword("");
         setConfirmPassword("");
-        window.history.replaceState({}, "", window.location.pathname);
+        clearResetRoute();
       } else if (isRecoveryMode) {
         const result = await requestPasswordRecoveryRequest({ identifier: username.trim() });
         setSuccess(result?.message || "Si el usuario existe, enviaremos un enlace para restablecer la clave.");
@@ -146,7 +207,13 @@ export function LoginPage({ onLogin, onRegister }) {
           {error ? <Alert severity="error">{error}</Alert> : null}
           {success ? <Alert severity="success">{success}</Alert> : null}
 
-          <Box component="form" className="grid gap-4" onSubmit={handleSubmit}>
+          {validatingResetToken ? (
+            <Box className="flex justify-center py-6">
+              <CircularProgress size={28} />
+            </Box>
+          ) : null}
+
+          {validatingResetToken ? null : <Box component="form" className="grid gap-4" onSubmit={handleSubmit}>
             <Stack spacing={2}>
               {isRegisterMode ? (
                 <>
@@ -191,7 +258,7 @@ export function LoginPage({ onLogin, onRegister }) {
               type="submit"
               variant="contained"
               startIcon={isRecoveryMode || isResetMode ? <VpnKeyIcon /> : isRegisterMode ? <PersonAddAlt1Icon /> : <LoginIcon />}
-              disabled={loading}
+              disabled={loading || validatingResetToken}
             >
               {loading ? (isResetMode ? "Actualizando" : isRecoveryMode ? "Enviando" : isRegisterMode ? "Creando" : "Ingresando") : submitLabel}
             </Button>
@@ -207,13 +274,13 @@ export function LoginPage({ onLogin, onRegister }) {
                   setPassword("");
                   setConfirmPassword("");
                   setResetToken("");
-                  window.history.replaceState({}, "", window.location.pathname);
+                  clearResetRoute();
                 }}
               >
                 {isRecoveryMode || isResetMode ? "Volver al ingreso" : "Olvide mi clave"}
               </Button>
             )}
-          </Box>
+          </Box>}
         </CardContent>
       </Card>
     </Box>

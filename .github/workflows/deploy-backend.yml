@@ -1,0 +1,42 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/deploy-backend.yml"
+      - "app/**"
+      - "db/**"
+      - "deploy/**"
+      - "alembic.ini"
+      - "docker-compose.openstack.yml"
+      - "Dockerfile"
+      - "requirements.txt"
+      - "requirements-dev.txt"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy backend on VM
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.OPENSTACK_VM_HOST }}
+          username: ${{ secrets.OPENSTACK_VM_USER }}
+          key: ${{ secrets.OPENSTACK_VM_SSH_KEY }}
+          port: ${{ secrets.OPENSTACK_VM_PORT || '22' }}
+          script_stop: true
+          command_timeout: 30m
+          script: |
+            cd /home/ubuntu/BuildWise
+            git fetch --all --prune
+            git checkout main
+            git pull --ff-only origin main
+            docker compose -f docker-compose.openstack.yml --env-file .env.openstack up -d --build
+            docker compose -f docker-compose.openstack.yml --env-file .env.openstack ps
