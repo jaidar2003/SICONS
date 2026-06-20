@@ -808,7 +808,7 @@ export function App() {
                               Solo costo
                             </Button>
                             <Button variant={forecastPriceView === "commercial" ? "contained" : "outlined"} onClick={() => setForecastPriceView("commercial")}>
-                              Solo venta mayorista
+                              Solo precio minorista
                             </Button>
                             <Button variant={forecastPriceView === "comparative" ? "contained" : "outlined"} onClick={() => setForecastPriceView("comparative")}>
                               Comparar ambas

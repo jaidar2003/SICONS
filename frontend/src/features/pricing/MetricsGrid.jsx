@@ -13,7 +13,7 @@ export function MetricsGrid({ serie, showPrices, selectedMaterial }) {
       <Box className="mt-3 grid gap-3 md:grid-cols-4">
         <MetricCard label="Precio comercial" value="-" helper="Sin datos" />
         <MetricCard label="Presentacion" value="-" helper="Sin datos" />
-        <MetricCard label="Ultima variacion mensual" value="-" helper="Sin datos" />
+        <MetricCard label="Última variación observada" value="-" helper="Sin datos" />
         <MetricCard label="Variacion total" value="-" helper="-" />
       </Box>
     );
@@ -38,9 +38,9 @@ export function MetricsGrid({ serie, showPrices, selectedMaterial }) {
     return (
       <Box className="mt-3 grid gap-3 md:grid-cols-4">
         <MetricCard label="Variacion total" value={`${formatNumber(variation)}%`} helper={`${first.fecha} a ${last.fecha}`} />
-        <MetricCard label="Ultima variacion mensual" value={lastMonthlyVariation === null ? "-" : `${formatNumber(lastMonthlyVariation)}%`} helper={last.fecha} />
-        <MetricCard label="Promedio variacion mensual" value={averageMonthlyVariation === null ? "-" : `${formatNumber(averageMonthlyVariation)}%`} helper="Solo cambios observados" />
-        <MetricCard label="Meses analizados" value={String(serie.length)} helper="Serie mensual" />
+        <MetricCard label="Última variación observada" value={lastMonthlyVariation === null ? "-" : `${formatNumber(lastMonthlyVariation)}%`} helper={last.fecha} />
+        <MetricCard label="Promedio mensual" value={averageMonthlyVariation === null ? "-" : `${formatNumber(averageMonthlyVariation)}%`} helper="Solo cambios mensuales" />
+        <MetricCard label="Meses analizados" value={String(serie.length)} helper="Serie de precios mensuales" />
       </Box>
     );
   }
@@ -75,13 +75,13 @@ export function MetricsGrid({ serie, showPrices, selectedMaterial }) {
       ) : null}
       {!showBagEquivalents ? <MetricCard label="Presentacion" value={presentation.fixedPresentationLabel || presentation.displayUnitLabel} helper={presentation.primaryPriceHelper} /> : null}
       {!showBagEquivalents ? (
-        <MetricCard label="Ultima variacion mensual" value={lastMonthlyVariation === null ? "-" : `${formatNumber(lastMonthlyVariation)}%`} helper={last.fecha} />
+        <MetricCard label="Última variación observada" value={lastMonthlyVariation === null ? "-" : `${formatNumber(lastMonthlyVariation)}%`} helper={last.fecha} />
       ) : null}
       {showBagEquivalents ? (
         <MetricCard
-          label="Variacion mensual estimada"
+          label="Variación observada"
           value={lastMonthlyVariation === null ? "-" : `${formatNumber(lastMonthlyVariation)}%`}
-          helper={`Mes ${last.fecha}`}
+          helper={`Fecha ${last.fecha}`}
         />
       ) : null}
       <MetricCard label="Variacion total" value={`${formatNumber(variation)}%`} helper={`${first.fecha} a ${last.fecha}`} />

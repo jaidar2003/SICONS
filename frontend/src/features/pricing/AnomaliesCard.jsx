@@ -1,25 +1,71 @@
 import { Alert, Box, Button, Card, CardContent, Chip, Divider, Stack, TextField, Typography } from "@mui/material";
-import {
-  CategoryScale,
-  Chart as ChartJS,
-  Filler,
-  Legend,
-  LinearScale,
-  LineElement,
-  PointElement,
-  Tooltip,
-} from "chart.js";
+import { Chart as ChartJS, Filler, Legend, LinearScale, PointElement, Tooltip } from "chart.js";
 import dayjs from "dayjs";
 import { useEffect, useMemo, useState } from "react";
-import { Line } from "react-chartjs-2";
+import { Scatter } from "react-chartjs-2";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatNumber, formatPercentChange, toApiDate, variationTone } from "../../shared/utils/formatters.js";
-import { evaluateDetectedAnomalies } from "./pricing.api.js";
+import { evaluateDetectedAnomalies, fetchSerie } from "./pricing.api.js";
 import { parseConfirmedAnomalyDates } from "./anomalyEvaluation.js";
 import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
+ChartJS.register(LinearScale, PointElement, Tooltip, Legend, Filler);
+
+const anomalyLabelPlugin = {
+  id: "anomalyLabelPlugin",
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    const meta = chart.getDatasetMeta(0);
+    if (!meta?.data?.length) return;
+
+    ctx.save();
+    meta.data.forEach((element, index) => {
+      const rawPoint = chart.data.datasets[0].data[index];
+      const fecha = rawPoint?.fecha;
+      const value = rawPoint?.precio ?? rawPoint?.y;
+      if (!fecha || value === undefined || value === null) return;
+      if (rawPoint?.severidad === "leve") return;
+
+      const label = `${fecha} · ${showLabelValue(value)}`;
+      ctx.font = "600 11px Inter, system-ui, sans-serif";
+      ctx.fillStyle = rawPoint?.severidad === "alta" ? "#991b1b" : "#334155";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      const yOffset = index % 2 === 0 ? -10 : -24;
+      ctx.fillText(label, element.x, element.y + yOffset);
+    });
+    ctx.restore();
+  },
+};
+
+function showLabelValue(value) {
+  return Number(value).toLocaleString("es-AR", { maximumFractionDigits: 0 });
+}
+
+function toTimestamp(dateValue) {
+  const parsed = dayjs(dateValue);
+  return parsed.isValid() ? parsed.valueOf() : 0;
+}
+
+function buildJitteredAnomalyPoints(points, values) {
+  const countsByDate = new Map();
+  return points.map((point, index) => {
+    const dateKey = point.fecha;
+    const currentCount = countsByDate.get(dateKey) || 0;
+    countsByDate.set(dateKey, currentCount + 1);
+    const jitterHours = (currentCount - 0.5) * 12;
+    return {
+      x: toTimestamp(point.fecha) + jitterHours * 60 * 60 * 1000,
+      y: Number(values[index] ?? 0),
+      fecha: point.fecha,
+      precio: point.precio_promedio_normalizado,
+      motivo: point.motivo_anomalia,
+      variacion: point.variacion_porcentual_anterior,
+      severidad: point.severidad_anomalia,
+    };
+  });
+}
 
 export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desde, hasta, className = "" }) {
   const severityConfig = {
@@ -27,20 +73,32 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
     media: { label: "Media", color: "#F97316", bg: "#FFF7ED" },
     alta: { label: "Alta", color: "#DC2626", bg: "#FEF2F2" },
   };
+  const severityFilters = [
+    { value: "todas", label: "Todas" },
+    { value: "alta", label: "Alta" },
+    { value: "media", label: "Media" },
+    { value: "leve", label: "Leve" },
+  ];
   const [confirmedDatesInput, setConfirmedDatesInput] = useState("");
   const [evaluation, setEvaluation] = useState(null);
   const [evaluationError, setEvaluationError] = useState("");
   const [evaluating, setEvaluating] = useState(false);
-  const anomalies = serie.filter((point) => point.es_anomalia);
-  const presentation = getMaterialPresentation(selectedMaterial?.nombre, serie[0]?.unidad_base);
-  const labels = serie.map((point) => point.fecha.slice(0, 7));
-  const firstDate = serie[0]?.fecha || "";
-  const lastDate = serie[serie.length - 1]?.fecha || "";
+  const [anomalySerie, setAnomalySerie] = useState(null);
+  const [seriesLoading, setSeriesLoading] = useState(false);
+  const [seriesError, setSeriesError] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("todas");
+  const anomalies = useMemo(() => (anomalySerie ?? []).filter((point) => point.es_anomalia), [anomalySerie]);
+  const chartSerie = useMemo(() => anomalies.filter((point) => point.severidad_anomalia === "alta"), [anomalies]);
+  const visibleAnomalies = useMemo(
+    () => (severityFilter === "todas" ? anomalies : anomalies.filter((point) => point.severidad_anomalia === severityFilter)),
+    [anomalies, severityFilter]
+  );
+  const presentation = getMaterialPresentation(selectedMaterial?.nombre, chartSerie[0]?.unidad_base || serie[0]?.unidad_base);
+  const firstDate = chartSerie[0]?.fecha || "";
+  const lastDate = chartSerie[chartSerie.length - 1]?.fecha || "";
   const mainSeries = showPrices
-    ? serie.map((point) => getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))
-    : serie.map((point) => Number(point.variacion_porcentual_anterior || 0));
-  const anomalySeries = serie.map((point, index) => (point.es_anomalia ? mainSeries[index] : null));
-  const chartLabel = showPrices ? presentation.primaryPriceLabel : "Variacion mensual %";
+    ? chartSerie.map((point) => getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))
+    : chartSerie.map((point) => Number(point.variacion_porcentual_anterior || 0));
   const evaluationSummary = useMemo(() => {
     if (!evaluation) return null;
     return [
@@ -66,6 +124,16 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
       },
     ];
   }, [evaluation]);
+
+  const chartPoints = useMemo(
+    () => buildJitteredAnomalyPoints(chartSerie, mainSeries),
+    [chartSerie, mainSeries]
+  );
+
+  const chartColors = useMemo(
+    () => chartSerie.map(() => "#DC2626"),
+    [chartSerie]
+  );
   const baselineSummary = useMemo(() => {
     if (!evaluation) return null;
     return [
@@ -97,7 +165,45 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
     setEvaluation(null);
     setEvaluationError("");
     setEvaluating(false);
+    setSeverityFilter("todas");
   }, [selectedMaterial?.id, firstDate, lastDate]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadAnomalySerie() {
+      if (!selectedMaterial?.id || !token) {
+        setAnomalySerie([]);
+        setSeriesError("");
+        setSeriesLoading(false);
+        return;
+      }
+
+      setSeriesLoading(true);
+      setSeriesError("");
+      try {
+        const result = await fetchSerie({
+          materialId: selectedMaterial.id,
+          desde: desde ? toApiDate(dayjs(desde)) : undefined,
+          hasta: hasta ? toApiDate(dayjs(hasta)) : undefined,
+          token,
+          agrupacion: "observaciones",
+        });
+        if (!active) return;
+        setAnomalySerie(result || []);
+      } catch (error) {
+        if (!active) return;
+        setSeriesError(error.message);
+        setAnomalySerie([]);
+      } finally {
+        if (active) setSeriesLoading(false);
+      }
+    }
+
+    loadAnomalySerie();
+    return () => {
+      active = false;
+    };
+  }, [selectedMaterial?.id, desde, hasta, token]);
 
   async function handleEvaluate() {
     setEvaluationError("");
@@ -142,68 +248,57 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
   }
 
   const chartData = {
-    labels,
     datasets: [
       {
-        label: chartLabel,
-        data: mainSeries,
-        borderColor: "#002395",
-        backgroundColor: "rgba(0, 35, 149, 0.10)",
-        fill: true,
-        borderWidth: 2.5,
-        tension: 0.25,
-        pointRadius: 2,
-        pointHoverRadius: 5,
-        pointBackgroundColor: "#FEFBFF",
-        pointBorderColor: "#002395",
-        pointBorderWidth: 1.5,
-      },
-      {
-        label: "Anomalia Random Forest",
-        data: anomalySeries,
-        borderColor: "rgba(237, 41, 57, 0)",
-        backgroundColor: "#ED2939",
+        label: showPrices ? "Precio anómalo" : "Variación anómala %",
+        data: chartPoints,
+        borderColor: chartColors,
+        backgroundColor: chartColors,
+        fill: false,
+        borderWidth: 0,
+        tension: 0,
         pointRadius: 7,
-        pointHoverRadius: 9,
-        pointBackgroundColor: "#ED2939",
+        pointHoverRadius: 10,
+        pointBackgroundColor: chartColors,
         pointBorderColor: "#ffffff",
         pointBorderWidth: 2.5,
-        showLine: false,
       },
     ],
   };
   const chartOptions = {
     maintainAspectRatio: false,
-    interaction: { mode: "index", intersect: false },
+    interaction: { mode: "nearest", intersect: false },
     plugins: {
+      anomalyLabelPlugin: true,
       legend: { position: "bottom" },
       tooltip: {
         callbacks: {
           label(context) {
-            const point = serie[context.dataIndex];
-            if (context.datasetIndex === 1 && point?.es_anomalia) {
-              return [
-                "Anomalia detectada por Random Forest",
-                point.motivo_anomalia || "Mes atipico frente al patron esperado.",
-              ];
-            }
+            const point = context.raw;
+            const severityLabel = point?.severidad
+              ? `Severidad: ${point.severidad.charAt(0).toUpperCase()}${point.severidad.slice(1)}`
+              : null;
             if (showPrices) {
-              return [
-                `${chartLabel}: ${formatCurrency(context.parsed.y)}`,
-                `Variacion mensual: ${point?.variacion_porcentual_anterior === null ? "-" : `${formatNumber(point?.variacion_porcentual_anterior)}%`}`,
-              ];
+              return [point?.fecha ? `Fecha: ${point.fecha}` : null, `Precio: ${formatCurrency(point?.precio ?? context.parsed.y)}`, severityLabel, point?.motivo || "Precio atípico frente al patrón esperado."].filter(Boolean);
             }
-            return `Variacion mensual: ${formatNumber(context.parsed.y)}%`;
+            return [point?.fecha ? `Fecha: ${point.fecha}` : null, `Desvío: ${formatNumber(context.parsed.y)}%`, severityLabel, point?.motivo || "Precio atípico frente al patrón esperado."].filter(Boolean);
           },
         },
       },
     },
     scales: {
-      x: { grid: { display: false } },
+      x: {
+        type: "linear",
+        grid: { display: false },
+        ticks: {
+          callback: (value) => dayjs(Number(value)).format("YYYY-MM"),
+          maxTicksLimit: 8,
+        },
+      },
       y: {
         title: {
           display: true,
-          text: showPrices ? presentation.chartAxisLabel : "Variacion mensual %",
+          text: showPrices ? presentation.chartAxisLabel : "Variacion del precio anomalo %",
         },
         ticks: {
           callback: (value) =>
@@ -213,22 +308,49 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
         },
       },
     },
+    layout: {
+      padding: { top: 28 },
+    },
   };
 
   return (
     <Card className={`h-full ${className}`}>
       <CardContent>
-        <SectionHeader title="Variaciones bruscas" description="Meses detectados como atípicos por el modelo Random Forest." />
-        <Box className="chart-shell anomaly-chart-shell mb-5 h-[340px]">
-          <Line data={chartData} options={chartOptions} redraw />
+        <SectionHeader title="Variaciones bruscas" description="Observaciones detectadas como atípicas por el modelo Random Forest." />
+        {seriesError ? <Alert severity="warning">No fue posible cargar las observaciones para anomalías: {seriesError}</Alert> : null}
+        {seriesLoading ? (
+          <Box className="mb-5 flex h-[340px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600">
+            Cargando observaciones para anomalías...
+          </Box>
+        ) : chartSerie.length ? (
+          <Box className="chart-shell anomaly-chart-shell mb-5 h-[340px]">
+            <Scatter data={chartData} options={chartOptions} plugins={[anomalyLabelPlugin]} redraw />
+          </Box>
+        ) : (
+          <Box className="mb-5 flex h-[340px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-center text-sm text-slate-600">
+            No hay anomalías de severidad alta en el período seleccionado.
+          </Box>
+        )}
+        <Box className="mb-4 flex flex-wrap gap-2">
+          {severityFilters.map((filter) => (
+            <Button
+              key={filter.value}
+              size="small"
+              variant={severityFilter === filter.value ? "contained" : "outlined"}
+              onClick={() => setSeverityFilter(filter.value)}
+              sx={{ fontWeight: 800 }}
+            >
+              {filter.label}
+            </Button>
+          ))}
         </Box>
-        {!anomalies.length ? (
+        {!visibleAnomalies.length ? (
           <Box className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
-            No se detectaron variaciones mensuales bruscas en el periodo seleccionado.
+            No hay anomalías para el filtro seleccionado.
           </Box>
         ) : (
           <Box className="grid gap-3 xl:grid-cols-2">
-            {anomalies.map((point) => {
+            {visibleAnomalies.map((point) => {
               const parsedMotivo = parseAnomalyMotivo(point.motivo_anomalia);
               const expectedRangeVisible =
                 point.precio_esperado_anomalia !== null &&
@@ -239,7 +361,7 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
                 point.rango_esperado_max_anomalia !== undefined;
               return (
                 <Box
-                  key={point.fecha}
+                  key={point.observacion_id ?? point.fecha}
                   className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                   sx={{
                     borderLeftWidth: 6,
@@ -251,10 +373,10 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
                     <Box className="flex flex-wrap items-start justify-between gap-2">
                       <Box>
                         <Typography variant="overline" color="text.secondary">
-                          Mes detectado
+                          Fecha detectada
                         </Typography>
                         <Typography variant="h4" lineHeight={1.1}>
-                          {point.fecha.slice(0, 7)}
+                          {point.fecha}
                         </Typography>
                       </Box>
                       {point.severidad_anomalia ? (
@@ -411,7 +533,7 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
           <Box>
             <Typography variant="h4">Validación de anomalías</Typography>
             <Typography color="text.secondary" variant="body2" mt={0.5}>
-              Pegá una fecha por línea, o separalas con comas. La evaluación usa el rango visible {firstDate && lastDate ? `${firstDate.slice(0, 7)} a ${lastDate.slice(0, 7)}` : "del historial actual"}.
+              Pegá una fecha por línea, o separalas con comas. La evaluación usa el rango visible {firstDate && lastDate ? `${firstDate} a ${lastDate}` : "del historial actual"}.
             </Typography>
           </Box>
 
@@ -462,7 +584,7 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
               <Box className="mt-4">
                 <Typography variant="h4">Comparación contra baseline</Typography>
                 <Typography color="text.secondary" variant="body2" mt={0.5}>
-                  Regla simple: marcar cualquier mes con variación mensual mayor al umbral fijo.
+                  Regla simple: marcar cualquier observación cuya variación supere el umbral fijo.
                 </Typography>
               </Box>
 
@@ -525,7 +647,7 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
               />
               <GlossaryItem
                 term="Score"
-                definition="Cantidad de señales activadas sobre 4: residuo, variación mensual, estacionalidad y tendencia."
+                definition="Cantidad de señales activadas sobre 4: residuo, variación entre observaciones, estacionalidad y tendencia."
               />
               <GlossaryItem
                 term="Confianza"
@@ -545,7 +667,7 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
               />
               <GlossaryItem
                 term="Baseline"
-                definition="Regla simple de comparación que marca meses con variación mensual mayor a un umbral fijo."
+                definition="Regla simple de comparación que marca observaciones con una variación mayor al umbral fijo."
               />
               <GlossaryItem
                 term="Precisión"

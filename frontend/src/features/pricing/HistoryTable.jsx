@@ -3,7 +3,7 @@ import ExpandMoreIconModule from "@mui/icons-material/ExpandMore";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
-import { formatCurrency, formatNumber, monthLabel, variationTone } from "../../shared/utils/formatters.js";
+import { formatCurrency, formatNumber, variationTone } from "../../shared/utils/formatters.js";
 import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 
 const ExpandMoreIcon = resolveMuiIcon(ExpandMoreIconModule);
@@ -15,7 +15,7 @@ export function HistoryTable({ serie, showPrices, selectedMaterial, className = 
   return (
     <Card className={`h-full ${className}`}>
       <CardContent>
-        <SectionHeader title="Historial de precios" description="Promedio mensual, cantidad de precios usados, fuentes y variacion contra el mes anterior." />
+        <SectionHeader title="Historial de precios" description="Promedios mensuales por fecha, fuentes y variación contra el mes anterior." />
         <Accordion defaultExpanded>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography fontWeight={800}>Ver tabla histórica</Typography>
@@ -25,19 +25,19 @@ export function HistoryTable({ serie, showPrices, selectedMaterial, className = 
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell align="center">Mes</TableCell>
+                    <TableCell align="center">Fecha</TableCell>
                     {showPrices ? <TableCell align="center">{presentation.tablePriceLabel}</TableCell> : null}
                     {showPrices && showBagEquivalents ? <TableCell align="center">25 kg</TableCell> : null}
                     {showPrices && showBagEquivalents ? <TableCell align="center">50 kg</TableCell> : null}
-                    <TableCell align="center">Muestra</TableCell>
+                    <TableCell align="center">Registros</TableCell>
                     <TableCell align="center">Variacion</TableCell>
                     <TableCell align="center">Fuentes</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {serie.map((point) => (
-                    <TableRow key={point.fecha}>
-                      <TableCell align="center">{monthLabel(point.fecha)}</TableCell>
+                  {serie.map((point, index) => (
+                    <TableRow key={point.observacion_id ?? `${point.fecha}-${index}`}>
+                      <TableCell align="center">{point.fecha}</TableCell>
                       {showPrices ? <TableCell align="center">{formatCurrency(getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))}</TableCell> : null}
                       {showPrices && showBagEquivalents ? <TableCell align="center">{formatCurrency(point.precio_equivalente_25kg)}</TableCell> : null}
                       {showPrices && showBagEquivalents ? <TableCell align="center">{formatCurrency(point.precio_equivalente_50kg)}</TableCell> : null}

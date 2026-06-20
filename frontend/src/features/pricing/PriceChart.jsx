@@ -39,7 +39,7 @@ export function PriceChart({
     baseValue === 0 ? 0 : ((Number(point.precio_promedio_normalizado) - baseValue) / baseValue) * 100
   );
   const forecastPoints = forecast?.puntos ?? [];
-  const labels = [...serie.map((point) => point.fecha.slice(0, 7)), ...forecastPoints.map((point) => point.fecha.slice(0, 7))];
+  const labels = [...serie.map((point) => point.fecha), ...forecastPoints.map((point) => point.fecha.slice(0, 7))];
   const projectedVariationSeries = forecastPoints.map((point) =>
     baseValue === 0 ? 0 : ((Number(point.precio_proyectado) - baseValue) / baseValue) * 100
   );
@@ -93,9 +93,9 @@ export function PriceChart({
 
   const chartTitle =
     showPrices && chartMode === "commercial"
-      ? "Evolucion historica del precio de venta mayorista"
+      ? "Evolucion historica del precio minorista"
       : showPrices && chartMode === "comparative"
-        ? "Costo y venta mayorista superpuestos"
+        ? "Costo y precio minorista superpuestos"
         : showPrices
           ? "Evolucion historica del precio normalizado"
           : "Evolucion historica porcentual";
@@ -103,10 +103,10 @@ export function PriceChart({
   const chartDescription =
     showPrices && chartMode === "commercial"
       ? canShowCostDetails
-        ? `Precio de venta mayorista derivado del forecast de costo${hasCommercialMargin ? ` con margen ${formatNumber(commercialMarginNumber)}%` : ""}.${forecastBoundaryNote}`
-        : `Precio de venta mayorista proyectado para el material seleccionado.${forecastBoundaryNote}`
+        ? `Precio minorista derivado del forecast de costo${hasCommercialMargin ? ` con margen ${formatNumber(commercialMarginNumber)}%` : ""}.${forecastBoundaryNote}`
+        : `Precio minorista proyectado para el material seleccionado.${forecastBoundaryNote}`
       : showPrices && chartMode === "comparative"
-        ? `La curva azul es el precio de costo y la verde el precio de venta mayorista.${forecastBoundaryNote}`
+        ? `La curva azul es el precio de costo y la verde el precio minorista.${forecastBoundaryNote}`
         : selectedMaterial
           ? showPrices
             ? `${selectedMaterial.nombre}: ${presentation.primaryPriceLabel.toLowerCase()} en ${presentation.displayUnitLabel}${forecastPoints.length ? " con proyeccion mensual" : ""}.${forecastBoundaryNote}`
@@ -117,11 +117,11 @@ export function PriceChart({
   const chartBadge =
     canShowCostDetails && showPrices && chartMode === "commercial" && hasCommercialMargin
       ? `Margen ${formatNumber(commercialMarginNumber)}%`
-      : canShowCostDetails && showPrices && chartMode === "comparative" && hasCommercialMargin
+    : canShowCostDetails && showPrices && chartMode === "comparative" && hasCommercialMargin
         ? "Dos curvas"
         : forecastPoints.length
           ? "Historico + forecast"
-          : "Promedio mensual";
+          : "Precios mensuales";
 
   const chartData = (() => {
     if (!showPrices) {
@@ -177,7 +177,7 @@ export function PriceChart({
         labels,
         datasets: [
           {
-            label: "Precio de venta mayorista",
+            label: "Precio minorista",
             data: [...commercialHistoricalDataset, ...Array(forecastPoints.length).fill(null)],
             borderColor: "#0f766e",
             backgroundColor: "rgba(15, 118, 110, 0.12)",
@@ -193,7 +193,7 @@ export function PriceChart({
           ...(forecastPoints.length
             ? [
                 {
-                  label: "Forecast de venta mayorista",
+                  label: "Forecast minorista",
                   data: commercialForecastLine,
                   borderColor: "#16a34a",
                   backgroundColor: "rgba(22, 163, 74, 0.18)",
@@ -232,7 +232,7 @@ export function PriceChart({
             pointBorderWidth: 2,
           },
           {
-            label: "Precio de venta mayorista",
+            label: "Precio minorista",
             data: commercialCombinedLine,
             borderColor: "#0f766e",
             backgroundColor: "rgba(15, 118, 110, 0.10)",
@@ -310,6 +310,30 @@ export function PriceChart({
     };
   })();
 
+  function isForecastDatasetLabel(label) {
+    return label === "Forecast acumulado %" || label === "Forecast" || label === "Forecast minorista";
+  }
+
+  function getCommercialTooltipLines(point, label) {
+    if (!showPrices) {
+      return [`${label}: ${formatNumber(((Number(point.precio_proyectado) * commercialMultiplier - baseValue) / baseValue) * 100)}%`];
+    }
+
+    const baseForecast = getDisplayPrice(point.precio_proyectado, selectedMaterial?.nombre, forecast?.unidad_base);
+    const commercialForecast = getDisplayPrice(Number(point.precio_proyectado) * commercialMultiplier, selectedMaterial?.nombre, forecast?.unidad_base);
+    if (!canShowCostDetails) {
+      return [`${label}: ${formatCurrency(commercialForecast)}`];
+    }
+    const optimisticCommercial = getDisplayPrice(Number(point.precio_optimista) * commercialMultiplier, selectedMaterial?.nombre, forecast?.unidad_base);
+    const pessimisticCommercial = getDisplayPrice(Number(point.precio_pesimista) * commercialMultiplier, selectedMaterial?.nombre, forecast?.unidad_base);
+    return [
+      `${label}: ${formatCurrency(commercialForecast)}`,
+      `Base forecast: ${formatCurrency(baseForecast)}`,
+      `Optimista: ${formatCurrency(optimisticCommercial)}`,
+      `Pesimista: ${formatCurrency(pessimisticCommercial)}`,
+    ];
+  }
+
   const forecastBoundaryPlugin = {
     id: "forecast-boundary-marker",
     beforeDatasetsDraw(chart) {
@@ -379,26 +403,53 @@ export function PriceChart({
       tooltip: {
         callbacks: {
           label(context) {
-            if (context.datasetIndex >= 1 && forecastPoints.length) {
+            const datasetLabel = context.dataset.label || "";
+            if (chartMode === "commercial" && datasetLabel === "Precio de venta mayorista") {
+              return [showPrices ? `${datasetLabel}: ${formatCurrency(context.parsed.y)}` : `${datasetLabel}: ${formatNumber(context.parsed.y)}%`];
+            }
+
+            if (chartMode === "commercial" && datasetLabel === "Forecast minorista" && forecastPoints.length) {
               const forecastIndex = context.dataIndex - serie.length;
               if (forecastIndex < 0) {
-                if (context.dataset.label === "Escenario pesimista (alto)" || context.dataset.label === "Escenario optimista (bajo)") return null;
+                return showPrices
+                  ? [`Ultimo observado: ${formatCurrency(context.parsed.y)}`]
+                  : [`Ultimo observado: ${formatNumber(variationSeries[variationSeries.length - 1])}%`];
+              }
+              const point = forecastPoints[forecastIndex];
+              return getCommercialTooltipLines(point, datasetLabel);
+            }
+
+            if (chartMode === "comparative" && datasetLabel === "Precio de venta mayorista" && forecastPoints.length) {
+              const point = serie[context.dataIndex];
+              if (showPrices) {
+                return [
+                  `Precio minorista: ${formatCurrency(context.parsed.y)}`,
+                  `Precio de costo: ${formatCurrency(getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))}`,
+                ];
+              }
+              return [
+                `Precio minorista: ${formatNumber(context.parsed.y)}%`,
+                `Precio de costo: ${formatNumber(variationSeries[context.dataIndex])}%`,
+              ];
+            }
+
+            if (forecastPoints.length && isForecastDatasetLabel(datasetLabel)) {
+              const forecastIndex = context.dataIndex - serie.length;
+              if (forecastIndex < 0) {
                 return showPrices
                   ? [`Ultimo observado: ${formatCurrency(context.parsed.y)}`]
                   : [`Ultimo observado: ${formatNumber(variationSeries[variationSeries.length - 1])}%`];
               }
               if (showPrices) {
-                if (context.dataset.label === "Escenario pesimista (alto)" || context.dataset.label === "Escenario optimista (bajo)") return null;
                 const point = forecastPoints[forecastIndex];
                 return [
-                  `Forecast Base: ${formatCurrency(point.precio_proyectado)}`,
-                  `Escenario Optimista: ${formatCurrency(point.precio_optimista)}`,
-                  `Escenario Pesimista: ${formatCurrency(point.precio_pesimista)}`,
+                  `${datasetLabel}: ${formatCurrency(point.precio_proyectado)}`,
+                  `Optimista: ${formatCurrency(point.precio_optimista)}`,
+                  `Pesimista: ${formatCurrency(point.precio_pesimista)}`,
                 ];
               }
-              if (context.dataset.label === "Escenario pesimista (alto)" || context.dataset.label === "Escenario optimista (bajo)") return null;
               return [
-                `Variacion acumulada: ${formatNumber(projectedVariationSeries[forecastIndex])}%`,
+                `${datasetLabel}: ${formatNumber(projectedVariationSeries[forecastIndex])}%`,
                 `Variacion vs ultimo observado: ${formatNumber(projectedVariationVsLastObserved[forecastIndex])}%`,
               ];
             }
@@ -407,7 +458,7 @@ export function PriceChart({
             if (showPrices) {
               const publicLines = [
                 `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`,
-                `Variacion mensual: ${point.variacion_porcentual_anterior === null ? "-" : `${formatNumber(point.variacion_porcentual_anterior)}%`}`,
+                `Variacion anterior: ${point.variacion_porcentual_anterior === null ? "-" : `${formatNumber(point.variacion_porcentual_anterior)}%`}`,
               ];
               if (!canShowCostDetails) return publicLines;
               return [
@@ -420,7 +471,7 @@ export function PriceChart({
             }
             return [
               `Variacion acumulada: ${formatNumber(variationSeries[context.dataIndex])}%`,
-              `Variacion mensual: ${point.variacion_porcentual_anterior === null ? "-" : `${formatNumber(point.variacion_porcentual_anterior)}%`}`,
+              `Variacion anterior: ${point.variacion_porcentual_anterior === null ? "-" : `${formatNumber(point.variacion_porcentual_anterior)}%`}`,
               `Muestra: ${point.cantidad_registros} ${point.cantidad_registros === 1 ? "precio" : "precios"}`,
               `Fuentes: ${point.fuentes.join(", ") || "-"}`,
             ];
@@ -435,7 +486,7 @@ export function PriceChart({
           display: true,
           text: showPrices
             ? chartMode === "commercial" && hasCommercialMargin
-              ? `${presentation.chartAxisLabel} de venta mayorista`
+              ? `${presentation.chartAxisLabel} minorista`
               : chartMode === "comparative" && hasCommercialMargin
                 ? presentation.chartAxisLabel
                 : presentation.chartAxisLabel
@@ -463,8 +514,8 @@ export function PriceChart({
         {showPrices && chartMode !== "base" && !hasCommercialMargin ? (
           <Alert severity="warning" className="mb-3">
             {canShowCostDetails
-              ? "Sin precio de venta mayorista configurado. Se muestra solo el precio de costo."
-              : "Sin precio de venta mayorista configurado para este material."}
+              ? "Sin precio minorista configurado. Se muestra solo el precio de costo."
+              : "Sin precio minorista configurado para este material."}
           </Alert>
         ) : null}
         <div className="chart-shell h-[360px]">

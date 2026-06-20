@@ -4,8 +4,8 @@ export function fetchPriceRange(token) {
   return apiGet("/precios-historicos/rango", token);
 }
 
-export function fetchSerie({ materialId, desde, hasta, token }) {
-  const params = new URLSearchParams({ agrupacion: "mensual" });
+export function fetchSerie({ materialId, desde, hasta, token, agrupacion = "mensual" }) {
+  const params = new URLSearchParams({ agrupacion });
   if (desde) params.set("desde", desde);
   if (hasta) params.set("hasta", hasta);
   return apiGet(`/materiales/${materialId}/serie-precios?${params.toString()}`, token);
@@ -58,7 +58,7 @@ export function fetchPriceVariationBetweenDates({ materialId, fechaDesde, fechaH
 }
 
 export function evaluateDetectedAnomalies({ materialId, fechasConfirmadas, desde, hasta, token }) {
-  const params = new URLSearchParams({ agrupacion: "mensual" });
+  const params = new URLSearchParams({ agrupacion: "observaciones" });
   if (desde) params.set("desde", desde);
   if (hasta) params.set("hasta", hasta);
   return apiPost(`/materiales/${materialId}/anomalias/evaluacion?${params.toString()}`, { fechas_confirmadas: fechasConfirmadas }, token);

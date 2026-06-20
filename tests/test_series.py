@@ -7,6 +7,7 @@ from app.modules.pricing.application.series import (
     PrecioSerieInput,
     PuntoSeriePrecio,
     calcular_variacion_entre_fechas,
+    construir_serie_observaciones,
     construir_serie_mensual,
     construir_serie_precios,
     evaluar_anomalias_detectadas,
@@ -33,6 +34,51 @@ def test_construir_serie_precios_agrupa_por_fecha_y_calcula_equivalencias() -> N
     assert serie[0].fuentes == ["Factura compra"]
     assert serie[0].variacion_porcentual_anterior is None
     assert serie[1].variacion_porcentual_anterior == Decimal("4.3670")
+
+
+def test_construir_serie_observaciones_conserva_cada_precio_del_mismo_dia() -> None:
+    serie = construir_serie_observaciones(
+        [
+            PrecioSerieInput(date(2026, 3, 3), Decimal("260.0000"), "kg", "Factura compra", "A-1", 10),
+            PrecioSerieInput(date(2026, 3, 3), Decimal("262.0000"), "kg", "Factura compra", "A-2", 11),
+            PrecioSerieInput(date(2026, 3, 25), Decimal("272.3980"), "kg", "Factura compra", "A-3", 12),
+        ]
+    )
+
+    assert len(serie) == 3
+    assert [point.observacion_id for point in serie] == [10, 11, 12]
+    assert [point.precio_promedio_normalizado for point in serie] == [
+        Decimal("260.0000"),
+        Decimal("262.0000"),
+        Decimal("272.3980"),
+    ]
+    assert serie[1].variacion_porcentual_anterior == Decimal("0.7692")
+
+
+def test_construir_serie_precios_aplica_random_forest_sin_promedio_mensual() -> None:
+    serie = construir_serie_precios(
+        [
+            PrecioSerieInput(date(2026, 1, 3), Decimal("100.0000"), "kg", "Factura compra", "A-0001"),
+            PrecioSerieInput(date(2026, 1, 10), Decimal("102.0000"), "kg", "Factura compra", "A-0002"),
+            PrecioSerieInput(date(2026, 1, 17), Decimal("104.0000"), "kg", "Factura compra", "A-0003"),
+            PrecioSerieInput(date(2026, 1, 24), Decimal("106.0000"), "kg", "Factura compra", "A-0004"),
+            PrecioSerieInput(date(2026, 2, 3), Decimal("108.0000"), "kg", "Factura compra", "A-0005"),
+            PrecioSerieInput(date(2026, 2, 10), Decimal("110.0000"), "kg", "Factura compra", "A-0006"),
+            PrecioSerieInput(date(2026, 2, 17), Decimal("320.0000"), "kg", "Factura compra", "A-0007"),
+            PrecioSerieInput(date(2026, 2, 24), Decimal("112.0000"), "kg", "Factura compra", "A-0008"),
+        ]
+    )
+
+    assert len(serie) == 8
+    assert [point.fecha for point in serie[:4]] == [
+        date(2026, 1, 3),
+        date(2026, 1, 10),
+        date(2026, 1, 17),
+        date(2026, 1, 24),
+    ]
+    assert serie[6].precio_promedio_normalizado == Decimal("320.0000")
+    assert serie[6].es_anomalia is True
+    assert serie[6].precio_esperado_anomalia is not None
 
 
 def test_construir_serie_mensual_promedia_y_detecta_anomalias_con_random_forest() -> None:

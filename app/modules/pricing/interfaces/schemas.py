@@ -57,6 +57,7 @@ class PuntoSeriePrecioRead(BaseModel):
     tipo_anomalia: str | None = None
     explicacion_anomalia: str | None = None
     variables_relevantes_anomalia: list[str] | None = None
+    observacion_id: int | None = None
 
 
 class AnomalyEvaluationCreate(BaseModel):

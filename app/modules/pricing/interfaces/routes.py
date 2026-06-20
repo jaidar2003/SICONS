@@ -47,6 +47,7 @@ from app.modules.pricing.application.purchase_strategies import comparar_estrate
 from app.modules.pricing.application.series import (
     PrecioSerieInput,
     calcular_variacion_entre_fechas,
+    construir_serie_observaciones,
     construir_serie_mensual,
     construir_serie_precios,
     evaluar_anomalias_detectadas,
@@ -191,14 +192,17 @@ def obtener_serie_precios_material(
             unidad_base=material.unidad_base,
             fuente=precio.fuente.nombre if precio.fuente else None,
             numero_comprobante=precio.numero_comprobante,
+            registro_id=getattr(precio, "id", None),
         )
         for precio in precios
     ]
     if agrupacion == "mensual":
-        return construir_serie_mensual(registros)
+        return construir_serie_mensual(registros, material_nombre=material.nombre)
+    if agrupacion == "observaciones":
+        return construir_serie_observaciones(registros, material_nombre=material.nombre)
     if agrupacion != "dia":
-        raise HTTPException(status_code=422, detail="La agrupacion debe ser 'dia' o 'mensual'")
-    return construir_serie_precios(registros)
+        raise HTTPException(status_code=422, detail="La agrupacion debe ser 'observaciones', 'dia' o 'mensual'")
+    return construir_serie_precios(registros, material_nombre=material.nombre)
 
 
 @router.post("/materiales/{material_id}/anomalias/evaluacion", response_model=AnomalyEvaluationRead)
@@ -207,7 +211,7 @@ def evaluar_anomalias_material(
     payload: AnomalyEvaluationCreate,
     desde: date | None = None,
     hasta: date | None = None,
-    agrupacion: str = "mensual",
+    agrupacion: str = "dia",
     material_repo: MaterialRepository = Depends(get_material_repository),
     pricing_repo: PricingRepository = Depends(get_pricing_repository),
     current_user: Usuario = Depends(get_current_user),
@@ -227,13 +231,18 @@ def evaluar_anomalias_material(
             unidad_base=material.unidad_base,
             fuente=precio.fuente.nombre if precio.fuente else None,
             numero_comprobante=precio.numero_comprobante,
+            registro_id=getattr(precio, "id", None),
         )
         for precio in precios
     ]
-    if agrupacion != "mensual":
-        raise HTTPException(status_code=422, detail="La evaluacion de anomalias se realiza en agrupacion mensual")
-
-    serie = construir_serie_mensual(registros)
+    if agrupacion == "mensual":
+        serie = construir_serie_mensual(registros, material_nombre=material.nombre)
+    elif agrupacion == "observaciones":
+        serie = construir_serie_observaciones(registros, material_nombre=material.nombre)
+    elif agrupacion == "dia":
+        serie = construir_serie_precios(registros, material_nombre=material.nombre)
+    else:
+        raise HTTPException(status_code=422, detail="La agrupacion debe ser 'observaciones', 'dia' o 'mensual'")
     result = evaluar_anomalias_detectadas(serie, set(payload.fechas_confirmadas))
     return AnomalyEvaluationRead(
         total_puntos=result.total_puntos,

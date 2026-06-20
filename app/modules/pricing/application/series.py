@@ -12,6 +12,7 @@ class PrecioSerieInput:
     unidad_base: str
     fuente: str | None = None
     numero_comprobante: str | None = None
+    registro_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,7 @@ class PuntoSeriePrecio:
     tipo_anomalia: str | None = None
     explicacion_anomalia: str | None = None
     variables_relevantes_anomalia: list[str] | None = None
+    observacion_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -175,17 +177,17 @@ ANOMALY_FEATURE_LABELS = [
     "posición temporal",
     "mes calendario",
     "trimestre",
-    "precio mes anterior",
-    "precio hace 2 meses",
-    "precio hace 3 meses",
-    "precio hace 6 meses",
+    "precio anterior",
+    "precio hace 2 observaciones",
+    "precio hace 3 observaciones",
+    "precio hace 6 observaciones",
     "variación anterior",
     "variación hace 2 meses",
     "variación hace 3 meses",
-    "promedio móvil 3 meses",
-    "promedio móvil 6 meses",
-    "dispersión reciente 3 meses",
-    "dispersión reciente 6 meses",
+    "promedio móvil 3 observaciones",
+    "promedio móvil 6 observaciones",
+    "dispersión reciente 3 observaciones",
+    "dispersión reciente 6 observaciones",
     "cantidad de registros",
     "referencia estacional",
     "desvío estacional previo",
@@ -234,7 +236,10 @@ def calcular_variacion_entre_fechas(
     )
 
 
-def construir_serie_precios(registros: list[PrecioSerieInput]) -> list[PuntoSeriePrecio]:
+def construir_serie_precios(
+    registros: list[PrecioSerieInput],
+    material_nombre: str | None = None,
+) -> list[PuntoSeriePrecio]:
     grupos: dict[date, list[PrecioSerieInput]] = defaultdict(list)
     for registro in registros:
         grupos[registro.fecha].append(registro)
@@ -269,10 +274,49 @@ def construir_serie_precios(registros: list[PrecioSerieInput]) -> list[PuntoSeri
         )
         precio_anterior = promedio
 
-    return puntos
+    return _aplicar_anomalias_random_forest(puntos, material_nombre=material_nombre)
 
 
-def _features_anomalia_mensual(puntos: list[PuntoSeriePrecio], index: int) -> list[float]:
+def construir_serie_observaciones(
+    registros: list[PrecioSerieInput],
+    material_nombre: str | None = None,
+) -> list[PuntoSeriePrecio]:
+    puntos: list[PuntoSeriePrecio] = []
+    precio_anterior: Decimal | None = None
+    ordenados = sorted(
+        enumerate(registros),
+        key=lambda item: (item[1].fecha, item[1].registro_id if item[1].registro_id is not None else item[0]),
+    )
+    for _, registro in ordenados:
+        precio = _quantize(registro.precio_normalizado)
+        fuentes = [registro.fuente] if registro.fuente else []
+        usa_equivalencias = _usa_equivalencias_bolsa(registro.unidad_base, fuentes)
+        variacion = None
+        if precio_anterior is not None and precio_anterior != 0:
+            variacion = _quantize(((precio - precio_anterior) / precio_anterior) * Decimal("100"))
+        puntos.append(
+            PuntoSeriePrecio(
+                fecha=registro.fecha,
+                precio_promedio_normalizado=precio,
+                unidad_base=registro.unidad_base,
+                precio_equivalente_25kg=_quantize(precio * Decimal("25")) if usa_equivalencias else None,
+                precio_equivalente_50kg=_quantize(precio * Decimal("50")) if usa_equivalencias else None,
+                cantidad_registros=1,
+                cantidad_facturas=1,
+                fuentes=fuentes,
+                variacion_porcentual_anterior=variacion,
+                observacion_id=registro.registro_id,
+            )
+        )
+        precio_anterior = precio
+    return _aplicar_anomalias_random_forest(puntos, material_nombre=material_nombre)
+
+
+def _features_anomalia_mensual(
+    puntos: list[PuntoSeriePrecio],
+    index: int,
+    mismo_mes_anterior: PuntoSeriePrecio | None = None,
+) -> list[float]:
     punto = puntos[index]
     anterior = _punto_retrasado(puntos, index, 1)
     hace_2 = _punto_retrasado(puntos, index, 2)
@@ -285,14 +329,6 @@ def _features_anomalia_mensual(puntos: list[PuntoSeriePrecio], index: int) -> li
     variacion_3 = float(hace_3.variacion_porcentual_anterior or Decimal("0"))
     mad_3 = _mad(precios_previos_3)
     mad_6 = _mad(precios_previos_6)
-    mismo_mes_anterior = next(
-        (
-            item
-            for item in reversed(puntos[:index])
-            if item.fecha.month == punto.fecha.month and item.fecha.year < punto.fecha.year
-        ),
-        None,
-    )
     precio_estacional = float(mismo_mes_anterior.precio_promedio_normalizado) if mismo_mes_anterior else float(anterior.precio_promedio_normalizado)
     desvio_estacional_anterior = _gap_porcentual(float(anterior.precio_promedio_normalizado), precio_estacional)
     desvio_estacional_actual = (
@@ -396,7 +432,34 @@ def _explicar_anomalia(
     )
 
 
-def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[date, AnomalyDetectionMetadata]:
+def _es_material_cemento(material_nombre: str | None) -> bool:
+    return bool(material_nombre and "cement" in material_nombre.lower())
+
+
+def _detector_profile(material_nombre: str | None) -> dict[str, Decimal | int]:
+    if _es_material_cemento(material_nombre):
+        return {
+            "residual_floor": Decimal("22.000000"),
+            "uncertainty_multiplier": Decimal("1.80"),
+            "variacion_floor": Decimal("15.000000"),
+            "trend_floor": Decimal("10.000000"),
+            "seasonal_floor": Decimal("12.000000"),
+            "required_signals": 3,
+        }
+    return {
+        "residual_floor": Decimal("15.000000"),
+        "uncertainty_multiplier": Decimal("1.50"),
+        "variacion_floor": Decimal("12.000000"),
+        "trend_floor": Decimal("8.000000"),
+        "seasonal_floor": Decimal("10.000000"),
+        "required_signals": 2,
+    }
+
+
+def _detectar_anomalias_random_forest(
+    puntos: list[PuntoSeriePrecio],
+    material_nombre: str | None = None,
+) -> dict[int, AnomalyDetectionMetadata]:
     if len(puntos) < 6:
         return {}
 
@@ -407,26 +470,62 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
         return {}
 
     model_kwargs = dict(
-        n_estimators=120,
+        n_estimators=50,
         max_depth=4,
         min_samples_leaf=2,
         random_state=42,
     )
 
+    profile = _detector_profile(material_nombre)
     evaluaciones: list[tuple[int, float, float, float, float, float, float | None, float, float, int, int, float, list[float]]] = []
+    previous_same_month: list[PuntoSeriePrecio | None] = []
+    month_state: dict[int, tuple[int, PuntoSeriePrecio, PuntoSeriePrecio | None]] = {}
+    for punto in puntos:
+        state = month_state.get(punto.fecha.month)
+        if state is None:
+            previous_same_month.append(None)
+            month_state[punto.fecha.month] = (punto.fecha.year, punto, None)
+        elif state[0] == punto.fecha.year:
+            previous_same_month.append(state[2])
+            month_state[punto.fecha.month] = (state[0], punto, state[2])
+        else:
+            previous_same_month.append(state[1])
+            month_state[punto.fecha.month] = (punto.fecha.year, punto, state[1])
+    features_by_index = [
+        _features_anomalia_mensual(puntos, index, previous_same_month[index])
+        for index in range(len(puntos))
+    ]
     residuals_historial: list[float] = []
     variaciones_historial: list[float] = []
+    model = None
+    last_fit_index = -1
+    refit_interval = max(120, len(puntos) // 8)
+    max_training_points = 365
+    prediction_cache: dict[int, tuple[float, list[float], list[float]]] = {}
     for index in trainable_indexes:
-        x_train = [_features_anomalia_mensual(puntos, train_index) for train_index in range(1, index)]
-        y_train = [float(puntos[train_index].precio_promedio_normalizado) for train_index in range(1, index)]
-        if len(x_train) < 5:
-            continue
-
-        model = RandomForestRegressor(**model_kwargs)
-        model.fit(x_train, y_train)
-        features = _features_anomalia_mensual(puntos, index)
-        predicted = float(model.predict([features])[0])
-        tree_predictions = [float(tree.predict([features])[0]) for tree in model.estimators_]
+        if model is None or index - last_fit_index >= refit_interval:
+            train_start = max(1, index - max_training_points)
+            train_indexes = range(train_start, index)
+            x_train = [features_by_index[train_index] for train_index in train_indexes]
+            y_train = [float(puntos[train_index].precio_promedio_normalizado) for train_index in train_indexes]
+            if len(x_train) < 5:
+                continue
+            model = RandomForestRegressor(**model_kwargs)
+            model.fit(x_train, y_train)
+            last_fit_index = index
+            batch_end = min(len(puntos), index + refit_interval)
+            batch_indexes = list(range(index, batch_end))
+            batch_features = [features_by_index[batch_index] for batch_index in batch_indexes]
+            batch_predictions = model.predict(batch_features)
+            tree_batch_predictions = [tree.predict(batch_features) for tree in model.estimators_]
+            importances = [float(value) for value in model.feature_importances_]
+            for offset, batch_index in enumerate(batch_indexes):
+                prediction_cache[batch_index] = (
+                    float(batch_predictions[offset]),
+                    [float(tree_values[offset]) for tree_values in tree_batch_predictions],
+                    importances,
+                )
+        predicted, tree_predictions, feature_importances = prediction_cache[index]
         prediction_center = sum(tree_predictions) / len(tree_predictions)
         prediction_variance = sum((value - prediction_center) ** 2 for value in tree_predictions) / len(tree_predictions)
         prediction_std = prediction_variance**0.5
@@ -436,31 +535,24 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
         residual_signed_pct = _pct_diferencia_firmada(actual, predicted)
         tendencia_local = _baseline_tendencia_local(puntos, index)
         tendencia_gap = _gap_porcentual(actual, tendencia_local)
-        mismo_mes_anterior = next(
-            (
-                item
-                for item in reversed(puntos[:index])
-                if item.fecha.month == puntos[index].fecha.month and item.fecha.year < puntos[index].fecha.year
-            ),
-            None,
-        )
+        mismo_mes_anterior = previous_same_month[index]
         seasonal_gap = (
             _gap_porcentual(actual, float(mismo_mes_anterior.precio_promedio_normalizado))
             if mismo_mes_anterior is not None
             else None
         )
         variacion_actual = abs(float(puntos[index].variacion_porcentual_anterior or Decimal("0")))
-        residual_limit = _limite_adaptativo_desde_valores(residuals_historial, fallback=15.0)
-        residual_limit = max(residual_limit, Decimal(f"{incertidumbre_modelo_pct * 1.50:.6f}"))
-        variacion_limit = _limite_adaptativo_desde_valores(variaciones_historial, fallback=12.0)
-        trend_limit = max(Decimal("8.000000"), variacion_limit * Decimal("0.85"))
-        seasonal_limit = max(Decimal("10.000000"), variacion_limit)
+        residual_limit = _limite_adaptativo_desde_valores(residuals_historial, fallback=float(profile["residual_floor"]))
+        residual_limit = max(residual_limit, Decimal(f"{incertidumbre_modelo_pct * float(profile['uncertainty_multiplier']):.6f}"))
+        variacion_limit = _limite_adaptativo_desde_valores(variaciones_historial, fallback=float(profile["variacion_floor"]))
+        trend_limit = max(Decimal(f"{profile['trend_floor']:.6f}"), variacion_limit * Decimal("0.85"))
+        seasonal_limit = max(Decimal(f"{profile['seasonal_floor']:.6f}"), variacion_limit)
         residual_signal = Decimal(f"{residual_pct:.6f}") > residual_limit
         variacion_signal = Decimal(f"{variacion_actual:.6f}") > variacion_limit
         seasonal_signal = seasonal_gap is not None and Decimal(f"{seasonal_gap:.6f}") > seasonal_limit
         trend_signal = Decimal(f"{tendencia_gap:.6f}") > trend_limit if tendencia_local is not None else False
         score = int(sum((residual_signal, variacion_signal, seasonal_signal, trend_signal)))
-        required_signals = 3 if variacion_limit >= Decimal("20.000000") else 2
+        required_signals = int(profile["required_signals"])
         evaluaciones.append(
             (
                 index,
@@ -475,7 +567,7 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
                 score,
                 required_signals,
                 residual_signed_pct,
-                [float(value) for value in model.feature_importances_],
+                feature_importances,
             )
         )
         residuals_historial.append(residual_pct)
@@ -484,7 +576,7 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
     if not evaluaciones:
         return {}
 
-    anomalies: dict[date, AnomalyDetectionMetadata] = {}
+    anomalies: dict[int, AnomalyDetectionMetadata] = {}
     for (
         index,
         residual_pct,
@@ -507,13 +599,13 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
 
         residual_limit = Decimal(f"{residual_limit_float:.6f}")
         variacion_limit = Decimal(f"{variacion_limit_float:.6f}")
-        trend_limit = max(Decimal("8.000000"), variacion_limit * Decimal("0.85"))
-        seasonal_limit = max(Decimal("10.000000"), variacion_limit)
+        trend_limit = max(Decimal(f"{profile['trend_floor']:.6f}"), variacion_limit * Decimal("0.85"))
+        seasonal_limit = max(Decimal(f"{profile['seasonal_floor']:.6f}"), variacion_limit)
         residual_signal = residual_decimal > residual_limit
         variacion_signal = Decimal(f"{abs(variacion_actual):.6f}") > variacion_limit
         seasonal_signal = seasonal_gap is not None and Decimal(f"{seasonal_gap:.6f}") > seasonal_limit
         trend_signal = Decimal(f"{tendencia_gap:.6f}") > trend_limit
-        if not (score >= required_signals or (residual_decimal > (residual_limit * Decimal("1.60")) and score >= required_signals - 1)):
+        if not (score >= required_signals or (residual_decimal > (residual_limit * Decimal("1.90")) and score >= required_signals - 1)):
             continue
 
         severidad = _clasificar_severidad_anomalia(residual_decimal, residual_limit, score, required_signals)
@@ -550,12 +642,12 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
             f"residuo {residual_display}%, "
             f"limite residuo {residual_limit}%, "
             f"incertidumbre modelo {Decimal(f'{incertidumbre_modelo_pct:.4f}').quantize(Decimal('0.0001'))}%, "
-            f"variacion mensual {variacion}%, "
+            f"variacion entre observaciones {variacion}%, "
             f"tipo {tipo}, "
             f"score {score}/{4}; "
             + "; ".join(signalos)
         )
-        anomalies[puntos[index].fecha] = AnomalyDetectionMetadata(
+        anomalies[index] = AnomalyDetectionMetadata(
             motivo=motivo,
             severidad=severidad,
             score=score,
@@ -571,6 +663,43 @@ def _detectar_anomalias_random_forest(puntos: list[PuntoSeriePrecio]) -> dict[da
         )
 
     return anomalies
+
+
+def _aplicar_anomalias_random_forest(
+    puntos: list[PuntoSeriePrecio],
+    material_nombre: str | None = None,
+) -> list[PuntoSeriePrecio]:
+    anomalies = _detectar_anomalias_random_forest(puntos, material_nombre=material_nombre)
+    if not anomalies:
+        return puntos
+    return [
+        PuntoSeriePrecio(
+            fecha=punto.fecha,
+            precio_promedio_normalizado=punto.precio_promedio_normalizado,
+            unidad_base=punto.unidad_base,
+            precio_equivalente_25kg=punto.precio_equivalente_25kg,
+            precio_equivalente_50kg=punto.precio_equivalente_50kg,
+            cantidad_registros=punto.cantidad_registros,
+            cantidad_facturas=punto.cantidad_facturas,
+            fuentes=punto.fuentes,
+            variacion_porcentual_anterior=punto.variacion_porcentual_anterior,
+            es_anomalia=(anomaly := anomalies.get(index)) is not None,
+            severidad_anomalia=anomaly.severidad if anomaly else None,
+            motivo_anomalia=anomaly.motivo if anomaly else None,
+            score_anomalia=anomaly.score if anomaly else None,
+            confianza_anomalia=anomaly.confianza if anomaly else None,
+            precio_esperado_anomalia=anomaly.precio_esperado if anomaly else None,
+            residuo_anomalia_pct=anomaly.residuo_pct if anomaly else None,
+            limite_residuo_anomalia_pct=anomaly.limite_residuo_pct if anomaly else None,
+            rango_esperado_min_anomalia=anomaly.rango_esperado_min if anomaly else None,
+            rango_esperado_max_anomalia=anomaly.rango_esperado_max if anomaly else None,
+            tipo_anomalia=anomaly.tipo if anomaly else None,
+            explicacion_anomalia=anomaly.explicacion if anomaly else None,
+            variables_relevantes_anomalia=anomaly.variables_relevantes if anomaly else None,
+            observacion_id=punto.observacion_id,
+        )
+        for index, punto in enumerate(puntos)
+    ]
 
 
 def medir_estabilidad_anomalias(puntos: list[PuntoSeriePrecio]) -> AnomalyStabilityResult:
@@ -665,7 +794,10 @@ def evaluar_anomalias_detectadas(
     )
 
 
-def construir_serie_mensual(registros: list[PrecioSerieInput]) -> list[PuntoSeriePrecio]:
+def construir_serie_mensual(
+    registros: list[PrecioSerieInput],
+    material_nombre: str | None = None,
+) -> list[PuntoSeriePrecio]:
     grupos: dict[date, list[PrecioSerieInput]] = defaultdict(list)
     for registro in registros:
         mes = date(registro.fecha.year, registro.fecha.month, 1)
@@ -701,37 +833,4 @@ def construir_serie_mensual(registros: list[PrecioSerieInput]) -> list[PuntoSeri
         )
         precio_anterior = promedio
 
-    anomalies = _detectar_anomalias_random_forest(puntos)
-    if anomalies:
-        puntos = [
-            (
-                anomaly := anomalies.get(punto.fecha),
-                PuntoSeriePrecio(
-                    fecha=punto.fecha,
-                    precio_promedio_normalizado=punto.precio_promedio_normalizado,
-                    unidad_base=punto.unidad_base,
-                    precio_equivalente_25kg=punto.precio_equivalente_25kg,
-                    precio_equivalente_50kg=punto.precio_equivalente_50kg,
-                    cantidad_registros=punto.cantidad_registros,
-                    cantidad_facturas=punto.cantidad_facturas,
-                    fuentes=punto.fuentes,
-                    variacion_porcentual_anterior=punto.variacion_porcentual_anterior,
-                    es_anomalia=anomaly is not None,
-                    severidad_anomalia=anomaly.severidad if anomaly else None,
-                    motivo_anomalia=anomaly.motivo if anomaly else None,
-                    score_anomalia=anomaly.score if anomaly else None,
-                    confianza_anomalia=anomaly.confianza if anomaly else None,
-                    precio_esperado_anomalia=anomaly.precio_esperado if anomaly else None,
-                    residuo_anomalia_pct=anomaly.residuo_pct if anomaly else None,
-                    limite_residuo_anomalia_pct=anomaly.limite_residuo_pct if anomaly else None,
-                    rango_esperado_min_anomalia=anomaly.rango_esperado_min if anomaly else None,
-                    rango_esperado_max_anomalia=anomaly.rango_esperado_max if anomaly else None,
-                    tipo_anomalia=anomaly.tipo if anomaly else None,
-                    explicacion_anomalia=anomaly.explicacion if anomaly else None,
-                    variables_relevantes_anomalia=anomaly.variables_relevantes if anomaly else None,
-                ),
-            )[1]
-            for punto in puntos
-        ]
-
-    return puntos
+    return _aplicar_anomalias_random_forest(puntos, material_nombre=material_nombre)
