@@ -13,6 +13,24 @@ class LLMProviderError(Exception):
     """Raised when the chat provider fails or responds with an invalid payload."""
 
 
+def _http_error_detail(exc: httpx.HTTPError) -> str:
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return exc.__class__.__name__
+    response = exc.response
+    message = None
+    try:
+        payload = response.json()
+        if isinstance(payload, dict):
+            error = payload.get("error")
+            if isinstance(error, dict):
+                message = error.get("message")
+            message = message or payload.get("detail")
+    except ValueError:
+        pass
+    suffix = f": {message}" if isinstance(message, str) and message.strip() else ""
+    return f"HTTP {response.status_code}{suffix}"
+
+
 class FallbackChatClient:
     def __init__(self, primary, fallback) -> None:
         self.primary = primary
@@ -76,7 +94,9 @@ class OpenAICompatibleChatClient:
             )
             response.raise_for_status()
         except httpx.HTTPError as exc:
-            raise LLMProviderError("No fue posible obtener una respuesta del proveedor de IA.") from exc
+            raise LLMProviderError(
+                f"No fue posible obtener una respuesta del proveedor de IA ({_http_error_detail(exc)})."
+            ) from exc
 
         try:
             content = response.json()["choices"][0]["message"]["content"]
@@ -135,7 +155,9 @@ class AnthropicChatClient:
             )
             response.raise_for_status()
         except httpx.HTTPError as exc:
-            raise LLMProviderError("No fue posible obtener una respuesta de Claude.") from exc
+            raise LLMProviderError(
+                f"No fue posible obtener una respuesta de Claude ({_http_error_detail(exc)})."
+            ) from exc
 
         try:
             contents = response.json()["content"]

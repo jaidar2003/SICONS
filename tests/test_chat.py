@@ -198,6 +198,19 @@ def test_semantic_question_hereda_forecast_en_followup_visual() -> None:
     assert _semantic_question_for_conversation("Ahora mostrame a 12 meses", latest) == "Ahora mostrame a 12 meses forecast"
 
 
+@pytest.mark.parametrize(
+    ("previous_intent", "expected_suffix"),
+    [("FORECAST", "forecast"), ("RECOMENDACION", "recomendacion")],
+)
+def test_semantic_question_hereda_intencion_en_followup_de_horizonte(
+    previous_intent: str,
+    expected_suffix: str,
+) -> None:
+    latest = SimpleNamespace(tipo_intencion=previous_intent, visualizacion_sugerida=None)
+
+    assert _semantic_question_for_conversation("y a 6 meses?", latest) == f"y a 6 meses? {expected_suffix}"
+
+
 def test_resolve_horizon_prioriza_meses_escritos_en_pregunta() -> None:
     assert resolve_horizon("Necesito cemento dentro de 6 meses", 3) == 6
     assert resolve_horizon("Necesito cemento dentro de 24 meses", 3) == 3
@@ -585,6 +598,7 @@ def test_admin_puede_leer_configuracion_de_ia(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(chat_routes.settings, "openai_api_key", "openai-token")
     monkeypatch.setattr(chat_routes.settings, "anthropic_base_url", "https://api.anthropic.com/v1")
     monkeypatch.setattr(chat_routes.settings, "anthropic_api_key", "claude-token")
+    monkeypatch.setattr(chat_routes, "_read_persisted_chat_config", lambda _db=None: chat_routes._chat_config_from_settings())
 
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
     try:
@@ -610,7 +624,25 @@ def test_admin_puede_actualizar_configuracion_de_ia(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(chat_routes.settings, "anthropic_base_url", "https://api.anthropic.com/v1")
     monkeypatch.setattr(chat_routes.settings, "anthropic_api_key", "claude-token")
 
+    stored_config = SimpleNamespace(
+        proveedor_activo="facultad",
+        modelo_facultad="facultad-modelo",
+        modelo_claude="claude-modelo",
+    )
+    fake_db = FakeDb()
+    fake_db.get = lambda *_args: stored_config
+    monkeypatch.setattr(
+        chat_routes,
+        "_read_persisted_chat_config",
+        lambda _db=None: {
+            "proveedor_activo": stored_config.proveedor_activo,
+            "modelo_facultad": stored_config.modelo_facultad,
+            "modelo_claude": stored_config.modelo_claude,
+        },
+    )
+
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="admin")
+    app.dependency_overrides[get_db] = lambda: fake_db
     try:
         response = TestClient(app).patch(
             "/chat/config",
@@ -689,6 +721,54 @@ def test_endpoint_chat_precio_historico_directo_no_invoca_ia() -> None:
     assert body["horizonte_resuelto"] is None
     assert "ARS 196.6115 por kg" in body["respuesta"]
     assert "999.0000" not in body["respuesta"]
+    assert provider.calls == []
+
+
+def test_endpoint_chat_admite_seguimiento_de_unidad_con_material_de_conversacion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = FakeChatClient()
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+    conversation = SimpleNamespace(id=7, usuario_id=1, material_actual_id=1, horizonte_actual=3)
+
+    monkeypatch.setattr(chat_routes, "_get_owned_conversation", lambda *_args: conversation)
+    monkeypatch.setattr(chat_routes, "_latest_assistant_message", lambda *_args: None)
+    monkeypatch.setattr(chat_routes, "_conversation_history", lambda *_args: [])
+    monkeypatch.setattr(chat_routes, "_persist_conversation_turn", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_register_chat_audit", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        chat_routes,
+        "build_backend_retrieval_context",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            context="CONTEXTO RECUPERADO DE BUILDWISE",
+            sources=("catalogo.materiales",),
+            source_evidence=(),
+            material=material,
+            material_resolution_source="contexto",
+            horizon=3,
+        ),
+    )
+    monkeypatch.setattr(chat_routes, "_catalog_direct_answer", lambda **_kwargs: "Cemento Portland usa como unidad base: kg.")
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(
+        get_by_id=lambda _id: material,
+        list_active=lambda: [material],
+    )
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={"pregunta": "y cual es su unidad base?", "conversation_id": 7},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["aceptada"] is True
+    assert response.json()["tipo_intencion"] == "CATALOGO"
+    assert response.json()["material_resuelto"] == "Cemento Portland"
+    assert response.json()["material_resolution_source"] == "contexto"
     assert provider.calls == []
 
 

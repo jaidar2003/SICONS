@@ -27,6 +27,15 @@ def test_openai_client_http_error(monkeypatch):
     with pytest.raises(LLMProviderError, match="No fue posible obtener una respuesta"):
         client.complete([{"role": "user", "content": "hi"}])
 
+def test_openai_client_http_error_incluye_estado_y_detalle(monkeypatch):
+    request = httpx.Request("POST", "https://example.test/chat/completions")
+    response = httpx.Response(401, json={"detail": "token vencido"}, request=request)
+    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: response)
+    client = OpenAICompatibleChatClient(base_url="https://example.test", api_key="token", model="model")
+
+    with pytest.raises(LLMProviderError, match="HTTP 401: token vencido"):
+        client.complete([{"role": "user", "content": "hola"}])
+
 def test_openai_client_invalid_json(monkeypatch):
     client = OpenAICompatibleChatClient(base_url="http://api", api_key="key", model="m")
     

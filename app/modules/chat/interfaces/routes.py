@@ -137,6 +137,11 @@ def _semantic_question_for_conversation(question: str, latest_assistant: ChatMes
     )
     if mentions_forecast:
         return question
+    previous_intent = latest_assistant.tipo_intencion
+    horizon_follow_up = re.search(r"\b(ahora|mes|meses|horizonte|3|6|12)\b", normalized)
+    if horizon_follow_up and previous_intent in {"FORECAST", "RECOMENDACION"}:
+        inherited_intent = "forecast" if previous_intent == "FORECAST" else "recomendacion"
+        return f"{question} {inherited_intent}"
     previous_visualization = latest_assistant.visualizacion_sugerida or {}
     previous_type = previous_visualization.get("tipo")
     if previous_type in {"FORECAST", "PRICE_HISTORY_FORECAST"} and re.search(r"\b(ahora|mostra|mostrame|ver|grafica|graficame|mes|meses|horizonte|12|6|3)\b", normalized):
