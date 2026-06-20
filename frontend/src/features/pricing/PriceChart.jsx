@@ -404,7 +404,7 @@ export function PriceChart({
         callbacks: {
           label(context) {
             const datasetLabel = context.dataset.label || "";
-            if (chartMode === "commercial" && datasetLabel === "Precio de venta mayorista") {
+            if (chartMode === "commercial" && datasetLabel === "Precio minorista") {
               return [showPrices ? `${datasetLabel}: ${formatCurrency(context.parsed.y)}` : `${datasetLabel}: ${formatNumber(context.parsed.y)}%`];
             }
 
@@ -419,7 +419,7 @@ export function PriceChart({
               return getCommercialTooltipLines(point, datasetLabel);
             }
 
-            if (chartMode === "comparative" && datasetLabel === "Precio de venta mayorista" && forecastPoints.length) {
+            if (chartMode === "comparative" && datasetLabel === "Precio minorista" && forecastPoints.length) {
               const point = serie[context.dataIndex];
               if (showPrices) {
                 return [

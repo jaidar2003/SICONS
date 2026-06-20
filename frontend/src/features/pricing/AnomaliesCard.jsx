@@ -12,37 +12,6 @@ import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation
 
 ChartJS.register(LinearScale, PointElement, Tooltip, Legend, Filler);
 
-const anomalyLabelPlugin = {
-  id: "anomalyLabelPlugin",
-  afterDatasetsDraw(chart) {
-    const { ctx } = chart;
-    const meta = chart.getDatasetMeta(0);
-    if (!meta?.data?.length) return;
-
-    ctx.save();
-    meta.data.forEach((element, index) => {
-      const rawPoint = chart.data.datasets[0].data[index];
-      const fecha = rawPoint?.fecha;
-      const value = rawPoint?.precio ?? rawPoint?.y;
-      if (!fecha || value === undefined || value === null) return;
-      if (rawPoint?.severidad === "leve") return;
-
-      const label = `${fecha} · ${showLabelValue(value)}`;
-      ctx.font = "600 11px Inter, system-ui, sans-serif";
-      ctx.fillStyle = rawPoint?.severidad === "alta" ? "#991b1b" : "#334155";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "bottom";
-      const yOffset = index % 2 === 0 ? -10 : -24;
-      ctx.fillText(label, element.x, element.y + yOffset);
-    });
-    ctx.restore();
-  },
-};
-
-function showLabelValue(value) {
-  return Number(value).toLocaleString("es-AR", { maximumFractionDigits: 0 });
-}
-
 function toTimestamp(dateValue) {
   const parsed = dayjs(dateValue);
   return parsed.isValid() ? parsed.valueOf() : 0;
@@ -88,11 +57,11 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
   const [seriesError, setSeriesError] = useState("");
   const [severityFilter, setSeverityFilter] = useState("todas");
   const anomalies = useMemo(() => (anomalySerie ?? []).filter((point) => point.es_anomalia), [anomalySerie]);
-  const chartSerie = useMemo(() => anomalies.filter((point) => point.severidad_anomalia === "alta"), [anomalies]);
   const visibleAnomalies = useMemo(
     () => (severityFilter === "todas" ? anomalies : anomalies.filter((point) => point.severidad_anomalia === severityFilter)),
     [anomalies, severityFilter]
   );
+  const chartSerie = visibleAnomalies;
   const presentation = getMaterialPresentation(selectedMaterial?.nombre, chartSerie[0]?.unidad_base || serie[0]?.unidad_base);
   const firstDate = chartSerie[0]?.fecha || "";
   const lastDate = chartSerie[chartSerie.length - 1]?.fecha || "";
@@ -131,7 +100,11 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
   );
 
   const chartColors = useMemo(
-    () => chartSerie.map(() => "#DC2626"),
+    () =>
+      chartSerie.map((point) => {
+        const config = severityConfig[point.severidad_anomalia] || severityConfig.media;
+        return config.color;
+      }),
     [chartSerie]
   );
   const baselineSummary = useMemo(() => {
@@ -257,7 +230,7 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
         fill: false,
         borderWidth: 0,
         tension: 0,
-        pointRadius: 7,
+        pointRadius: chartPoints.map((point) => (point.severidad === "alta" ? 7 : point.severidad === "media" ? 6 : 5)),
         pointHoverRadius: 10,
         pointBackgroundColor: chartColors,
         pointBorderColor: "#ffffff",
@@ -269,7 +242,6 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
     maintainAspectRatio: false,
     interaction: { mode: "nearest", intersect: false },
     plugins: {
-      anomalyLabelPlugin: true,
       legend: { position: "bottom" },
       tooltip: {
         callbacks: {
@@ -290,6 +262,8 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
       x: {
         type: "linear",
         grid: { display: false },
+        min: chartPoints.length ? chartPoints[0].x : undefined,
+        max: chartPoints.length ? chartPoints[chartPoints.length - 1].x : undefined,
         ticks: {
           callback: (value) => dayjs(Number(value)).format("YYYY-MM"),
           maxTicksLimit: 8,
@@ -309,26 +283,29 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
       },
     },
     layout: {
-      padding: { top: 28 },
+      padding: { top: 12 },
     },
   };
 
   return (
     <Card className={`h-full ${className}`}>
       <CardContent>
-        <SectionHeader title="Variaciones bruscas" description="Observaciones detectadas como atípicas por el modelo Random Forest." />
+        <SectionHeader
+          title="Variaciones bruscas"
+          description="Se muestran solo los puntos anómalos detectados por el modelo Random Forest. Los períodos sin anomalías no se grafican."
+        />
         {seriesError ? <Alert severity="warning">No fue posible cargar las observaciones para anomalías: {seriesError}</Alert> : null}
         {seriesLoading ? (
           <Box className="mb-5 flex h-[340px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600">
             Cargando observaciones para anomalías...
           </Box>
-        ) : chartSerie.length ? (
+        ) : chartPoints.length ? (
           <Box className="chart-shell anomaly-chart-shell mb-5 h-[340px]">
-            <Scatter data={chartData} options={chartOptions} plugins={[anomalyLabelPlugin]} redraw />
+            <Scatter data={chartData} options={chartOptions} redraw />
           </Box>
         ) : (
           <Box className="mb-5 flex h-[340px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-center text-sm text-slate-600">
-            No hay anomalías de severidad alta en el período seleccionado.
+            No hay anomalías para el filtro seleccionado.
           </Box>
         )}
         <Box className="mb-4 flex flex-wrap gap-2">
@@ -403,44 +380,44 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
                           backgroundColor: "#FFFFFF",
                         }}
                       />
-                    <Chip
-                      label={point.cantidad_registros === 1 ? "1 precio relevado" : `${point.cantidad_registros} precios relevados`}
-                      size="small"
-                      variant="outlined"
-                      sx={{ fontWeight: 800 }}
-                    />
-                    {point.score_anomalia !== null && point.score_anomalia !== undefined ? (
                       <Chip
-                        label={`Score ${point.score_anomalia}/4`}
+                        label={point.cantidad_registros === 1 ? "1 precio relevado" : `${point.cantidad_registros} precios relevados`}
                         size="small"
                         variant="outlined"
                         sx={{ fontWeight: 800 }}
                       />
-                    ) : null}
-                    {point.tipo_anomalia ? (
-                      <Chip
-                        label={formatAnomalyType(point.tipo_anomalia)}
-                        size="small"
-                        variant="outlined"
-                        sx={{ fontWeight: 800, backgroundColor: "#FFFFFF" }}
-                      />
-                    ) : null}
-                    {point.confianza_anomalia !== null && point.confianza_anomalia !== undefined ? (
-                      <Chip
-                        label={`Confianza ${formatPercent(point.confianza_anomalia)}`}
-                        size="small"
-                        sx={{
-                          fontWeight: 800,
-                          backgroundColor: "#EFF6FF",
-                          color: "#1D4ED8",
-                        }}
-                      />
-                    ) : null}
-                    {showPrices ? (
-                      <Chip
-                        label={formatCurrency(getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))}
-                        size="small"
-                        variant="outlined"
+                      {point.score_anomalia !== null && point.score_anomalia !== undefined ? (
+                        <Chip
+                          label={`Score ${point.score_anomalia}/4`}
+                          size="small"
+                          variant="outlined"
+                          sx={{ fontWeight: 800 }}
+                        />
+                      ) : null}
+                      {point.tipo_anomalia ? (
+                        <Chip
+                          label={formatAnomalyType(point.tipo_anomalia)}
+                          size="small"
+                          variant="outlined"
+                          sx={{ fontWeight: 800, backgroundColor: "#FFFFFF" }}
+                        />
+                      ) : null}
+                      {point.confianza_anomalia !== null && point.confianza_anomalia !== undefined ? (
+                        <Chip
+                          label={`Confianza ${formatPercent(point.confianza_anomalia)}`}
+                          size="small"
+                          sx={{
+                            fontWeight: 800,
+                            backgroundColor: "#EFF6FF",
+                            color: "#1D4ED8",
+                          }}
+                        />
+                      ) : null}
+                      {showPrices ? (
+                        <Chip
+                          label={formatCurrency(getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))}
+                          size="small"
+                          variant="outlined"
                           sx={{ fontWeight: 800 }}
                         />
                       ) : null}
