@@ -439,20 +439,24 @@ def _es_material_cemento(material_nombre: str | None) -> bool:
 def _detector_profile(material_nombre: str | None) -> dict[str, Decimal | int]:
     if _es_material_cemento(material_nombre):
         return {
-            "residual_floor": Decimal("22.000000"),
-            "uncertainty_multiplier": Decimal("1.80"),
-            "variacion_floor": Decimal("15.000000"),
-            "trend_floor": Decimal("10.000000"),
-            "seasonal_floor": Decimal("12.000000"),
+            "residual_floor": Decimal("24.000000"),
+            "uncertainty_multiplier": Decimal("1.90"),
+            "variacion_floor": Decimal("16.000000"),
+            "trend_floor": Decimal("12.000000"),
+            "seasonal_floor": Decimal("13.000000"),
             "required_signals": 3,
+            "confidence_floor": Decimal("65.0000"),
+            "max_anomalies_per_month": 8,
         }
     return {
-        "residual_floor": Decimal("15.000000"),
-        "uncertainty_multiplier": Decimal("1.50"),
-        "variacion_floor": Decimal("12.000000"),
-        "trend_floor": Decimal("8.000000"),
+        "residual_floor": Decimal("16.000000"),
+        "uncertainty_multiplier": Decimal("1.55"),
+        "variacion_floor": Decimal("13.000000"),
+        "trend_floor": Decimal("9.000000"),
         "seasonal_floor": Decimal("10.000000"),
-        "required_signals": 2,
+        "required_signals": 3,
+        "confidence_floor": Decimal("58.0000"),
+        "max_anomalies_per_month": 6,
     }
 
 
@@ -662,7 +666,47 @@ def _detectar_anomalias_random_forest(
             variables_relevantes=variables_relevantes,
         )
 
-    return anomalies
+    confidence_floor = Decimal(f"{profile['confidence_floor']:.4f}")
+    max_anomalies_per_month = int(profile["max_anomalies_per_month"])
+    grouped_by_month: dict[str, list[tuple[int, AnomalyDetectionMetadata]]] = defaultdict(list)
+    for index, anomaly in anomalies.items():
+        if anomaly.confianza < confidence_floor:
+            continue
+        month_key = f"{puntos[index].fecha.year:04d}-{puntos[index].fecha.month:02d}"
+        grouped_by_month[month_key].append((index, anomaly))
+
+    if not grouped_by_month:
+        return {}
+
+    selected: dict[int, AnomalyDetectionMetadata] = {}
+    for month_key in sorted(grouped_by_month):
+        month_candidates = grouped_by_month[month_key]
+        best_by_date: dict[date, tuple[int, AnomalyDetectionMetadata]] = {}
+        for index, anomaly in month_candidates:
+            date_key = puntos[index].fecha
+            current = best_by_date.get(date_key)
+            candidate_rank = (anomaly.score, anomaly.confianza, anomaly.residuo_pct, -index)
+            if current is None:
+                best_by_date[date_key] = (index, anomaly)
+                continue
+            current_index, current_anomaly = current
+            current_rank = (current_anomaly.score, current_anomaly.confianza, current_anomaly.residuo_pct, -current_index)
+            if candidate_rank > current_rank:
+                best_by_date[date_key] = (index, anomaly)
+        month_candidates = list(best_by_date.values())
+        month_candidates.sort(
+            key=lambda item: (
+                item[1].score,
+                item[1].confianza,
+                item[1].residuo_pct,
+                item[0],
+            ),
+            reverse=True,
+        )
+        for index, anomaly in month_candidates[:max_anomalies_per_month]:
+            selected[index] = anomaly
+
+    return dict(sorted(selected.items()))
 
 
 def _aplicar_anomalias_random_forest(

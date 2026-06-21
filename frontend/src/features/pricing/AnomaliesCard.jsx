@@ -1,8 +1,8 @@
 import { Alert, Box, Button, Card, CardContent, Chip, Divider, Stack, TextField, Typography } from "@mui/material";
-import { Chart as ChartJS, Filler, Legend, LinearScale, PointElement, Tooltip } from "chart.js";
+import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from "chart.js";
 import dayjs from "dayjs";
-import { useEffect, useMemo, useState } from "react";
-import { Scatter } from "react-chartjs-2";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Bar, getElementAtEvent } from "react-chartjs-2";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatNumber, formatPercentChange, toApiDate, variationTone } from "../../shared/utils/formatters.js";
@@ -10,30 +10,52 @@ import { evaluateDetectedAnomalies, fetchSerie } from "./pricing.api.js";
 import { parseConfirmedAnomalyDates } from "./anomalyEvaluation.js";
 import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 
-ChartJS.register(LinearScale, PointElement, Tooltip, Legend, Filler);
+ChartJS.register(LinearScale, CategoryScale, BarElement, Tooltip);
 
-function toTimestamp(dateValue) {
-  const parsed = dayjs(dateValue);
-  return parsed.isValid() ? parsed.valueOf() : 0;
-}
-
-function buildJitteredAnomalyPoints(points, values) {
-  const countsByDate = new Map();
-  return points.map((point, index) => {
-    const dateKey = point.fecha;
-    const currentCount = countsByDate.get(dateKey) || 0;
-    countsByDate.set(dateKey, currentCount + 1);
-    const jitterHours = (currentCount - 0.5) * 12;
-    return {
-      x: toTimestamp(point.fecha) + jitterHours * 60 * 60 * 1000,
-      y: Number(values[index] ?? 0),
-      fecha: point.fecha,
-      precio: point.precio_promedio_normalizado,
-      motivo: point.motivo_anomalia,
-      variacion: point.variacion_porcentual_anterior,
-      severidad: point.severidad_anomalia,
+function buildMonthlyAnomalySeries(points, values) {
+  const buckets = new Map();
+  points.forEach((point, index) => {
+    const monthKey = dayjs(point.fecha).format("YYYY-MM");
+    const bucket = buckets.get(monthKey) || {
+      monthKey,
+      label: dayjs(point.fecha).format("MMM YYYY"),
+      values: [],
+      dates: [],
+      severities: [],
+      rawPoints: [],
     };
+    bucket.values.push(Number(values[index] ?? 0));
+    bucket.dates.push(point.fecha);
+    bucket.severities.push(point.severidad_anomalia);
+    bucket.rawPoints.push(point);
+    buckets.set(monthKey, bucket);
   });
+
+  return [...buckets.values()]
+    .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
+    .map((bucket) => {
+      const severityRank = { alta: 3, media: 2, leve: 1 };
+      const dominantSeverity = bucket.severities.reduce((current, severity) => {
+        return (severityRank[severity] || 0) > (severityRank[current] || 0) ? severity : current;
+      }, bucket.severities[0] || "media");
+      const sum = bucket.values.reduce((acc, value) => acc + value, 0);
+      const average = bucket.values.length ? sum / bucket.values.length : 0;
+      const max = bucket.values.length ? Math.max(...bucket.values) : 0;
+      const min = bucket.values.length ? Math.min(...bucket.values) : 0;
+      return {
+        x: bucket.label,
+        y: average,
+        monthKey: bucket.monthKey,
+        count: bucket.values.length,
+        dates: bucket.dates,
+        severities: bucket.severities,
+        dominantSeverity,
+        average,
+        max,
+        min,
+        points: bucket.rawPoints,
+      };
+    });
 }
 
 export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desde, hasta, className = "" }) {
@@ -56,6 +78,8 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
   const [seriesLoading, setSeriesLoading] = useState(false);
   const [seriesError, setSeriesError] = useState("");
   const [severityFilter, setSeverityFilter] = useState("todas");
+  const [selectedMonthKey, setSelectedMonthKey] = useState(null);
+  const chartRef = useRef(null);
   const anomalies = useMemo(() => (anomalySerie ?? []).filter((point) => point.es_anomalia), [anomalySerie]);
   const visibleAnomalies = useMemo(
     () => (severityFilter === "todas" ? anomalies : anomalies.filter((point) => point.severidad_anomalia === severityFilter)),
@@ -94,18 +118,43 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
     ];
   }, [evaluation]);
 
-  const chartPoints = useMemo(
-    () => buildJitteredAnomalyPoints(chartSerie, mainSeries),
-    [chartSerie, mainSeries]
+  const chartPoints = useMemo(() => buildMonthlyAnomalySeries(chartSerie, mainSeries), [chartSerie, mainSeries]);
+  const selectedMonthData = useMemo(
+    () => chartPoints.find((point) => point.monthKey === selectedMonthKey) || chartPoints[0] || null,
+    [chartPoints, selectedMonthKey]
   );
+  const selectedMonthAnomalies = useMemo(() => {
+    if (!selectedMonthData) return [];
+    return chartSerie.filter((point) => dayjs(point.fecha).format("YYYY-MM") === selectedMonthData.monthKey);
+  }, [chartSerie, selectedMonthData]);
+  const anomalyInterval = useMemo(() => {
+    if (!chartPoints.length) return null;
+    const first = dayjs(`${chartPoints[0].monthKey}-01`);
+    const last = dayjs(`${chartPoints[chartPoints.length - 1].monthKey}-01`);
+    if (!first.isValid() || !last.isValid()) return null;
+    return {
+      firstLabel: first.format("MMM YYYY"),
+      lastLabel: last.format("MMM YYYY"),
+      firstKey: chartPoints[0].monthKey,
+      lastKey: chartPoints[chartPoints.length - 1].monthKey,
+    };
+  }, [chartPoints]);
 
   const chartColors = useMemo(
     () =>
-      chartSerie.map((point) => {
-        const config = severityConfig[point.severidad_anomalia] || severityConfig.media;
+      chartPoints.map((point) => {
+        const config = severityConfig[point.dominantSeverity] || severityConfig.media;
         return config.color;
       }),
-    [chartSerie]
+    [chartPoints]
+  );
+  const chartBackgroundColors = useMemo(
+    () =>
+      chartPoints.map((point) => {
+        const config = severityConfig[point.dominantSeverity] || severityConfig.media;
+        return !selectedMonthKey || selectedMonthKey === point.monthKey ? config.color : `${config.color}55`;
+      }),
+    [chartPoints, selectedMonthKey]
   );
   const baselineSummary = useMemo(() => {
     if (!evaluation) return null;
@@ -139,7 +188,16 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
     setEvaluationError("");
     setEvaluating(false);
     setSeverityFilter("todas");
+    setSelectedMonthKey(null);
   }, [selectedMaterial?.id, firstDate, lastDate]);
+
+  useEffect(() => {
+    if (!chartPoints.length) {
+      setSelectedMonthKey(null);
+      return;
+    }
+    setSelectedMonthKey((current) => (current && chartPoints.some((point) => point.monthKey === current) ? current : chartPoints[0].monthKey));
+  }, [chartPoints]);
 
   useEffect(() => {
     let active = true;
@@ -221,20 +279,17 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
   }
 
   const chartData = {
+    labels: chartPoints.map((point) => point.x),
     datasets: [
       {
-        label: showPrices ? "Precio anómalo" : "Variación anómala %",
-        data: chartPoints,
+        label: showPrices ? "Precio anómalo mensual promedio" : "Variación anómala mensual promedio %",
+        data: chartPoints.map((point) => point.y),
         borderColor: chartColors,
-        backgroundColor: chartColors,
-        fill: false,
+        backgroundColor: chartBackgroundColors,
         borderWidth: 0,
-        tension: 0,
-        pointRadius: chartPoints.map((point) => (point.severidad === "alta" ? 7 : point.severidad === "media" ? 6 : 5)),
-        pointHoverRadius: 10,
-        pointBackgroundColor: chartColors,
-        pointBorderColor: "#ffffff",
-        pointBorderWidth: 2.5,
+        borderRadius: 8,
+        barThickness: 28,
+        maxBarThickness: 34,
       },
     ],
   };
@@ -242,37 +297,48 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
     maintainAspectRatio: false,
     interaction: { mode: "nearest", intersect: false },
     plugins: {
-      legend: { position: "bottom" },
+      legend: { display: false },
       tooltip: {
         callbacks: {
           label(context) {
-            const point = context.raw;
-            const severityLabel = point?.severidad
-              ? `Severidad: ${point.severidad.charAt(0).toUpperCase()}${point.severidad.slice(1)}`
+            const point = chartPoints[context.dataIndex];
+            const severityLabel = point?.dominantSeverity
+              ? `Severidad dominante: ${point.dominantSeverity.charAt(0).toUpperCase()}${point.dominantSeverity.slice(1)}`
               : null;
             if (showPrices) {
-              return [point?.fecha ? `Fecha: ${point.fecha}` : null, `Precio: ${formatCurrency(point?.precio ?? context.parsed.y)}`, severityLabel, point?.motivo || "Precio atípico frente al patrón esperado."].filter(Boolean);
+              return [
+                `Mes: ${point?.x || "-"}`,
+                `Promedio anómalo: ${formatCurrency(context.parsed.y)}`,
+                `Anomalías del mes: ${point?.count ?? 0}`,
+                `Mínimo / Máximo: ${formatCurrency(point?.min ?? context.parsed.y)} / ${formatCurrency(point?.max ?? context.parsed.y)}`,
+                severityLabel,
+              ].filter(Boolean);
             }
-            return [point?.fecha ? `Fecha: ${point.fecha}` : null, `Desvío: ${formatNumber(context.parsed.y)}%`, severityLabel, point?.motivo || "Precio atípico frente al patrón esperado."].filter(Boolean);
+            return [
+              `Mes: ${point?.x || "-"}`,
+              `Desvío promedio: ${formatNumber(context.parsed.y)}%`,
+              `Anomalías del mes: ${point?.count ?? 0}`,
+              `Mínimo / Máximo: ${formatNumber(point?.min ?? context.parsed.y)}% / ${formatNumber(point?.max ?? context.parsed.y)}%`,
+              severityLabel,
+            ].filter(Boolean);
           },
         },
       },
     },
     scales: {
       x: {
-        type: "linear",
+        type: "category",
         grid: { display: false },
-        min: chartPoints.length ? chartPoints[0].x : undefined,
-        max: chartPoints.length ? chartPoints[chartPoints.length - 1].x : undefined,
         ticks: {
-          callback: (value) => dayjs(Number(value)).format("YYYY-MM"),
-          maxTicksLimit: 8,
+          maxRotation: 0,
+          autoSkip: true,
+          maxTicksLimit: 10,
         },
       },
       y: {
         title: {
           display: true,
-          text: showPrices ? presentation.chartAxisLabel : "Variacion del precio anomalo %",
+          text: showPrices ? "Precio anómalo mensual" : "Variación anómala mensual %",
         },
         ticks: {
           callback: (value) =>
@@ -283,7 +349,7 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
       },
     },
     layout: {
-      padding: { top: 12 },
+      padding: { top: 8 },
     },
   };
 
@@ -292,8 +358,32 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
       <CardContent>
         <SectionHeader
           title="Variaciones bruscas"
-          description="Se muestran solo los puntos anómalos detectados por el modelo Random Forest. Los períodos sin anomalías no se grafican."
+          description="Primero elegís el mes con anomalías; después se muestran los precios anómalos exactos de ese mes."
         />
+        {anomalyInterval ? (
+          <Box className="mb-3 flex flex-wrap items-center gap-2">
+            <Chip
+              label={`Intervalo visible: ${anomalyInterval.firstLabel} → ${anomalyInterval.lastLabel}`}
+              size="small"
+              variant="outlined"
+              sx={{ fontWeight: 800 }}
+            />
+            <Chip
+              label={`${chartPoints.length} meses con anomalías`}
+              size="small"
+              sx={{ fontWeight: 800, backgroundColor: "#F8FAFC" }}
+              variant="outlined"
+            />
+            {selectedMonthData ? (
+              <Chip
+                label={`Mes seleccionado: ${selectedMonthData.label}`}
+                size="small"
+                sx={{ fontWeight: 800, backgroundColor: "#EEF2FF", color: "#4338CA" }}
+                variant="outlined"
+              />
+            ) : null}
+          </Box>
+        ) : null}
         {seriesError ? <Alert severity="warning">No fue posible cargar las observaciones para anomalías: {seriesError}</Alert> : null}
         {seriesLoading ? (
           <Box className="mb-5 flex h-[340px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600">
@@ -301,7 +391,21 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
           </Box>
         ) : chartPoints.length ? (
           <Box className="chart-shell anomaly-chart-shell mb-5 h-[340px]">
-            <Scatter data={chartData} options={chartOptions} redraw />
+            <Bar
+              ref={chartRef}
+              data={chartData}
+              options={chartOptions}
+              onClick={(event) => {
+                const chart = chartRef.current;
+                if (!chart) return;
+                const elements = getElementAtEvent(chart, event);
+                if (!elements.length) return;
+                const index = elements[0].index;
+                const point = chartPoints[index];
+                if (point) setSelectedMonthKey(point.monthKey);
+              }}
+              redraw
+            />
           </Box>
         ) : (
           <Box className="mb-5 flex h-[340px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-center text-sm text-slate-600">
@@ -321,13 +425,17 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
             </Button>
           ))}
         </Box>
-        {!visibleAnomalies.length ? (
+        {!selectedMonthData ? (
           <Box className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
-            No hay anomalías para el filtro seleccionado.
+            Seleccioná un mes del gráfico para ver sus anomalías exactas.
+          </Box>
+        ) : !selectedMonthAnomalies.length ? (
+          <Box className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+            No hay anomalías para el mes seleccionado.
           </Box>
         ) : (
           <Box className="grid gap-3 xl:grid-cols-2">
-            {visibleAnomalies.map((point) => {
+            {selectedMonthAnomalies.map((point) => {
               const parsedMotivo = parseAnomalyMotivo(point.motivo_anomalia);
               const expectedRangeVisible =
                 point.precio_esperado_anomalia !== null &&
