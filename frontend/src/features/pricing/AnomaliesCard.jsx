@@ -1,4 +1,22 @@
-import { Alert, Box, Button, Card, CardContent, Chip, Divider, Stack, TextField, Typography } from "@mui/material";
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from "chart.js";
 import dayjs from "dayjs";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -11,6 +29,21 @@ import { parseConfirmedAnomalyDates } from "./anomalyEvaluation.js";
 import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 
 ChartJS.register(LinearScale, CategoryScale, BarElement, Tooltip);
+
+const GLOSSARY_ITEMS = [
+  ["Residuo", "Distancia porcentual entre el precio observado y el precio esperado por el Random Forest."],
+  ["Desvío de tendencia", "Diferencia porcentual contra una tendencia local de corto plazo, calculada con los últimos meses."],
+  ["Gap estacional", "Diferencia frente al mismo mes de años anteriores, si existe un antecedente comparable."],
+  ["Score", "Cantidad de señales activadas sobre 4: residuo, variación entre observaciones, estacionalidad y tendencia."],
+  ["Confianza", "Porcentaje heurístico derivado del score y de la fuerza del residuo. Sirve para priorizar revisión."],
+  ["Severidad", "Etiqueta cualitativa que resume qué tan fuerte fue la desviación detectada."],
+  ["Rango normal", "Banda esperada alrededor del precio estimado por Random Forest, calculada con el límite dinámico de residuo."],
+  ["Tipo", "Clasificación operativa: salto puntual, desvío de tendencia, desvío estacional, cambio sostenido o residuo extremo."],
+  ["Baseline", "Regla simple de comparación que marca observaciones con una variación mayor al umbral fijo."],
+  ["Precisión", "Proporción de alertas del modelo que coinciden con anomalías confirmadas."],
+  ["Recall", "Proporción de anomalías confirmadas que el detector logró encontrar."],
+  ["F1", "Balance entre precisión y recall; resume detección y falsos positivos en una sola métrica."],
+];
 
 function buildMonthlyAnomalySeries(points, values) {
   const buckets = new Map();
@@ -79,6 +112,7 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
   const [seriesError, setSeriesError] = useState("");
   const [severityFilter, setSeverityFilter] = useState("todas");
   const [selectedMonthKey, setSelectedMonthKey] = useState(null);
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
   const chartRef = useRef(null);
   const anomalies = useMemo(() => (anomalySerie ?? []).filter((point) => point.es_anomalia), [anomalySerie]);
   const visibleAnomalies = useMemo(
@@ -360,6 +394,12 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
           title="Variaciones bruscas"
           description="Primero elegís el mes con anomalías; después se muestran los precios anómalos exactos de ese mes."
         />
+        <Box className="mb-4 flex justify-end">
+          <Button variant="outlined" size="small" onClick={() => setGlossaryOpen(true)} sx={{ fontWeight: 800 }}>
+            Abrir glosario
+          </Button>
+        </Box>
+        <GlossaryDialog open={glossaryOpen} onClose={() => setGlossaryOpen(false)} />
         {anomalyInterval ? (
           <Box className="mb-3 flex flex-wrap items-center gap-2">
             <Chip
@@ -538,73 +578,74 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
                       {showPrices ? ` · ${presentation.displayUnitLabel}` : ""}
                     </Typography>
 
-                    <Box className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                      <Typography color="text.secondary" variant="caption" fontWeight={900} letterSpacing={0}>
-                        Explicación del modelo
-                      </Typography>
-                      <Typography mt={0.5} variant="body2" color="text.primary">
-                        {point.explicacion_anomalia || parsedMotivo.summary}
-                      </Typography>
-                    </Box>
-
-                    {expectedRangeVisible ? (
-                      <Box className="mt-2 grid gap-2 sm:grid-cols-3">
-                        <MetricTile
-                          label="Esperado"
-                          value={formatCurrency(getDisplayPrice(point.precio_esperado_anomalia, selectedMaterial?.nombre, point.unidad_base))}
-                          helper="Estimación RF"
-                        />
-                        <MetricTile
-                          label="Rango normal"
-                          value={`${formatCurrency(getDisplayPrice(point.rango_esperado_min_anomalia, selectedMaterial?.nombre, point.unidad_base))} a ${formatCurrency(getDisplayPrice(point.rango_esperado_max_anomalia, selectedMaterial?.nombre, point.unidad_base))}`}
-                          helper={`Límite ${formatPercent(point.limite_residuo_anomalia_pct)}`}
-                        />
-                        <MetricTile
-                          label="Residuo"
-                          value={formatPercent(point.residuo_anomalia_pct)}
-                          helper="Distancia observada"
-                        />
-                      </Box>
-                    ) : null}
-
-                    {point.variables_relevantes_anomalia?.length ? (
-                      <Box className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
-                        <Typography color="text.secondary" variant="caption" fontWeight={900} letterSpacing={0}>
-                          Variables relevantes
-                        </Typography>
-                        <Box className="mt-1.5 flex flex-wrap gap-1.5">
-                          {point.variables_relevantes_anomalia.map((variable) => (
-                            <Chip
-                              key={variable}
-                              label={variable}
-                              size="small"
-                              variant="outlined"
-                              sx={{ fontSize: 12, height: 26, backgroundColor: "#F8FAFC" }}
-                            />
+                    <Accordion
+                      disableGutters
+                      elevation={0}
+                      className="mt-3 overflow-hidden rounded-lg border border-slate-200"
+                      sx={{ "&:before": { display: "none" } }}
+                    >
+                      <AccordionSummary expandIcon={<Typography color="text.secondary">⌄</Typography>} sx={{ bgcolor: "#F8FAFC" }}>
+                        <Box>
+                          <Typography variant="body2" fontWeight={900}>
+                            Cómo llegó el modelo a esta alerta
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Ver explicación, señales y valores de referencia
+                          </Typography>
+                        </Box>
+                      </AccordionSummary>
+                      <AccordionDetails sx={{ p: 2 }}>
+                        <Box component="ul" className="m-0 grid gap-2 pl-5 text-sm text-slate-700">
+                          <li>
+                            <strong>Lectura principal:</strong> {point.explicacion_anomalia || parsedMotivo.summary}
+                          </li>
+                          <li>
+                            <strong>Clasificación:</strong> {formatAnomalyType(point.tipo_anomalia || "mixta")} · severidad {severityConfig[point.severidad_anomalia]?.label?.toLowerCase() || "sin definir"}.
+                          </li>
+                          {point.score_anomalia !== null && point.score_anomalia !== undefined ? (
+                            <li><strong>Fuerza de la evidencia:</strong> activó un score de {point.score_anomalia}/4{point.confianza_anomalia !== null && point.confianza_anomalia !== undefined ? `, con ${formatPercent(point.confianza_anomalia)} de confianza` : ""}.</li>
+                          ) : null}
+                          {parsedMotivo.signals.map((signal) => (
+                            <li key={`${signal.label}-${signal.detail}`}>
+                              <strong>{signal.label}:</strong> {signal.detail || "señal detectada por encima del comportamiento esperado."}
+                            </li>
                           ))}
                         </Box>
-                      </Box>
-                    ) : null}
 
-                    {parsedMotivo.signals.length ? (
-                      <Box className="mt-2 flex flex-wrap gap-1.5">
-                        {parsedMotivo.signals.map((signal) => (
-                          <Chip
-                            key={signal}
-                            label={signal}
-                            size="small"
-                            variant="outlined"
-                            sx={{
-                              fontSize: 12,
-                              height: 26,
-                              backgroundColor: "#FFFFFF",
-                              borderColor: "#CBD5E1",
-                              color: "#334155",
-                            }}
-                          />
-                        ))}
-                      </Box>
-                    ) : null}
+                        {expectedRangeVisible ? (
+                          <Box className="mt-4 grid gap-2 sm:grid-cols-3">
+                            <MetricTile
+                              label="Precio esperado"
+                              value={formatCurrency(getDisplayPrice(point.precio_esperado_anomalia, selectedMaterial?.nombre, point.unidad_base))}
+                              helper="Estimación del Random Forest"
+                            />
+                            <MetricTile
+                              label="Rango considerado normal"
+                              value={`${formatCurrency(getDisplayPrice(point.rango_esperado_min_anomalia, selectedMaterial?.nombre, point.unidad_base))} a ${formatCurrency(getDisplayPrice(point.rango_esperado_max_anomalia, selectedMaterial?.nombre, point.unidad_base))}`}
+                              helper={`Límite dinámico ${formatPercent(point.limite_residuo_anomalia_pct)}`}
+                            />
+                            <MetricTile
+                              label="Distancia observada"
+                              value={formatPercent(point.residuo_anomalia_pct)}
+                              helper="Residuo frente al precio esperado"
+                            />
+                          </Box>
+                        ) : null}
+
+                        {point.variables_relevantes_anomalia?.length ? (
+                          <Box className="mt-4">
+                            <Typography color="text.secondary" variant="caption" fontWeight={900}>
+                              VARIABLES QUE MÁS INFLUYERON
+                            </Typography>
+                            <Box className="mt-2 flex flex-wrap gap-1.5">
+                              {point.variables_relevantes_anomalia.map((variable) => (
+                                <Chip key={variable} label={variable} size="small" variant="outlined" sx={{ backgroundColor: "#F8FAFC" }} />
+                              ))}
+                            </Box>
+                          </Box>
+                        ) : null}
+                      </AccordionDetails>
+                    </Accordion>
                   </Box>
                 </Box>
               );
@@ -706,68 +747,6 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
             </Box>
           )}
 
-          <Box className="rounded-xl border border-slate-200 bg-white p-4">
-            <Box className="flex items-start justify-between gap-3">
-              <Box>
-                <Typography variant="h4">Glosario</Typography>
-                <Typography color="text.secondary" variant="body2" mt={0.5}>
-                  Qué significa cada señal y de dónde sale.
-                </Typography>
-              </Box>
-              <Chip label="Auditable" size="small" variant="outlined" sx={{ fontWeight: 800 }} />
-            </Box>
-
-            <Box className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <GlossaryItem
-                term="Residuo"
-                definition="Distancia porcentual entre el precio observado y el precio esperado por el Random Forest."
-              />
-              <GlossaryItem
-                term="Desvío de tendencia"
-                definition="Diferencia porcentual contra una tendencia local de corto plazo, calculada con los últimos meses."
-              />
-              <GlossaryItem
-                term="Gap estacional"
-                definition="Diferencia frente al mismo mes de años anteriores, si existe un antecedente comparable."
-              />
-              <GlossaryItem
-                term="Score"
-                definition="Cantidad de señales activadas sobre 4: residuo, variación entre observaciones, estacionalidad y tendencia."
-              />
-              <GlossaryItem
-                term="Confianza"
-                definition="Porcentaje heurístico derivado del score y de la fuerza del residuo. Sirve para priorizar revisión."
-              />
-              <GlossaryItem
-                term="Severidad"
-                definition="Etiqueta cualitativa que resume qué tan fuerte fue la desviación detectada."
-              />
-              <GlossaryItem
-                term="Rango normal"
-                definition="Banda esperada alrededor del precio estimado por Random Forest, calculada con el límite dinámico de residuo."
-              />
-              <GlossaryItem
-                term="Tipo"
-                definition="Clasificación operativa de la alerta: salto puntual, desvío de tendencia, desvío estacional, cambio sostenido o residuo extremo."
-              />
-              <GlossaryItem
-                term="Baseline"
-                definition="Regla simple de comparación que marca observaciones con una variación mayor al umbral fijo."
-              />
-              <GlossaryItem
-                term="Precisión"
-                definition="Métrica global de evaluación contra anomalías confirmadas. No se asigna por punto individual."
-              />
-              <GlossaryItem
-                term="Recall"
-                definition="Proporción de anomalías confirmadas que el detector logró encontrar."
-              />
-              <GlossaryItem
-                term="F1"
-                definition="Balance entre precisión y recall. Útil cuando querés medir detección y falsos positivos al mismo tiempo."
-              />
-            </Box>
-          </Box>
         </Stack>
       </CardContent>
     </Card>
@@ -824,6 +803,29 @@ function GlossaryItem({ term, definition }) {
   );
 }
 
+function GlossaryDialog({ open, onClose }) {
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" scroll="paper">
+      <DialogTitle sx={{ pb: 1 }}>
+        <Typography variant="h3">Glosario de anomalías</Typography>
+        <Typography color="text.secondary" variant="body2" mt={0.5}>
+          Una guía rápida para interpretar las alertas y las métricas del detector.
+        </Typography>
+      </DialogTitle>
+      <DialogContent dividers>
+        <Box className="grid gap-3 sm:grid-cols-2">
+          {GLOSSARY_ITEMS.map(([term, definition]) => (
+            <GlossaryItem key={term} term={term} definition={definition} />
+          ))}
+        </Box>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        <Button onClick={onClose} variant="contained">Cerrar</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 function formatRatio(value) {
   if (value === null || value === undefined) return "Sin dato";
   return `${formatNumber(Number(value) * 100)}%`;
@@ -867,8 +869,8 @@ function parseAnomalyMotivo(value) {
   return {
     summary:
       parts[0] && parts.length > 1
-        ? `${parts[0]}: ${readableSignals.length ? readableSignals[0] : humanizeAnomalySignal(summary.split(";")[0].trim())}`
-        : humanizeAnomalySignal(summary),
+        ? `${parts[0]}: ${readableSignals.length ? readableSignals[0].label : humanizeAnomalySignal(summary.split(";")[0].trim()).label}`
+        : humanizeAnomalySignal(summary).label,
     signals: readableSignals,
   };
 }
@@ -877,15 +879,43 @@ function humanizeAnomalySignal(signal) {
   const text = String(signal || "").trim();
   const lower = text.toLowerCase();
 
-  if (lower.startsWith("residuo ")) return "Residuo alto";
-  if (lower.startsWith("variacion mensual ")) return "Salto mensual fuerte";
-  if (lower.startsWith("gap estacional ")) return "Desvío estacional";
-  if (lower.startsWith("desvio de tendencia ")) return "Desvío de tendencia";
-  if (lower.startsWith("precio esperado ")) return "Precio esperado";
-  return text
-    .replaceAll("desvio", "desvío")
-    .replaceAll("variacion", "variación")
-    .replaceAll("limite", "límite");
+  if (lower.startsWith("residuo ")) {
+    return {
+      label: "Residuo alto",
+      detail: text.replace(/^residuo\s*/i, "").replaceAll("limite", "límite"),
+    };
+  }
+  if (lower.startsWith("variacion mensual ")) {
+    return {
+      label: "Salto mensual fuerte",
+      detail: text.replace(/^variacion mensual\s*/i, "").replaceAll("limite", "límite").replaceAll("variacion", "variación"),
+    };
+  }
+  if (lower.startsWith("gap estacional ")) {
+    return {
+      label: "Desvío estacional",
+      detail: text.replace(/^gap estacional\s*/i, "").replaceAll("limite", "límite"),
+    };
+  }
+  if (lower.startsWith("desvio de tendencia ")) {
+    return {
+      label: "Desvío de tendencia",
+      detail: text.replace(/^desvio de tendencia\s*/i, "").replaceAll("limite", "límite").replaceAll("desvio", "desvío"),
+    };
+  }
+  if (lower.startsWith("precio esperado ")) {
+    return {
+      label: "Precio esperado",
+      detail: text,
+    };
+  }
+  return {
+    label: text
+      .replaceAll("desvio", "desvío")
+      .replaceAll("variacion", "variación")
+      .replaceAll("limite", "límite"),
+    detail: "",
+  };
 }
 
 function severityColor(severity, severityConfig) {

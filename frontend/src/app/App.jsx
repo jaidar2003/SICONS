@@ -923,6 +923,7 @@ export function App() {
 
                   {historyWorkflow === "variation" ? (
                     <PriceVariationBetweenDatesCard
+                      className="mt-6"
                       selectedMaterial={selectedMaterial}
                       serie={serie}
                       token={token}
@@ -955,6 +956,7 @@ export function App() {
 
                   {historyWorkflow === "anomalies" ? (
                     <AnomaliesCard
+                      className="mt-3"
                       serie={serie}
                       showPrices={showPrices}
                       selectedMaterial={selectedMaterial}

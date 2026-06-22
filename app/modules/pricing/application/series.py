@@ -647,28 +647,36 @@ def _detectar_anomalias_random_forest(
             signalos.append(f"Desvío de tendencia: {Decimal(f'{tendencia_gap:.2f}').quantize(Decimal('0.00'))}%")
             señales_resumen.append("rompió la tendencia reciente")
         predicted_decimal = Decimal(f"{predicted:.4f}").quantize(Decimal("0.0001"))
+        predicted_display = predicted_decimal.quantize(Decimal("0.00"))
         residual_display = Decimal(f"{residual_pct:.4f}").quantize(Decimal("0.0001"))
+        residual_display_2 = residual_display.quantize(Decimal("0.00"))
         residual_signed_decimal = Decimal(f"{residual_signed_pct:.4f}").quantize(Decimal("0.0001"))
+        residual_signed_display = residual_signed_decimal.quantize(Decimal("0.00"))
+        residual_limit_display = residual_limit.quantize(Decimal("0.00"))
+        uncertainty_display = Decimal(f"{incertidumbre_modelo_pct:.4f}").quantize(Decimal("0.00"))
+        variacion_display = Decimal(f"{variacion_actual:.4f}").quantize(Decimal("0.00"))
         lower_expected = _quantize(predicted_decimal * (Decimal("1") - (residual_limit / Decimal("100"))))
         upper_expected = _quantize(predicted_decimal * (Decimal("1") + (residual_limit / Decimal("100"))))
+        lower_expected_display = lower_expected.quantize(Decimal("0.00"))
+        upper_expected_display = upper_expected.quantize(Decimal("0.00"))
         tipo = _clasificar_tipo_anomalia(residual_signal, variacion_signal, seasonal_signal, trend_signal)
         variables_relevantes = _variables_relevantes_anomalia(feature_importances)
         explicacion = _explicar_anomalia(
             puntos[index].precio_promedio_normalizado,
-            predicted_decimal,
-            residual_signed_decimal,
-            residual_limit,
+            predicted_display,
+            residual_signed_display,
+            residual_limit_display,
             tipo,
             señales_resumen,
         )
         motivo = (
             "Anomalia detectada por Random Forest (ensemble robusto): "
-            f"precio esperado {predicted_decimal}, "
-            f"rango normal {lower_expected} a {upper_expected}, "
-            f"residuo {residual_display}%, "
-            f"limite residuo {residual_limit}%, "
-            f"incertidumbre modelo {Decimal(f'{incertidumbre_modelo_pct:.4f}').quantize(Decimal('0.0001'))}%, "
-            f"variacion entre observaciones {variacion}%, "
+            f"precio esperado {predicted_display}, "
+            f"rango normal {lower_expected_display} a {upper_expected_display}, "
+            f"residuo {residual_display_2}%, "
+            f"limite residuo {residual_limit_display}%, "
+            f"incertidumbre modelo {uncertainty_display}%, "
+            f"variacion entre observaciones {Decimal(f'{float(variacion):.4f}').quantize(Decimal('0.00'))}%, "
             f"tipo {tipo}, "
             f"score {score}/{4}; "
             + "; ".join(signalos)

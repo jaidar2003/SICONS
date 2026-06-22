@@ -8,7 +8,7 @@ import { formatCurrency, formatNumber, toApiDate, variationTone } from "../../sh
 import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 import { fetchPriceVariationBetweenDates } from "./pricing.api.js";
 
-export function PriceVariationBetweenDatesCard({ selectedMaterial, serie, token, showPrices }) {
+export function PriceVariationBetweenDatesCard({ selectedMaterial, serie, token, showPrices, className = "mt-3" }) {
   const [fechaDesde, setFechaDesde] = useState(null);
   const [fechaHasta, setFechaHasta] = useState(null);
   const [variation, setVariation] = useState(null);
@@ -61,7 +61,7 @@ export function PriceVariationBetweenDatesCard({ selectedMaterial, serie, token,
 
   if (!showPrices) {
     return (
-      <Card className="mt-3">
+      <Card className={className}>
         <CardContent>
           <SectionHeader
             title="Variación entre fechas"
@@ -79,7 +79,7 @@ export function PriceVariationBetweenDatesCard({ selectedMaterial, serie, token,
       variation.fecha_hasta_solicitada !== variation.fecha_hasta_usada);
 
   return (
-    <Card className="mt-3">
+    <Card className={className}>
       <CardContent>
         <SectionHeader
           title="Variación entre fechas"
