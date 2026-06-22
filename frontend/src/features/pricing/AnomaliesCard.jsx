@@ -862,11 +862,30 @@ function parseAnomalyMotivo(value) {
     .map((item) => item.trim())
     .filter(Boolean)
     .filter((item) => !item.toLowerCase().startsWith("precio esperado"));
+  const readableSignals = signals.map((signal) => humanizeAnomalySignal(signal));
 
   return {
-    summary: parts[0] && parts.length > 1 ? `${parts[0]}: ${signals.length ? signals[0] : summary.split(";")[0].trim()}` : summary,
-    signals,
+    summary:
+      parts[0] && parts.length > 1
+        ? `${parts[0]}: ${readableSignals.length ? readableSignals[0] : humanizeAnomalySignal(summary.split(";")[0].trim())}`
+        : humanizeAnomalySignal(summary),
+    signals: readableSignals,
   };
+}
+
+function humanizeAnomalySignal(signal) {
+  const text = String(signal || "").trim();
+  const lower = text.toLowerCase();
+
+  if (lower.startsWith("residuo ")) return "Residuo alto";
+  if (lower.startsWith("variacion mensual ")) return "Salto mensual fuerte";
+  if (lower.startsWith("gap estacional ")) return "Desvío estacional";
+  if (lower.startsWith("desvio de tendencia ")) return "Desvío de tendencia";
+  if (lower.startsWith("precio esperado ")) return "Precio esperado";
+  return text
+    .replaceAll("desvio", "desvío")
+    .replaceAll("variacion", "variación")
+    .replaceAll("limite", "límite");
 }
 
 function severityColor(severity, severityConfig) {

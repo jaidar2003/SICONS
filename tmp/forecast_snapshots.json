@@ -14992,5 +14992,1710 @@
       "no_calibrado": false,
       "advertencia": null
     }
+  },
+  "1:7:0f28c1033e236f76d09001e3bbe60f9c85cda02f40e7b75b6fe6bae9116d7fe8:selector-on:prophet_ipim_icc_var_materials": {
+    "dataset": [
+      {
+        "ds": "2022-01-01",
+        "y": 12.1501
+      },
+      {
+        "ds": "2022-02-01",
+        "y": 12.5548
+      },
+      {
+        "ds": "2022-03-01",
+        "y": 13.2865
+      },
+      {
+        "ds": "2022-04-01",
+        "y": 13.9203
+      },
+      {
+        "ds": "2022-05-01",
+        "y": 14.8011
+      },
+      {
+        "ds": "2022-06-01",
+        "y": 14.9396
+      },
+      {
+        "ds": "2022-07-01",
+        "y": 16.1439
+      },
+      {
+        "ds": "2022-08-01",
+        "y": 17.3182
+      },
+      {
+        "ds": "2022-09-01",
+        "y": 18.9181
+      },
+      {
+        "ds": "2022-10-01",
+        "y": 20.2993
+      },
+      {
+        "ds": "2022-11-01",
+        "y": 21.7609
+      },
+      {
+        "ds": "2022-12-01",
+        "y": 23.6927
+      },
+      {
+        "ds": "2023-01-01",
+        "y": 24.66
+      },
+      {
+        "ds": "2023-02-01",
+        "y": 25.9149
+      },
+      {
+        "ds": "2023-03-01",
+        "y": 27.5216
+      },
+      {
+        "ds": "2023-04-01",
+        "y": 29.338
+      },
+      {
+        "ds": "2023-05-01",
+        "y": 32.2259
+      },
+      {
+        "ds": "2023-06-01",
+        "y": 34.6012
+      },
+      {
+        "ds": "2023-07-01",
+        "y": 36.435
+      },
+      {
+        "ds": "2023-08-01",
+        "y": 40.8963
+      },
+      {
+        "ds": "2023-09-01",
+        "y": 46.6828
+      },
+      {
+        "ds": "2023-10-01",
+        "y": 52.2754
+      },
+      {
+        "ds": "2023-11-01",
+        "y": 57.3589
+      },
+      {
+        "ds": "2023-12-01",
+        "y": 70.9061
+      },
+      {
+        "ds": "2024-01-01",
+        "y": 89.8788
+      },
+      {
+        "ds": "2024-02-01",
+        "y": 112.259
+      },
+      {
+        "ds": "2024-03-01",
+        "y": 129.2336
+      },
+      {
+        "ds": "2024-04-01",
+        "y": 134.4426
+      },
+      {
+        "ds": "2024-05-01",
+        "y": 135.4348
+      },
+      {
+        "ds": "2024-06-01",
+        "y": 141.6648
+      },
+      {
+        "ds": "2024-07-01",
+        "y": 132.9553
+      },
+      {
+        "ds": "2024-08-01",
+        "y": 137.0038
+      },
+      {
+        "ds": "2024-09-01",
+        "y": 137.0038
+      },
+      {
+        "ds": "2024-10-01",
+        "y": 139.445
+      },
+      {
+        "ds": "2024-11-01",
+        "y": 138.2005
+      },
+      {
+        "ds": "2024-12-01",
+        "y": 141.9286
+      },
+      {
+        "ds": "2025-01-01",
+        "y": 141.7318
+      },
+      {
+        "ds": "2025-02-01",
+        "y": 144.6363
+      },
+      {
+        "ds": "2025-03-01",
+        "y": 144.6434
+      },
+      {
+        "ds": "2025-04-01",
+        "y": 146.343
+      },
+      {
+        "ds": "2025-05-01",
+        "y": 151.2149
+      },
+      {
+        "ds": "2025-06-01",
+        "y": 155.4489
+      },
+      {
+        "ds": "2025-07-01",
+        "y": 161.9968
+      },
+      {
+        "ds": "2025-08-01",
+        "y": 164.616
+      },
+      {
+        "ds": "2025-09-01",
+        "y": 166.5168
+      },
+      {
+        "ds": "2025-10-01",
+        "y": 171.5127
+      },
+      {
+        "ds": "2025-11-01",
+        "y": 178.4027
+      },
+      {
+        "ds": "2025-12-01",
+        "y": 178.3729
+      },
+      {
+        "ds": "2026-01-01",
+        "y": 185.3053
+      },
+      {
+        "ds": "2026-02-01",
+        "y": 185.3296
+      },
+      {
+        "ds": "2026-03-01",
+        "y": 193.4146
+      }
+    ],
+    "serie_mensual": [
+      {
+        "fecha": "2022-01-01",
+        "precio_promedio_normalizado": "12.1501",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "303.7525",
+        "precio_equivalente_50kg": "607.5050",
+        "cantidad_registros": 62,
+        "cantidad_facturas": 31,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": null,
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2022-02-01",
+        "precio_promedio_normalizado": "12.5548",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "313.8700",
+        "precio_equivalente_50kg": "627.7400",
+        "cantidad_registros": 132,
+        "cantidad_facturas": 66,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "3.3308",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2022-03-01",
+        "precio_promedio_normalizado": "13.2865",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "332.1625",
+        "precio_equivalente_50kg": "664.3250",
+        "cantidad_registros": 126,
+        "cantidad_facturas": 63,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "5.8280",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2022-04-01",
+        "precio_promedio_normalizado": "13.9203",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "348.0075",
+        "precio_equivalente_50kg": "696.0150",
+        "cantidad_registros": 128,
+        "cantidad_facturas": 64,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "4.7703",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2022-05-01",
+        "precio_promedio_normalizado": "14.8011",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "370.0275",
+        "precio_equivalente_50kg": "740.0550",
+        "cantidad_registros": 122,
+        "cantidad_facturas": 61,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "6.3274",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2022-06-01",
+        "precio_promedio_normalizado": "14.9396",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "373.4900",
+        "precio_equivalente_50kg": "746.9800",
+        "cantidad_registros": 124,
+        "cantidad_facturas": 62,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "0.9357",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2022-07-01",
+        "precio_promedio_normalizado": "16.1439",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "403.5975",
+        "precio_equivalente_50kg": "807.1950",
+        "cantidad_registros": 142,
+        "cantidad_facturas": 71,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "8.0611",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2022-08-01",
+        "precio_promedio_normalizado": "17.3182",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "432.9550",
+        "precio_equivalente_50kg": "865.9100",
+        "cantidad_registros": 130,
+        "cantidad_facturas": 65,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "7.2740",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2022-09-01",
+        "precio_promedio_normalizado": "18.9181",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "472.9525",
+        "precio_equivalente_50kg": "945.9050",
+        "cantidad_registros": 126,
+        "cantidad_facturas": 63,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "9.2383",
+        "es_anomalia": true,
+        "severidad_anomalia": "media",
+        "score_anomalia": 2,
+        "confianza_anomalia": "71.0606",
+        "motivo_anomalia": "Anomalia detectada por Random Forest (ensemble robusto): precio esperado 14.1946, rango normal 11.9235 a 16.4657, residuo 33.2771%, limite residuo 16.000000%, incertidumbre modelo 3.9394%, variacion entre observaciones 9.2383%, tipo desvio_tendencia, score 2/4; residuo 33.2771% > limite 16.000000; desvio de tendencia 17.1842% > limite 11.05000000",
+        "precio_esperado_anomalia": "14.1946",
+        "residuo_anomalia_pct": "33.2771",
+        "limite_residuo_anomalia_pct": "16.000000",
+        "rango_esperado_min_anomalia": "11.9235",
+        "rango_esperado_max_anomalia": "16.4657",
+        "tipo_anomalia": "desvio_tendencia",
+        "explicacion_anomalia": "El precio observado estuvo 33.2771% por encima del precio esperado. Super\u00f3 el margen normal de 16.000000% y se clasific\u00f3 como desvio tendencia. Adem\u00e1s, activ\u00f3 2 se\u00f1al(es): residuo 33.2771% > limite 16.000000, desvio de tendencia 17.1842% > limite 11.05000000.",
+        "variables_relevantes_anomalia": [
+          "pendiente local",
+          "precio hace 2 observaciones",
+          "mes calendario"
+        ]
+      },
+      {
+        "fecha": "2022-10-01",
+        "precio_promedio_normalizado": "20.2993",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "507.4825",
+        "precio_equivalente_50kg": "1014.9650",
+        "cantidad_registros": 136,
+        "cantidad_facturas": 68,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "7.3009",
+        "es_anomalia": true,
+        "severidad_anomalia": "alta",
+        "score_anomalia": 2,
+        "confianza_anomalia": "71.0766",
+        "motivo_anomalia": "Anomalia detectada por Random Forest (ensemble robusto): precio esperado 14.2220, rango normal 11.9465 a 16.4975, residuo 42.7316%, limite residuo 16.000000%, incertidumbre modelo 3.9234%, variacion entre observaciones 7.3009%, tipo desvio_tendencia, score 2/4; residuo 42.7316% > limite 16.000000; desvio de tendencia 17.2137% > limite 11.05000000",
+        "precio_esperado_anomalia": "14.2220",
+        "residuo_anomalia_pct": "42.7316",
+        "limite_residuo_anomalia_pct": "16.000000",
+        "rango_esperado_min_anomalia": "11.9465",
+        "rango_esperado_max_anomalia": "16.4975",
+        "tipo_anomalia": "desvio_tendencia",
+        "explicacion_anomalia": "El precio observado estuvo 42.7316% por encima del precio esperado. Super\u00f3 el margen normal de 16.000000% y se clasific\u00f3 como desvio tendencia. Adem\u00e1s, activ\u00f3 2 se\u00f1al(es): residuo 42.7316% > limite 16.000000, desvio de tendencia 17.2137% > limite 11.05000000.",
+        "variables_relevantes_anomalia": [
+          "pendiente local",
+          "precio hace 2 observaciones",
+          "mes calendario"
+        ]
+      },
+      {
+        "fecha": "2022-11-01",
+        "precio_promedio_normalizado": "21.7609",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "544.0225",
+        "precio_equivalente_50kg": "1088.0450",
+        "cantidad_registros": 112,
+        "cantidad_facturas": 56,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "7.2002",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2022-12-01",
+        "precio_promedio_normalizado": "23.6927",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "592.3175",
+        "precio_equivalente_50kg": "1184.6350",
+        "cantidad_registros": 102,
+        "cantidad_facturas": 51,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "8.8774",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2023-01-01",
+        "precio_promedio_normalizado": "24.6600",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "616.5000",
+        "precio_equivalente_50kg": "1233.0000",
+        "cantidad_registros": 56,
+        "cantidad_facturas": 28,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "4.0827",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2023-02-01",
+        "precio_promedio_normalizado": "25.9149",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "647.8725",
+        "precio_equivalente_50kg": "1295.7450",
+        "cantidad_registros": 68,
+        "cantidad_facturas": 34,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "5.0888",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2023-03-01",
+        "precio_promedio_normalizado": "27.5216",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "688.0400",
+        "precio_equivalente_50kg": "1376.0800",
+        "cantidad_registros": 68,
+        "cantidad_facturas": 34,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "6.1999",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2023-04-01",
+        "precio_promedio_normalizado": "29.3380",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "733.4500",
+        "precio_equivalente_50kg": "1466.9000",
+        "cantidad_registros": 84,
+        "cantidad_facturas": 42,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "6.5999",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2023-05-01",
+        "precio_promedio_normalizado": "32.2259",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "805.6475",
+        "precio_equivalente_50kg": "1611.2950",
+        "cantidad_registros": 84,
+        "cantidad_facturas": 42,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "9.8435",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2023-06-01",
+        "precio_promedio_normalizado": "34.6012",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "865.0300",
+        "precio_equivalente_50kg": "1730.0600",
+        "cantidad_registros": 54,
+        "cantidad_facturas": 27,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "7.3708",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2023-07-01",
+        "precio_promedio_normalizado": "36.4350",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "910.8750",
+        "precio_equivalente_50kg": "1821.7500",
+        "cantidad_registros": 66,
+        "cantidad_facturas": 33,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "5.2998",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2023-08-01",
+        "precio_promedio_normalizado": "40.8963",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "1022.4075",
+        "precio_equivalente_50kg": "2044.8150",
+        "cantidad_registros": 96,
+        "cantidad_facturas": 48,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "12.2445",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2023-09-01",
+        "precio_promedio_normalizado": "46.6828",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "1167.0700",
+        "precio_equivalente_50kg": "2334.1400",
+        "cantidad_registros": 72,
+        "cantidad_facturas": 36,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "14.1492",
+        "es_anomalia": true,
+        "severidad_anomalia": "media",
+        "score_anomalia": 3,
+        "confianza_anomalia": "93.6855",
+        "motivo_anomalia": "Anomalia detectada por Random Forest (ensemble robusto): precio esperado 14.2220, rango normal -21.6718 a 50.1158, residuo 228.2433%, limite residuo 252.381921%, incertidumbre modelo 3.9234%, variacion entre observaciones 14.1492%, tipo cambio_sostenido, score 3/4; variacion mensual 14.1492% > limite 13.000000; gap estacional 146.7626% > limite 13.000000; desvio de tendencia 28.1263% > limite 11.05000000",
+        "precio_esperado_anomalia": "14.2220",
+        "residuo_anomalia_pct": "228.2433",
+        "limite_residuo_anomalia_pct": "252.381921",
+        "rango_esperado_min_anomalia": "-21.6718",
+        "rango_esperado_max_anomalia": "50.1158",
+        "tipo_anomalia": "cambio_sostenido",
+        "explicacion_anomalia": "El precio observado estuvo 228.2433% por encima del precio esperado. Super\u00f3 el margen normal de 252.381921% y se clasific\u00f3 como cambio sostenido. Adem\u00e1s, activ\u00f3 3 se\u00f1al(es): variacion mensual 14.1492% > limite 13.000000, gap estacional 146.7626% > limite 13.000000, desvio de tendencia 28.1263% > limite 11.05000000.",
+        "variables_relevantes_anomalia": [
+          "pendiente local",
+          "precio hace 2 observaciones",
+          "mes calendario"
+        ]
+      },
+      {
+        "fecha": "2023-10-01",
+        "precio_promedio_normalizado": "52.2754",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "1306.8850",
+        "precio_equivalente_50kg": "2613.7700",
+        "cantidad_registros": 112,
+        "cantidad_facturas": 56,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "11.9800",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2023-11-01",
+        "precio_promedio_normalizado": "57.3589",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "1433.9725",
+        "precio_equivalente_50kg": "2867.9450",
+        "cantidad_registros": 58,
+        "cantidad_facturas": 29,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "9.7245",
+        "es_anomalia": true,
+        "severidad_anomalia": "media",
+        "score_anomalia": 3,
+        "confianza_anomalia": "96.0766",
+        "motivo_anomalia": "Anomalia detectada por Random Forest (ensemble robusto): precio esperado 14.2220, rango normal -28.8061 a 57.2501, residuo 303.3107%, limite residuo 302.545708%, incertidumbre modelo 3.9234%, variacion entre observaciones 9.7245%, tipo desvio_estacional, score 3/4; residuo 303.3107% > limite 302.545708; gap estacional 163.5870% > limite 14.252400; desvio de tendencia 22.8695% > limite 12.11454000",
+        "precio_esperado_anomalia": "14.2220",
+        "residuo_anomalia_pct": "303.3107",
+        "limite_residuo_anomalia_pct": "302.545708",
+        "rango_esperado_min_anomalia": "-28.8061",
+        "rango_esperado_max_anomalia": "57.2501",
+        "tipo_anomalia": "desvio_estacional",
+        "explicacion_anomalia": "El precio observado estuvo 303.3107% por encima del precio esperado. Super\u00f3 el margen normal de 302.545708% y se clasific\u00f3 como desvio estacional. Adem\u00e1s, activ\u00f3 3 se\u00f1al(es): residuo 303.3107% > limite 302.545708, gap estacional 163.5870% > limite 14.252400, desvio de tendencia 22.8695% > limite 12.11454000.",
+        "variables_relevantes_anomalia": [
+          "pendiente local",
+          "precio hace 2 observaciones",
+          "mes calendario"
+        ]
+      },
+      {
+        "fecha": "2023-12-01",
+        "precio_promedio_normalizado": "70.9061",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "1772.6525",
+        "precio_equivalente_50kg": "3545.3050",
+        "cantidad_registros": 74,
+        "cantidad_facturas": 37,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "23.6183",
+        "es_anomalia": true,
+        "severidad_anomalia": "alta",
+        "score_anomalia": 4,
+        "confianza_anomalia": "100.0000",
+        "motivo_anomalia": "Anomalia detectada por Random Forest (ensemble robusto): precio esperado 14.2220, rango normal -36.6749 a 65.1189, residuo 398.5659%, limite residuo 357.874552%, incertidumbre modelo 3.9234%, variacion entre observaciones 23.6183%, tipo cambio_sostenido, score 4/4; residuo 398.5659% > limite 357.874552; variacion mensual 23.6183% > limite 14.860150; gap estacional 199.2740% > limite 14.860150; desvio de tendencia 35.6395% > limite 12.63112750",
+        "precio_esperado_anomalia": "14.2220",
+        "residuo_anomalia_pct": "398.5659",
+        "limite_residuo_anomalia_pct": "357.874552",
+        "rango_esperado_min_anomalia": "-36.6749",
+        "rango_esperado_max_anomalia": "65.1189",
+        "tipo_anomalia": "cambio_sostenido",
+        "explicacion_anomalia": "El precio observado estuvo 398.5659% por encima del precio esperado. Super\u00f3 el margen normal de 357.874552% y se clasific\u00f3 como cambio sostenido. Adem\u00e1s, activ\u00f3 4 se\u00f1al(es): residuo 398.5659% > limite 357.874552, variacion mensual 23.6183% > limite 14.860150, gap estacional 199.2740% > limite 14.860150, desvio de tendencia 35.6395% > limite 12.63112750.",
+        "variables_relevantes_anomalia": [
+          "pendiente local",
+          "precio hace 2 observaciones",
+          "mes calendario"
+        ]
+      },
+      {
+        "fecha": "2024-01-01",
+        "precio_promedio_normalizado": "89.8788",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "2246.9700",
+        "precio_equivalente_50kg": "4493.9400",
+        "cantidad_registros": 62,
+        "cantidad_facturas": 31,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "26.7575",
+        "es_anomalia": true,
+        "severidad_anomalia": "alta",
+        "score_anomalia": 4,
+        "confianza_anomalia": "100.0000",
+        "motivo_anomalia": "Anomalia detectada por Random Forest (ensemble robusto): precio esperado 14.1666, rango normal -40.9950 a 69.3282, residuo 534.4420%, limite residuo 389.378006%, incertidumbre modelo 3.9725%, variacion entre observaciones 26.7575%, tipo cambio_sostenido, score 4/4; residuo 534.4420% > limite 389.378006; variacion mensual 26.7575% > limite 14.708900; gap estacional 264.4720% > limite 14.708900; desvio de tendencia 56.6955% > limite 12.50256500",
+        "precio_esperado_anomalia": "14.1666",
+        "residuo_anomalia_pct": "534.4420",
+        "limite_residuo_anomalia_pct": "389.378006",
+        "rango_esperado_min_anomalia": "-40.9950",
+        "rango_esperado_max_anomalia": "69.3282",
+        "tipo_anomalia": "cambio_sostenido",
+        "explicacion_anomalia": "El precio observado estuvo 534.4420% por encima del precio esperado. Super\u00f3 el margen normal de 389.378006% y se clasific\u00f3 como cambio sostenido. Adem\u00e1s, activ\u00f3 4 se\u00f1al(es): residuo 534.4420% > limite 389.378006, variacion mensual 26.7575% > limite 14.708900, gap estacional 264.4720% > limite 14.708900, desvio de tendencia 56.6955% > limite 12.50256500.",
+        "variables_relevantes_anomalia": [
+          "pendiente local",
+          "precio hace 2 observaciones",
+          "mes calendario"
+        ]
+      },
+      {
+        "fecha": "2024-02-01",
+        "precio_promedio_normalizado": "112.2590",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "2806.4750",
+        "precio_equivalente_50kg": "5612.9500",
+        "cantidad_registros": 42,
+        "cantidad_facturas": 21,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "24.9004",
+        "es_anomalia": true,
+        "severidad_anomalia": "alta",
+        "score_anomalia": 4,
+        "confianza_anomalia": "100.0000",
+        "motivo_anomalia": "Anomalia detectada por Random Forest (ensemble robusto): precio esperado 14.1666, rango normal -55.4049 a 83.7381, residuo 692.4207%, limite residuo 491.095328%, incertidumbre modelo 3.9725%, variacion entre observaciones 24.9004%, tipo cambio_sostenido, score 4/4; residuo 692.4207% > limite 491.095328; variacion mensual 24.9004% > limite 20.050150; gap estacional 333.1832% > limite 20.050150; desvio de tendencia 58.3207% > limite 17.04262750",
+        "precio_esperado_anomalia": "14.1666",
+        "residuo_anomalia_pct": "692.4207",
+        "limite_residuo_anomalia_pct": "491.095328",
+        "rango_esperado_min_anomalia": "-55.4049",
+        "rango_esperado_max_anomalia": "83.7381",
+        "tipo_anomalia": "cambio_sostenido",
+        "explicacion_anomalia": "El precio observado estuvo 692.4207% por encima del precio esperado. Super\u00f3 el margen normal de 491.095328% y se clasific\u00f3 como cambio sostenido. Adem\u00e1s, activ\u00f3 4 se\u00f1al(es): residuo 692.4207% > limite 491.095328, variacion mensual 24.9004% > limite 20.050150, gap estacional 333.1832% > limite 20.050150, desvio de tendencia 58.3207% > limite 17.04262750.",
+        "variables_relevantes_anomalia": [
+          "pendiente local",
+          "precio hace 2 observaciones",
+          "mes calendario"
+        ]
+      },
+      {
+        "fecha": "2024-03-01",
+        "precio_promedio_normalizado": "129.2336",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3230.8400",
+        "precio_equivalente_50kg": "6461.6800",
+        "cantidad_registros": 52,
+        "cantidad_facturas": 26,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "15.1209",
+        "es_anomalia": true,
+        "severidad_anomalia": "media",
+        "score_anomalia": 3,
+        "confianza_anomalia": "96.0275",
+        "motivo_anomalia": "Anomalia detectada por Random Forest (ensemble robusto): precio esperado 14.1666, rango normal -60.9252 a 89.2584, residuo 812.2420%, limite residuo 530.062387%, incertidumbre modelo 3.9725%, variacion entre observaciones 15.1209%, tipo desvio_estacional, score 3/4; residuo 812.2420% > limite 530.062387; gap estacional 369.5715% > limite 19.930550; desvio de tendencia 43.7865% > limite 16.94096750",
+        "precio_esperado_anomalia": "14.1666",
+        "residuo_anomalia_pct": "812.2420",
+        "limite_residuo_anomalia_pct": "530.062387",
+        "rango_esperado_min_anomalia": "-60.9252",
+        "rango_esperado_max_anomalia": "89.2584",
+        "tipo_anomalia": "desvio_estacional",
+        "explicacion_anomalia": "El precio observado estuvo 812.2420% por encima del precio esperado. Super\u00f3 el margen normal de 530.062387% y se clasific\u00f3 como desvio estacional. Adem\u00e1s, activ\u00f3 3 se\u00f1al(es): residuo 812.2420% > limite 530.062387, gap estacional 369.5715% > limite 19.930550, desvio de tendencia 43.7865% > limite 16.94096750.",
+        "variables_relevantes_anomalia": [
+          "pendiente local",
+          "precio hace 2 observaciones",
+          "mes calendario"
+        ]
+      },
+      {
+        "fecha": "2024-04-01",
+        "precio_promedio_normalizado": "134.4426",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3361.0650",
+        "precio_equivalente_50kg": "6722.1300",
+        "cantidad_registros": 26,
+        "cantidad_facturas": 13,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "4.0307",
+        "es_anomalia": true,
+        "severidad_anomalia": "media",
+        "score_anomalia": 3,
+        "confianza_anomalia": "96.0275",
+        "motivo_anomalia": "Anomalia detectada por Random Forest (ensemble robusto): precio esperado 14.1666, rango normal -74.2183 a 102.5515, residuo 849.0116%, limite residuo 623.896683%, incertidumbre modelo 3.9725%, variacion entre observaciones 4.0307%, tipo desvio_estacional, score 3/4; residuo 849.0116% > limite 623.896683; gap estacional 358.2541% > limite 22.642050; desvio de tendencia 19.7611% > limite 19.24574250",
+        "precio_esperado_anomalia": "14.1666",
+        "residuo_anomalia_pct": "849.0116",
+        "limite_residuo_anomalia_pct": "623.896683",
+        "rango_esperado_min_anomalia": "-74.2183",
+        "rango_esperado_max_anomalia": "102.5515",
+        "tipo_anomalia": "desvio_estacional",
+        "explicacion_anomalia": "El precio observado estuvo 849.0116% por encima del precio esperado. Super\u00f3 el margen normal de 623.896683% y se clasific\u00f3 como desvio estacional. Adem\u00e1s, activ\u00f3 3 se\u00f1al(es): residuo 849.0116% > limite 623.896683, gap estacional 358.2541% > limite 22.642050, desvio de tendencia 19.7611% > limite 19.24574250.",
+        "variables_relevantes_anomalia": [
+          "pendiente local",
+          "precio hace 2 observaciones",
+          "mes calendario"
+        ]
+      },
+      {
+        "fecha": "2024-05-01",
+        "precio_promedio_normalizado": "135.4348",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3385.8700",
+        "precio_equivalente_50kg": "6771.7400",
+        "cantidad_registros": 48,
+        "cantidad_facturas": 24,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "0.7380",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2024-06-01",
+        "precio_promedio_normalizado": "141.6648",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3541.6200",
+        "precio_equivalente_50kg": "7083.2400",
+        "cantidad_registros": 36,
+        "cantidad_facturas": 18,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "4.6000",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2024-07-01",
+        "precio_promedio_normalizado": "132.9553",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3323.8825",
+        "precio_equivalente_50kg": "6647.7650",
+        "cantidad_registros": 60,
+        "cantidad_facturas": 30,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "-6.1480",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2024-08-01",
+        "precio_promedio_normalizado": "137.0038",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3425.0950",
+        "precio_equivalente_50kg": "6850.1900",
+        "cantidad_registros": 42,
+        "cantidad_facturas": 21,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "3.0450",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2024-09-01",
+        "precio_promedio_normalizado": "137.0038",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3425.0950",
+        "precio_equivalente_50kg": "6850.1900",
+        "cantidad_registros": 46,
+        "cantidad_facturas": 23,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "0.0000",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2024-10-01",
+        "precio_promedio_normalizado": "139.4450",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3486.1250",
+        "precio_equivalente_50kg": "6972.2500",
+        "cantidad_registros": 44,
+        "cantidad_facturas": 22,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "1.7818",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2024-11-01",
+        "precio_promedio_normalizado": "138.2005",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3455.0125",
+        "precio_equivalente_50kg": "6910.0250",
+        "cantidad_registros": 54,
+        "cantidad_facturas": 27,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "-0.8925",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2024-12-01",
+        "precio_promedio_normalizado": "141.9286",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3548.2150",
+        "precio_equivalente_50kg": "7096.4300",
+        "cantidad_registros": 48,
+        "cantidad_facturas": 24,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "2.6976",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2025-01-01",
+        "precio_promedio_normalizado": "141.7318",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3543.2950",
+        "precio_equivalente_50kg": "7086.5900",
+        "cantidad_registros": 42,
+        "cantidad_facturas": 21,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "-0.1387",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2025-02-01",
+        "precio_promedio_normalizado": "144.6363",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3615.9075",
+        "precio_equivalente_50kg": "7231.8150",
+        "cantidad_registros": 28,
+        "cantidad_facturas": 14,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "2.0493",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2025-03-01",
+        "precio_promedio_normalizado": "144.6434",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3616.0850",
+        "precio_equivalente_50kg": "7232.1700",
+        "cantidad_registros": 26,
+        "cantidad_facturas": 13,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "0.0049",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2025-04-01",
+        "precio_promedio_normalizado": "146.3430",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3658.5750",
+        "precio_equivalente_50kg": "7317.1500",
+        "cantidad_registros": 42,
+        "cantidad_facturas": 21,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "1.1750",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2025-05-01",
+        "precio_promedio_normalizado": "151.2149",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3780.3725",
+        "precio_equivalente_50kg": "7560.7450",
+        "cantidad_registros": 16,
+        "cantidad_facturas": 8,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "3.3291",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2025-06-01",
+        "precio_promedio_normalizado": "155.4489",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "3886.2225",
+        "precio_equivalente_50kg": "7772.4450",
+        "cantidad_registros": 10,
+        "cantidad_facturas": 5,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "2.8000",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2025-07-01",
+        "precio_promedio_normalizado": "161.9968",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "4049.9200",
+        "precio_equivalente_50kg": "8099.8400",
+        "cantidad_registros": 14,
+        "cantidad_facturas": 7,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "4.2123",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2025-08-01",
+        "precio_promedio_normalizado": "164.6160",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "4115.4000",
+        "precio_equivalente_50kg": "8230.8000",
+        "cantidad_registros": 30,
+        "cantidad_facturas": 15,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "1.6168",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2025-09-01",
+        "precio_promedio_normalizado": "166.5168",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "4162.9200",
+        "precio_equivalente_50kg": "8325.8400",
+        "cantidad_registros": 24,
+        "cantidad_facturas": 12,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "1.1547",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2025-10-01",
+        "precio_promedio_normalizado": "171.5127",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "4287.8175",
+        "precio_equivalente_50kg": "8575.6350",
+        "cantidad_registros": 36,
+        "cantidad_facturas": 18,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "3.0002",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2025-11-01",
+        "precio_promedio_normalizado": "178.4027",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "4460.0675",
+        "precio_equivalente_50kg": "8920.1350",
+        "cantidad_registros": 26,
+        "cantidad_facturas": 13,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "4.0172",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2025-12-01",
+        "precio_promedio_normalizado": "178.3729",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "4459.3225",
+        "precio_equivalente_50kg": "8918.6450",
+        "cantidad_registros": 20,
+        "cantidad_facturas": 10,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "-0.0167",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2026-01-01",
+        "precio_promedio_normalizado": "185.3053",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "4632.6325",
+        "precio_equivalente_50kg": "9265.2650",
+        "cantidad_registros": 8,
+        "cantidad_facturas": 4,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "3.8865",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2026-02-01",
+        "precio_promedio_normalizado": "185.3296",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "4633.2400",
+        "precio_equivalente_50kg": "9266.4800",
+        "cantidad_registros": 30,
+        "cantidad_facturas": 15,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "0.0131",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      },
+      {
+        "fecha": "2026-03-01",
+        "precio_promedio_normalizado": "193.4146",
+        "unidad_base": "kg",
+        "precio_equivalente_25kg": "4835.3650",
+        "precio_equivalente_50kg": "9670.7300",
+        "cantidad_registros": 6,
+        "cantidad_facturas": 3,
+        "fuentes": [
+          "Dataset can\u00f3nico Cemento Portland",
+          "Factura compra"
+        ],
+        "variacion_porcentual_anterior": "4.3625",
+        "es_anomalia": false,
+        "severidad_anomalia": null,
+        "score_anomalia": null,
+        "confianza_anomalia": null,
+        "motivo_anomalia": null,
+        "precio_esperado_anomalia": null,
+        "residuo_anomalia_pct": null,
+        "limite_residuo_anomalia_pct": null,
+        "rango_esperado_min_anomalia": null,
+        "rango_esperado_max_anomalia": null,
+        "tipo_anomalia": null,
+        "explicacion_anomalia": null,
+        "variables_relevantes_anomalia": null
+      }
+    ],
+    "metricas": {
+      "folds": 3,
+      "mae": "8.01",
+      "mape": "5.84",
+      "efectividad_informal": "94.16"
+    },
+    "forecast": [
+      {
+        "fecha": "2026-04-01",
+        "precio_proyectado": "194.91",
+        "precio_optimista": "189.70",
+        "precio_pesimista": "200.62",
+        "precio_equivalente_25kg": "4872.70",
+        "precio_equivalente_50kg": "9745.39"
+      },
+      {
+        "fecha": "2026-05-01",
+        "precio_proyectado": "198.79",
+        "precio_optimista": "193.18",
+        "precio_pesimista": "204.03",
+        "precio_equivalente_25kg": "4969.73",
+        "precio_equivalente_50kg": "9939.46"
+      },
+      {
+        "fecha": "2026-06-01",
+        "precio_proyectado": "202.75",
+        "precio_optimista": "197.12",
+        "precio_pesimista": "208.13",
+        "precio_equivalente_25kg": "5068.65",
+        "precio_equivalente_50kg": "10137.30"
+      },
+      {
+        "fecha": "2026-07-01",
+        "precio_proyectado": "206.79",
+        "precio_optimista": "201.77",
+        "precio_pesimista": "211.99",
+        "precio_equivalente_25kg": "5169.63",
+        "precio_equivalente_50kg": "10339.26"
+      },
+      {
+        "fecha": "2026-08-01",
+        "precio_proyectado": "210.90",
+        "precio_optimista": "205.80",
+        "precio_pesimista": "216.43",
+        "precio_equivalente_25kg": "5272.58",
+        "precio_equivalente_50kg": "10545.15"
+      },
+      {
+        "fecha": "2026-09-01",
+        "precio_proyectado": "215.10",
+        "precio_optimista": "209.61",
+        "precio_pesimista": "220.53",
+        "precio_equivalente_25kg": "5377.60",
+        "precio_equivalente_50kg": "10755.20"
+      },
+      {
+        "fecha": "2026-10-01",
+        "precio_proyectado": "219.39",
+        "precio_optimista": "213.94",
+        "precio_pesimista": "224.35",
+        "precio_equivalente_25kg": "5484.81",
+        "precio_equivalente_50kg": "10969.62"
+      }
+    ],
+    "modelo": "prophet_ipim_icc_var_materials",
+    "supuesto_regresores": "Regresores resueltos: ipim_nivel_general, icc_var_materials.",
+    "seleccion_modelo": {
+      "material_key": "cemento-portland",
+      "modelo_resuelto": "prophet_ipim_icc_var_materials",
+      "regresores_resueltos": [
+        "ipim_nivel_general",
+        "icc_var_materials"
+      ],
+      "mape_referencia": "4.22",
+      "mae_referencia": "5.82",
+      "folds": 9,
+      "confiabilidad": "alta",
+      "origen_decision": "material_default",
+      "justificacion": "Se reutiliza la mejor configuracion documentada para este material porque no existe una calibracion exacta para horizonte de 7 meses.",
+      "no_calibrado": true,
+      "advertencia": null
+    }
   }
 }

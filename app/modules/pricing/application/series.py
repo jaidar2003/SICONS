@@ -423,13 +423,30 @@ def _explicar_anomalia(
     signals: list[str],
 ) -> str:
     direccion = "por encima" if actual >= predicted else "por debajo"
-    tipo_label = tipo.replace("_", " ")
-    detalle = f" Además, activó {len(signals)} señal(es): {', '.join(signals)}." if signals else ""
-    return (
-        f"El precio observado estuvo {abs(residual_signed_pct)}% {direccion} del precio esperado. "
-        f"Superó el margen normal de {residual_limit}% y se clasificó como {tipo_label}."
-        f"{detalle}"
+    tipo_labels = {
+        "cambio_sostenido": "cambio sostenido",
+        "desvio_estacional": "desvío estacional",
+        "salto_puntual": "salto puntual",
+        "desvio_tendencia": "desvío de tendencia",
+        "residuo_extremo": "residuo extremo",
+        "mixta": "señal mixta",
+    }
+    tipo_label = tipo_labels.get(tipo, tipo.replace("_", " "))
+    residual_value = Decimal(f"{abs(residual_signed_pct):.2f}")
+    residual_limit_value = Decimal(f"{residual_limit:.2f}")
+    base = (
+        f"El precio observado estuvo {residual_value}% {direccion} de lo esperado. "
+        f"Superó el margen normal de {residual_limit_value}%."
     )
+    if signals:
+        if len(signals) == 1:
+            señales = signals[0]
+        elif len(signals) == 2:
+            señales = f"{signals[0]} y {signals[1]}"
+        else:
+            señales = ", ".join(signals[:-1]) + f" y {signals[-1]}"
+        return f"{base} El sistema lo clasificó como {tipo_label} porque activó {señales}."
+    return f"{base} El sistema lo clasificó como {tipo_label}."
 
 
 def _es_material_cemento(material_nombre: str | None) -> bool:
@@ -616,14 +633,19 @@ def _detectar_anomalias_random_forest(
         incertidumbre_decimal = Decimal(f"{incertidumbre_modelo_pct:.6f}")
         confianza = _confianza_anomalia(score, required_signals, residual_decimal, residual_limit, incertidumbre_decimal)
         signalos = []
+        señales_resumen = []
         if residual_signal:
-            signalos.append(f"residuo {Decimal(f'{residual_pct:.4f}').quantize(Decimal('0.0001'))}% > limite {residual_limit}")
+            signalos.append(f"Residuo: {Decimal(f'{residual_pct:.2f}').quantize(Decimal('0.00'))}%")
+            señales_resumen.append("el precio se alejó demasiado de lo esperado")
         if variacion_signal:
-            signalos.append(f"variacion mensual {Decimal(f'{variacion_actual:.4f}').quantize(Decimal('0.0001'))}% > limite {variacion_limit}")
+            signalos.append(f"Variación mensual: {Decimal(f'{variacion_actual:.2f}').quantize(Decimal('0.00'))}%")
+            señales_resumen.append("hubo un salto fuerte frente al mes anterior")
         if seasonal_signal and seasonal_gap is not None:
-            signalos.append(f"gap estacional {Decimal(f'{seasonal_gap:.4f}').quantize(Decimal('0.0001'))}% > limite {seasonal_limit}")
+            signalos.append(f"Gap estacional: {Decimal(f'{seasonal_gap:.2f}').quantize(Decimal('0.00'))}%")
+            señales_resumen.append("se alejó del comportamiento normal para ese mismo mes")
         if trend_signal:
-            signalos.append(f"desvio de tendencia {Decimal(f'{tendencia_gap:.4f}').quantize(Decimal('0.0001'))}% > limite {trend_limit}")
+            signalos.append(f"Desvío de tendencia: {Decimal(f'{tendencia_gap:.2f}').quantize(Decimal('0.00'))}%")
+            señales_resumen.append("rompió la tendencia reciente")
         predicted_decimal = Decimal(f"{predicted:.4f}").quantize(Decimal("0.0001"))
         residual_display = Decimal(f"{residual_pct:.4f}").quantize(Decimal("0.0001"))
         residual_signed_decimal = Decimal(f"{residual_signed_pct:.4f}").quantize(Decimal("0.0001"))
@@ -637,7 +659,7 @@ def _detectar_anomalias_random_forest(
             residual_signed_decimal,
             residual_limit,
             tipo,
-            signalos,
+            señales_resumen,
         )
         motivo = (
             "Anomalia detectada por Random Forest (ensemble robusto): "
