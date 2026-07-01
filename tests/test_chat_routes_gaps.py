@@ -11,14 +11,28 @@ from app.shared.config.settings import settings
 
 
 def test_get_chat_client_anthropic(monkeypatch):
-    monkeypatch.setattr(settings, "chat_provider", "anthropic")
+    monkeypatch.setattr(
+        "app.modules.chat.interfaces.routes._read_persisted_chat_config",
+        lambda _db=None: {
+            "proveedor_activo": "claude",
+            "modelo_facultad": settings.openai_model,
+            "modelo_claude": settings.anthropic_model,
+        },
+    )
     client = get_chat_client()
     assert isinstance(client, FallbackChatClient)
     assert isinstance(client.primary, AnthropicChatClient)
 
 
 def test_get_chat_client_default_usa_fallback(monkeypatch):
-    monkeypatch.setattr(settings, "chat_provider", "openai")
+    monkeypatch.setattr(
+        "app.modules.chat.interfaces.routes._read_persisted_chat_config",
+        lambda _db=None: {
+            "proveedor_activo": "facultad",
+            "modelo_facultad": settings.openai_model,
+            "modelo_claude": settings.anthropic_model,
+        },
+    )
     client = get_chat_client()
     assert isinstance(client, FallbackChatClient)
 

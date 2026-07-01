@@ -23,7 +23,12 @@ from app.modules.pricing.application.purchase_recommendations import PurchaseRec
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
 
 
-def _base_recommendation(*, variacion: str = "8.0000", confiabilidad: str = "alta") -> PurchaseRecommendationResult:
+def _base_recommendation(
+    *,
+    variacion: str = "8.0000",
+    confiabilidad: str = "alta",
+    advertencias: tuple[str, ...] = (),
+) -> PurchaseRecommendationResult:
     return PurchaseRecommendationResult(
         material_id=1,
         material_key="membrana-megaflex",
@@ -40,7 +45,7 @@ def _base_recommendation(*, variacion: str = "8.0000", confiabilidad: str = "alt
         confiabilidad=confiabilidad,
         criticidad="alta",
         justificacion="Recomendacion base.",
-        advertencias=(),
+        advertencias=advertencias,
     )
 
 
@@ -110,6 +115,32 @@ def test_recomendacion_contextual_no_acciona_con_baja_confianza(monkeypatch) -> 
     )
 
     assert result.decision == ACCION_SIN_VENTAJA_CLARA
+    assert "confiabilidad del forecast es baja" in result.justificacion
+    assert "confiabilidad baja" not in result.justificacion
+
+
+def test_recomendacion_contextual_no_confunde_alta_confianza_con_calibracion(monkeypatch) -> None:
+    monkeypatch.setattr(
+        contextual_module,
+        "recomendar_momento_compra",
+        lambda *_args, **_kwargs: _base_recommendation(
+            confiabilidad="alta",
+            advertencias=("La recomendacion se marca como conservadora por modelo no calibrado.",),
+        ),
+    )
+
+    result = recomendar_estrategia_contextual(
+        SimpleNamespace(id=1, nombre="Cemento Portland"),
+        fase_obra="general",
+        tolerancia_riesgo="media",
+        cantidad_objetivo=Decimal("30"),
+        horizonte_meses=6,
+        pricing_repo=object(),
+    )
+
+    assert result.decision == ACCION_SIN_VENTAJA_CLARA
+    assert "advertencias de calibracion" in result.justificacion
+    assert "confiabilidad alta" not in result.justificacion
 
 
 def test_endpoint_recomendacion_contextual_expone_contexto(monkeypatch) -> None:

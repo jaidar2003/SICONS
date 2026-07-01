@@ -14,7 +14,6 @@ import {
   DialogTitle,
   Divider,
   Stack,
-  TextField,
   Typography,
 } from "@mui/material";
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from "chart.js";
@@ -24,8 +23,7 @@ import { Bar, getElementAtEvent } from "react-chartjs-2";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatNumber, formatPercentChange, toApiDate, variationTone } from "../../shared/utils/formatters.js";
-import { evaluateDetectedAnomalies, fetchSerie } from "./pricing.api.js";
-import { parseConfirmedAnomalyDates } from "./anomalyEvaluation.js";
+import { fetchSerie } from "./pricing.api.js";
 import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 
 ChartJS.register(LinearScale, CategoryScale, BarElement, Tooltip);
@@ -103,10 +101,6 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
     { value: "media", label: "Media" },
     { value: "leve", label: "Leve" },
   ];
-  const [confirmedDatesInput, setConfirmedDatesInput] = useState("");
-  const [evaluation, setEvaluation] = useState(null);
-  const [evaluationError, setEvaluationError] = useState("");
-  const [evaluating, setEvaluating] = useState(false);
   const [anomalySerie, setAnomalySerie] = useState(null);
   const [seriesLoading, setSeriesLoading] = useState(false);
   const [seriesError, setSeriesError] = useState("");
@@ -126,32 +120,6 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
   const mainSeries = showPrices
     ? chartSerie.map((point) => getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))
     : chartSerie.map((point) => Number(point.variacion_porcentual_anterior || 0));
-  const evaluationSummary = useMemo(() => {
-    if (!evaluation) return null;
-    return [
-      {
-        label: "Precisión",
-        value: formatRatio(evaluation.precision),
-        helper: "Coincidencias sobre lo detectado",
-      },
-      {
-        label: "Recall",
-        value: formatRatio(evaluation.recall),
-        helper: "Coincidencias sobre lo confirmado",
-      },
-      {
-        label: "F1",
-        value: formatRatio(evaluation.f1),
-        helper: "Balance entre precisión y recall",
-      },
-      {
-        label: "Exactitud",
-        value: formatRatio(evaluation.exactitud),
-        helper: "Aciertos sobre el total evaluado",
-      },
-    ];
-  }, [evaluation]);
-
   const chartPoints = useMemo(() => buildMonthlyAnomalySeries(chartSerie, mainSeries), [chartSerie, mainSeries]);
   const selectedMonthData = useMemo(
     () => chartPoints.find((point) => point.monthKey === selectedMonthKey) || chartPoints[0] || null,
@@ -190,37 +158,7 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
       }),
     [chartPoints, selectedMonthKey]
   );
-  const baselineSummary = useMemo(() => {
-    if (!evaluation) return null;
-    return [
-      {
-        label: "Precisión",
-        value: formatRatio(evaluation.baseline_precision),
-        helper: `Regla fija > ${formatPercent(evaluation.baseline_umbral_pct)}`,
-      },
-      {
-        label: "Recall",
-        value: formatRatio(evaluation.baseline_recall),
-        helper: "Confirmadas encontradas",
-      },
-      {
-        label: "F1",
-        value: formatRatio(evaluation.baseline_f1),
-        helper: "Balance baseline",
-      },
-      {
-        label: "Detectadas",
-        value: String(evaluation.baseline_total_detectadas),
-        helper: "Marcas por umbral fijo",
-      },
-    ];
-  }, [evaluation]);
-
   useEffect(() => {
-    setConfirmedDatesInput("");
-    setEvaluation(null);
-    setEvaluationError("");
-    setEvaluating(false);
     setSeverityFilter("todas");
     setSelectedMonthKey(null);
   }, [selectedMaterial?.id, firstDate, lastDate]);
@@ -269,48 +207,6 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
       active = false;
     };
   }, [selectedMaterial?.id, desde, hasta, token]);
-
-  async function handleEvaluate() {
-    setEvaluationError("");
-    setEvaluation(null);
-
-    if (!selectedMaterial?.id) {
-      setEvaluationError("Seleccioná un material.");
-      return;
-    }
-
-    if (!token) {
-      setEvaluationError("Iniciá sesión para evaluar anomalías.");
-      return;
-    }
-
-    const parsed = parseConfirmedAnomalyDates(confirmedDatesInput);
-    if (parsed.invalidValues.length) {
-      setEvaluationError(`Hay fechas inválidas: ${parsed.invalidValues.join(", ")}`);
-      return;
-    }
-
-    if (!parsed.dates.length) {
-      setEvaluationError("Pegá al menos una fecha confirmada, una por línea.");
-      return;
-    }
-
-    setEvaluating(true);
-    try {
-      const result = await evaluateDetectedAnomalies({
-        materialId: selectedMaterial.id,
-        fechasConfirmadas: parsed.dates,
-        desde: desde ? toApiDate(dayjs(desde)) : undefined,
-        hasta: hasta ? toApiDate(dayjs(hasta)) : undefined,
-        token,
-      });
-      setEvaluation(result);
-    } catch (error) {
-      setEvaluationError(error.message);
-    } finally {
-      setEvaluating(false);
-    }
-  }
 
   const chartData = {
     labels: chartPoints.map((point) => point.x),
@@ -653,101 +549,7 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
           </Box>
         )}
 
-        <Divider className="!my-5" />
-
-        <Stack spacing={2.5}>
-          <Box>
-            <Typography variant="h4">Validación de anomalías</Typography>
-            <Typography color="text.secondary" variant="body2" mt={0.5}>
-              Pegá una fecha por línea, o separalas con comas. La evaluación usa el rango visible {firstDate && lastDate ? `${firstDate} a ${lastDate}` : "del historial actual"}.
-            </Typography>
-          </Box>
-
-          <TextField
-            value={confirmedDatesInput}
-            onChange={(event) => setConfirmedDatesInput(event.target.value)}
-            label="Fechas confirmadas"
-            placeholder="2026-02-01\n2026-05-01"
-            helperText="Usá fechas ISO de meses confirmados. También podés pegar meses como YYYY-MM."
-            multiline
-            minRows={4}
-            fullWidth
-          />
-
-          <Box className="flex flex-wrap gap-2">
-            <Button variant="contained" onClick={handleEvaluate} disabled={evaluating || !selectedMaterial?.id}>
-              {evaluating ? "Evaluando..." : "Evaluar contra confirmadas"}
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => {
-                setConfirmedDatesInput("");
-                setEvaluation(null);
-                setEvaluationError("");
-              }}
-              disabled={!confirmedDatesInput && !evaluation && !evaluationError}
-            >
-              Limpiar
-            </Button>
-          </Box>
-
-          {evaluationError ? <Alert severity="error">{evaluationError}</Alert> : null}
-
-          {evaluating ? (
-            <Box className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
-              Calculando precision, recall, F1 y exactitud...
-            </Box>
-          ) : null}
-
-          {evaluation ? (
-            <Box className="rounded-md border border-slate-200 bg-white p-4">
-              <Box className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {evaluationSummary.map((item) => (
-                  <MetricTile key={item.label} label={item.label} value={item.value} helper={item.helper} />
-                ))}
-              </Box>
-
-              <Box className="mt-4">
-                <Typography variant="h4">Comparación contra baseline</Typography>
-                <Typography color="text.secondary" variant="body2" mt={0.5}>
-                  Regla simple: marcar cualquier observación cuya variación supere el umbral fijo.
-                </Typography>
-              </Box>
-
-              <Box className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {baselineSummary.map((item) => (
-                  <MetricTile key={`baseline-${item.label}`} label={item.label} value={item.value} helper={item.helper} />
-                ))}
-              </Box>
-
-              <Box className="mt-4 grid gap-3 sm:grid-cols-3">
-                <MetricTile label="Confirmadas" value={String(evaluation.total_confirmadas)} helper="Fechas ingresadas" />
-                <MetricTile label="Detectadas" value={String(evaluation.total_detectadas)} helper="Marcas del modelo" />
-                <MetricTile label="Coincidencias" value={String(evaluation.verdaderos_positivos)} helper="Aciertos sobre la validación" />
-              </Box>
-
-              <Box className="mt-3 grid gap-3 sm:grid-cols-2">
-                <MetricTile label="Falsos positivos" value={String(evaluation.falsos_positivos)} helper="Marcados por el modelo pero no confirmados" />
-                <MetricTile label="Falsos negativos" value={String(evaluation.falsos_negativos)} helper="Confirmados pero no detectados" />
-              </Box>
-
-              <Box className="mt-4 grid gap-3 lg:grid-cols-2">
-                <DetailList title="Coincidencias" values={evaluation.coincidencias} emptyText="No hubo coincidencias." />
-                <DetailList title="Fechas detectadas" values={evaluation.fechas_detectadas} emptyText="El modelo no marcó anomalías en el rango." />
-              </Box>
-
-              <Box className="mt-3 grid gap-3 lg:grid-cols-2">
-                <DetailList title="Fechas baseline" values={evaluation.baseline_fechas_detectadas} emptyText="El baseline no marcó anomalías en el rango." />
-                <DetailList title="Fechas confirmadas" values={evaluation.fechas_confirmadas} emptyText="No se cargaron fechas confirmadas." />
-              </Box>
-            </Box>
-          ) : (
-            <Box className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
-              Cargá fechas confirmadas para medir qué tan preciso está el detector frente a anomalías reales.
-            </Box>
-          )}
-
-        </Stack>
+        
       </CardContent>
     </Card>
   );
@@ -824,11 +626,6 @@ function GlossaryDialog({ open, onClose }) {
       </DialogActions>
     </Dialog>
   );
-}
-
-function formatRatio(value) {
-  if (value === null || value === undefined) return "Sin dato";
-  return `${formatNumber(Number(value) * 100)}%`;
 }
 
 function formatPercent(value) {

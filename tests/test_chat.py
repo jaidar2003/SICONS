@@ -17,6 +17,7 @@ from app.modules.chat.application.retrieval import (
     classify_chat_intent,
     suggest_visualization,
 )
+from app.modules.chat.application import retrieval as chat_retrieval
 from app.modules.chat.application.service import ADMIN_ONLY_RESPONSE, OUT_OF_SCOPE_RESPONSE, answer_question
 from app.modules.chat.infrastructure import llm_client
 from app.modules.chat.infrastructure.llm_client import (
@@ -578,16 +579,199 @@ def test_anthropic_client_usa_messages_y_headers_nativos(monkeypatch: pytest.Mon
 
 
 def test_provider_anthropic_selecciona_cliente_nativo(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(chat_routes.settings, "chat_provider", "anthropic")
     monkeypatch.setattr(chat_routes.settings, "openai_base_url", "https://facultad.example/api/v1")
     monkeypatch.setattr(chat_routes.settings, "openai_api_key", "openai-token")
     monkeypatch.setattr(chat_routes.settings, "openai_model", "facultad-modelo")
+    monkeypatch.setattr(chat_routes.settings, "anthropic_base_url", "https://api.anthropic.com/v1")
+    monkeypatch.setattr(chat_routes.settings, "anthropic_api_key", "claude-token")
+    monkeypatch.setattr(chat_routes.settings, "anthropic_model", "claude-sonnet")
+    monkeypatch.setattr(
+        chat_routes,
+        "_read_persisted_chat_config",
+        lambda _db=None: {
+            "proveedor_activo": "claude",
+            "modelo_facultad": "facultad-modelo",
+            "modelo_claude": "claude-sonnet",
+        },
+    )
 
     client = get_chat_client()
 
     assert isinstance(client, FallbackChatClient)
     assert isinstance(client.primary, AnthropicChatClient)
     assert isinstance(client.fallback, OpenAICompatibleChatClient)
+
+
+def test_respuestas_directas_cubren_precio_catalogo_y_forecast(monkeypatch: pytest.MonkeyPatch) -> None:
+    price_answer = chat_routes._latest_price_answer(
+        question="ultimo precio bolsa de 50 kg cemento",
+        material_name="Cemento Portland",
+        source_evidence=[
+            {
+                "source": "precios_historicos",
+                "records": [
+                    {
+                        "precio_normalizado": "123.45",
+                        "unidad_base": "kg",
+                        "fecha": "2026-03-25",
+                        "fuente": "Factura compra",
+                    }
+                ],
+            }
+        ],
+    )
+    assert "bolsa de 5E+1 kg" in price_answer
+    assert "ARS 6172.50" in price_answer
+
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+    db = MagicMock()
+    db.scalars.return_value = [
+        SimpleNamespace(nombre_presentacion="Bolsa 25 kg", cantidad_base=Decimal("25"), unidad_presentacion="kg")
+    ]
+    catalog_answer = chat_routes._catalog_direct_answer(
+        question="que presentaciones tiene cemento",
+        material=material,
+        material_repo=MagicMock(),
+        db=db,
+    )
+    assert "unidad base: kg" in catalog_answer
+    assert "Bolsa 25 kg" in catalog_answer
+
+    forecast_result = SimpleNamespace(
+        dataset=[SimpleNamespace(ds=date(2026, 3, 1), y=100.0)],
+        forecast=[SimpleNamespace(fecha=date(2026, 6, 1), precio_proyectado=Decimal("110.00"))],
+        metricas=SimpleNamespace(mape=Decimal("4.22")),
+        seleccion_modelo=SimpleNamespace(confiabilidad="alta"),
+    )
+    monkeypatch.setattr(chat_routes, "forecast_material", lambda *args, **kwargs: forecast_result)
+    forecast_answer = chat_routes._calculated_direct_answer(
+        question="forecast de cemento",
+        intent="FORECAST",
+        material=material,
+        horizon=3,
+        pricing_repo=object(),
+    )
+    assert "Forecast de Cemento Portland" in forecast_answer
+    assert "MAPE: 4.22%" in forecast_answer
+
+
+def test_contextos_rag_cubren_catalogo_indices_fuentes_y_margenes() -> None:
+    material = SimpleNamespace(
+        id=1,
+        nombre="Cemento Portland",
+        unidad_base="kg",
+        categoria="Construccion",
+        marca="Loma Negra",
+        descripcion="Cemento de uso general",
+    )
+    presentation = SimpleNamespace(
+        id=7,
+        material_id=1,
+        nombre_presentacion="Bolsa 50 kg",
+        cantidad_base=Decimal("50"),
+        unidad_presentacion="kg",
+    )
+    source = SimpleNamespace(id=3, nombre="Factura compra", tipo_fuente="factura")
+    margin = SimpleNamespace(
+        id=9,
+        scope="GLOBAL",
+        material_id=None,
+        presentation_id=None,
+        margen_ganancia_pct=Decimal("12.5"),
+    )
+
+    db = MagicMock()
+    db.scalars.side_effect = [[presentation], [presentation], [source], [], [margin]]
+    db.execute.return_value = [("INDEC", "ipim_nivel_general", 51, date(2022, 1, 1), date(2026, 3, 1))]
+
+    catalog_lines = chat_retrieval._catalog_context([material] * 9, db)
+    assert any("Materiales activos disponibles: 9" in line for line in catalog_lines)
+    assert any("materiales activos adicionales" in line for line in catalog_lines)
+    assert any("Bolsa 50 kg" in line for line in catalog_lines)
+
+    material_lines = chat_retrieval._material_catalog_context(material, db)
+    assert any("Categoria: Construccion" in line for line in material_lines)
+    assert any("Marca: Loma Negra" in line for line in material_lines)
+    assert any("Descripcion: Cemento de uso general" in line for line in material_lines)
+
+    index_lines = chat_retrieval._external_indices_context(db)
+    assert index_lines == ["FUENTE external_index_values:", "- INDEC/ipim_nivel_general: 51 registros; rango 2022-01-01 a 2026-03-01."]
+
+    source_lines = chat_retrieval._sources_context(db)
+    assert source_lines == ["FUENTE catalogo.fuentes:", "- ID 3: Factura compra; tipo factura."]
+
+    no_margin_lines = chat_retrieval._margins_context(db, 1, is_admin=False)
+    assert "solo para usuarios administradores" in no_margin_lines[1]
+
+    admin_empty_lines = chat_retrieval._margins_context(db, 1, is_admin=True)
+    assert "No hay margenes comerciales activos" in admin_empty_lines[1]
+
+    admin_margin_lines = chat_retrieval._margins_context(db, None, is_admin=True)
+    assert "margen 12.5%" in admin_margin_lines[1]
+
+
+def test_rag_cubre_ramas_sin_datos_visualizacion_y_recomendacion(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert suggest_visualization("mostrame el forecast", intent="FORECAST", material=SimpleNamespace(), horizon=3) is None
+    combined_visualization = suggest_visualization(
+        "mostrame historico y forecast de cemento",
+        intent="FORECAST",
+        material=SimpleNamespace(id=1),
+        horizon=6,
+    )
+    assert combined_visualization == {"tipo": "PRICE_HISTORY_FORECAST", "material_id": 1, "horizonte_meses": 6}
+
+    selected_material = SimpleNamespace(id=2, nombre="Pastina", unidad_base="kg")
+    material_repo = MagicMock()
+    material_repo.list_active.return_value = [SimpleNamespace(id=99, nombre="", unidad_base="kg")]
+    material_repo.get_by_id.return_value = selected_material
+    resolved, source = chat_retrieval.resolve_material_from_question_with_source(
+        "sin material explicito",
+        material_repo,
+        selected_material_id=2,
+    )
+    assert resolved is selected_material
+    assert source == "contexto"
+
+    assert chat_retrieval._source_priority(SimpleNamespace(fuente=None)) == 1
+    assert chat_retrieval._source_priority(SimpleNamespace(fuente=SimpleNamespace(nombre="Canonico"))) == 0
+
+    db = MagicMock()
+    db.execute.return_value = []
+    db.scalars.return_value = []
+    assert "No hay indices externos" in chat_retrieval._external_indices_context(db)[1]
+    assert "No hay fuentes registradas" in chat_retrieval._sources_context(db)[1]
+
+    empty_context = build_backend_retrieval_context(
+        "fuentes indices margenes",
+        material_repo=material_repo,
+        pricing_repo=MagicMock(),
+        db=db,
+        is_admin=True,
+    )
+    assert empty_context.context is not None
+    assert "external_index_values" in empty_context.sources
+    assert "catalogo.fuentes" in empty_context.sources
+    assert "commercial_margins" in empty_context.sources
+
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+    recommendation = SimpleNamespace(
+        decision="COMPRAR_AHORA",
+        confiabilidad="alta",
+        justificacion="El precio proyectado sube.",
+        precio_actual=Decimal("100.00"),
+        precio_proyectado_horizonte=Decimal("120.00"),
+        variacion_esperada_pct=Decimal("20.00"),
+    )
+    monkeypatch.setattr(chat_routes, "recomendar_momento_compra", lambda *args, **kwargs: recommendation)
+    answer = chat_routes._calculated_direct_answer(
+        question="conviene comprar cemento",
+        intent="RECOMENDACION",
+        material=material,
+        horizon=3,
+        pricing_repo=object(),
+    )
+    assert "Decision para Cemento Portland" in answer
+    assert "Variacion esperada: 20.00%" in answer
 
 
 def test_admin_puede_leer_configuracion_de_ia(monkeypatch: pytest.MonkeyPatch) -> None:

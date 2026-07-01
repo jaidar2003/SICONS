@@ -278,7 +278,7 @@ def test_selector_activado_usa_modelo_recomendado(monkeypatch: pytest.MonkeyPatc
     result = forecast_material(material, 3, object(), usar_selector_modelo=True)
 
     assert result.modelo == modelo
-    assert llamadas == [(material_key_esperado, 3)]
+    assert llamadas == [(material_key_esperado, 3), (material_key_esperado, 3)]
     assert result.seleccion_modelo is not None
     assert result.seleccion_modelo.material_key == material_key_esperado
     assert result.seleccion_modelo.modelo_resuelto == modelo
@@ -555,7 +555,7 @@ def test_precomputar_forecasts_materiales_multiple(monkeypatch):
     mock_repo.list_active.return_value = [material]
     
     llamadas = []
-    def mock_forecast(m, h, r):
+    def mock_forecast(m, h, r, **_kwargs):
         llamadas.append((m.id, h))
         return
     
@@ -608,7 +608,7 @@ def test_precomputar_forecasts_materiales(monkeypatch):
     mock_repo.list_active.return_value = [material]
     
     llamadas = []
-    def mock_forecast(m, h, r):
+    def mock_forecast(m, h, r, **_kwargs):
         llamadas.append((m.id, h))
     monkeypatch.setattr("app.modules.pricing.application.forecast_service.forecast_material", mock_forecast)
     

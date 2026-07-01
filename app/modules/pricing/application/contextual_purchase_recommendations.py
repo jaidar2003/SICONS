@@ -96,6 +96,32 @@ def _forecast_habilita_decision(recomendacion: PurchaseRecommendationResult) -> 
     return not any("no calibrado" in advertencia.lower() for advertencia in recomendacion.advertencias)
 
 
+def _justificacion_forecast_no_habilitado(
+    *,
+    fase_obra: str,
+    recomendacion: PurchaseRecommendationResult,
+) -> str:
+    if recomendacion.variacion_esperada_pct is None:
+        return (
+            f"No se recomienda una accion firme para la fase {fase_obra} porque no hay una variacion "
+            "esperada disponible para el horizonte evaluado."
+        )
+    if recomendacion.confiabilidad in {CONFIANZA_BAJA, CONFIANZA_NO_CALIBRADA, CONFIANZA_NO_DISPONIBLE}:
+        return (
+            f"No se recomienda una accion firme para la fase {fase_obra} porque la confiabilidad del "
+            f"forecast es {recomendacion.confiabilidad}. Debe revisarse antes de decidir."
+        )
+    if any("no calibrado" in advertencia.lower() for advertencia in recomendacion.advertencias):
+        return (
+            f"No se recomienda una accion firme para la fase {fase_obra} porque el forecast tiene "
+            "advertencias de calibracion. Debe revisarse antes de decidir."
+        )
+    return (
+        f"No se recomienda una accion firme para la fase {fase_obra} porque el forecast no habilita "
+        "una decision automatica con los datos disponibles."
+    )
+
+
 def recomendar_estrategia_contextual(
     material: Material,
     *,
@@ -129,9 +155,9 @@ def recomendar_estrategia_contextual(
 
     if not _forecast_habilita_decision(recomendacion):
         decision = ACCION_SIN_VENTAJA_CLARA
-        justificacion = (
-            f"No se recomienda una accion firme para la fase {fase_obra} porque el forecast "
-            f"tiene confiabilidad {recomendacion.confiabilidad}. Debe revisarse antes de decidir."
+        justificacion = _justificacion_forecast_no_habilitado(
+            fase_obra=fase_obra,
+            recomendacion=recomendacion,
         )
     elif variacion is not None and variacion >= umbral_decision:
         decision = ACCION_COMPRAR_AHORA
