@@ -76,9 +76,9 @@ def test_commercial_proposal_create_validation():
         CommercialProposalCreate(
             material_id=1, cantidad=Decimal("10"), fase_obra="general", tolerancia_riesgo="media"
         )
-    # Both of them
-    with pytest.raises(ValidationError, match="Informe fecha_objetivo_uso u horizonte_meses, no ambos"):
-        CommercialProposalCreate(
-            material_id=1, cantidad=Decimal("10"), fase_obra="general", tolerancia_riesgo="media",
-            horizonte_meses=3, fecha_objetivo_uso=date(2024, 1, 1)
-        )
+    payload = CommercialProposalCreate(
+        material_id=1, cantidad=Decimal("10"), fase_obra="general", tolerancia_riesgo="media",
+        horizonte_meses=3, fecha_objetivo_uso=date(2024, 1, 1)
+    )
+    assert payload.fecha_objetivo_uso == date(2024, 1, 1)
+    assert payload.horizonte_meses is None

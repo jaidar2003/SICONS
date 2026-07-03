@@ -233,7 +233,7 @@ class CommercialProposalCreate(BaseModel):
         if self.fecha_objetivo_uso is None and self.horizonte_meses is None:
             raise ValueError("Debe informar fecha_objetivo_uso u horizonte_meses")
         if self.fecha_objetivo_uso is not None and self.horizonte_meses is not None:
-            raise ValueError("Informe fecha_objetivo_uso u horizonte_meses, no ambos")
+            self.horizonte_meses = None
         return self
 
 
@@ -243,6 +243,7 @@ class CommercialProposalRead(BaseModel):
     cantidad: Decimal
     fase_obra: str
     fecha_objetivo_uso: date | None = None
+    fecha_base_calculo: date | None = None
     horizonte_meses: int
     tolerancia_riesgo: str
     presupuesto_maximo: Decimal | None = None

@@ -230,6 +230,7 @@ def test_build_material_context_formatea_recomendacion_real(monkeypatch: pytest.
         variacion_esperada_pct=30,
         mape=5,
         advertencias=(),
+        fecha_base_observada=date(2025, 3, 1),
     )
     monkeypatch.setattr(
         "app.modules.chat.application.context.recomendar_momento_compra",
@@ -241,6 +242,8 @@ def test_build_material_context_formatea_recomendacion_real(monkeypatch: pytest.
     assert "Cemento Portland" in context
     assert "COMPRAR_AHORA" in context
     assert "ARS 100 por kg" in context
+    assert "2025-03-01" in context
+    assert "fecha base del calculo" in context
     assert "No pidas precios por zona" in context
     assert "operaciones administrativas" not in context
 
@@ -905,6 +908,119 @@ def test_endpoint_chat_precio_historico_directo_no_invoca_ia() -> None:
     assert body["horizonte_resuelto"] is None
     assert "ARS 196.6115 por kg" in body["respuesta"]
     assert "999.0000" not in body["respuesta"]
+    assert provider.calls == []
+
+
+def _demo_forecast(actual: str = "1000.00", proyectado: str = "1300.00"):
+    return SimpleNamespace(
+        dataset=[SimpleNamespace(ds=date(2025, 3, 1), y=float(actual))],
+        forecast=[SimpleNamespace(fecha=date(2025, 9, 1), precio_proyectado=Decimal(proyectado))],
+        metricas=SimpleNamespace(mape=Decimal("4.50"), folds=9),
+        modelo="prophet_base",
+        seleccion_modelo=SimpleNamespace(confiabilidad="alta", modelo_resuelto="prophet_base"),
+    )
+
+
+def _demo_material_repo(material):
+    return SimpleNamespace(get_by_id=lambda _id: material if _id == material.id else None, list_active=lambda: [material])
+
+
+def test_demo_pregunta_compra_cemento_presupuesto_blindada(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = FakeChatClient("No deberia llamarse")
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg", categoria=None, marca=None, descripcion=None)
+
+    monkeypatch.setattr(chat_routes, "forecast_material", lambda *_args, **_kwargs: _demo_forecast())
+    monkeypatch.setattr(chat_routes, "build_material_context", lambda *_args, **_kwargs: "CONTEXTO CALCULADO")
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: _demo_material_repo(material)
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace(get_historical_prices=lambda *_args: [])
+    app.dependency_overrides[get_db] = lambda: FakeDb()
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={
+                "pregunta": "necesito comprar 30 bolsas de cemento de aca a 6 meses, me conviene comrarlas ahora o esperar? tengo 200mil pesos de presupuesto"
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["proveedor_utilizado"] is False
+    assert "demo.respuesta_deterministica" in body["fuentes_recuperadas"]
+    assert "ultimo precio real observado el 2025-03-01" in body["respuesta"]
+    assert "30 bolsas = 750 kg" in body["respuesta"]
+    assert "ARS 200000.00" in body["respuesta"]
+    assert provider.calls == []
+
+
+def test_demo_pregunta_forecast_mape_recomendacion_blindada(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = FakeChatClient("No deberia llamarse")
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg", categoria=None, marca=None, descripcion=None)
+    recommendation = SimpleNamespace(
+        decision="COMPRAR_AHORA",
+        confiabilidad="alta",
+        justificacion="La suba proyectada supera el umbral de decision.",
+    )
+
+    monkeypatch.setattr(chat_routes, "forecast_material", lambda *_args, **_kwargs: _demo_forecast())
+    monkeypatch.setattr(chat_routes, "recomendar_momento_compra", lambda *_args, **_kwargs: recommendation)
+    monkeypatch.setattr(chat_routes, "build_material_context", lambda *_args, **_kwargs: "CONTEXTO CALCULADO")
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: _demo_material_repo(material)
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace(get_historical_prices=lambda *_args: [])
+    app.dependency_overrides[get_db] = lambda: FakeDb()
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={
+                "pregunta": "Mostrame el análisis de Cemento Portland a 3 meses con forecast, MAPE, confiabilidad y recomendación de decisión según BuildWise."
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["proveedor_utilizado"] is False
+    assert "MAPE: 4.50%" in body["respuesta"]
+    assert "Confiabilidad: alta" in body["respuesta"]
+    assert "Recomendacion de decision: COMPRAR_AHORA" in body["respuesta"]
+    assert provider.calls == []
+
+
+def test_demo_pregunta_anomalias_cemento_blindada(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = FakeChatClient("No deberia llamarse")
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg", categoria=None, marca=None, descripcion=None)
+    serie = [
+        SimpleNamespace(fecha=date(2025, 1, 1), es_anomalia=False),
+        SimpleNamespace(fecha=date(2025, 2, 1), es_anomalia=True, severidad_anomalia="alta"),
+        SimpleNamespace(fecha=date(2025, 3, 1), es_anomalia=True, severidad_anomalia="media"),
+    ]
+
+    monkeypatch.setattr(chat_routes, "serie_mensual_material", lambda *_args, **_kwargs: serie)
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: _demo_material_repo(material)
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace(get_historical_prices=lambda *_args: [])
+    app.dependency_overrides[get_db] = lambda: FakeDb()
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={"pregunta": "Cuantas anomalias tiene el forecast del cemento y que es una anomalia"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["proveedor_utilizado"] is False
+    assert "detecta 2 anomalias" in body["respuesta"]
+    assert "2025-02-01 (alta)" in body["respuesta"]
+    assert "No significa automaticamente que el dato sea falso" in body["respuesta"]
     assert provider.calls == []
 
 

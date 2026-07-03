@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -108,6 +109,221 @@ def test_generar_propuesta_usa_precio_comercial_y_recomendacion_calculada(monkey
     assert '"total_actual": "3600.00"' in client.calls[0][0]["content"]
     assert result.fuente_decision == "backend_deterministico"
     assert result.propuesta_generada_por == "llm_validado"
+
+
+def test_generar_propuesta_resuelve_fecha_objetivo_desde_ultimo_precio_real(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    fecha_base = date(2025, 3, 1)
+
+    def fake_calcular_precio_comercial(**kwargs):
+        captured["horizonte_precio"] = kwargs["horizonte_meses"]
+        return SimpleNamespace(
+            precio_final_actual=Decimal("100.00"),
+            precio_final_proyectado=Decimal("130.00"),
+            advertencias=(),
+            ultima_fecha_observada=fecha_base,
+        )
+
+    def fake_recomendar_estrategia_contextual(*_args, **kwargs):
+        captured["hoy_recomendacion"] = kwargs["hoy"]
+        captured["fecha_objetivo_uso"] = kwargs["fecha_objetivo_uso"]
+        return ContextualPurchaseRecommendationResult(
+            material_id=1,
+            material_key="cemento-portland",
+            fase_obra="estructura",
+            fecha_objetivo_uso=kwargs["fecha_objetivo_uso"],
+            horizonte_meses=6,
+            tolerancia_riesgo="media",
+            criticidad="alta",
+            decision="COMPRAR_AHORA",
+            variacion_esperada_pct=Decimal("30.00"),
+            precio_actual=Decimal("100.00"),
+            precio_proyectado_horizonte=Decimal("130.00"),
+            precio_proyectado_optimista=None,
+            precio_proyectado_pesimista=None,
+            cantidad_objetivo=Decimal("30"),
+            impacto_economico_estimado=Decimal("900.00"),
+            umbral_decision_pct=Decimal("5.00"),
+            supera_umbral_decision=True,
+            confiabilidad="alta",
+            mape=Decimal("4.00"),
+            justificacion="Comprar ahora.",
+            advertencias=(),
+            fecha_base_observada=fecha_base,
+        )
+
+    monkeypatch.setattr(commercial_assistant, "calcular_precio_comercial", fake_calcular_precio_comercial)
+    monkeypatch.setattr(commercial_assistant, "recomendar_estrategia_contextual", fake_recomendar_estrategia_contextual)
+
+    pricing_repo = SimpleNamespace(
+        get_historical_prices=lambda _material_id, _since: [
+            SimpleNamespace(id=1, fecha=date(2025, 1, 1), presentacion_id=None, precio_normalizado=Decimal("90.00")),
+            SimpleNamespace(id=2, fecha=fecha_base, presentacion_id=None, precio_normalizado=Decimal("100.00")),
+        ]
+    )
+    client = FakeClient("Conviene comprar ahora con los valores calculados.")
+    result = generar_propuesta_comercial(
+        material=SimpleNamespace(id=1, nombre="Cemento Portland"),
+        cantidad=Decimal("30"),
+        fase_obra="estructura",
+        tolerancia_riesgo="media",
+        fecha_objetivo_uso=date(2025, 9, 1),
+        pricing_repo=pricing_repo,
+        db=object(),
+        client=client,
+    )
+
+    assert captured["horizonte_precio"] == 6
+    assert captured["hoy_recomendacion"] == fecha_base
+    assert result.fecha_base_calculo == fecha_base
+    assert '"fecha_base_calculo": "2025-03-01"' in client.calls[0][0]["content"]
+
+
+def test_generar_propuesta_corrige_fecha_sin_anio_antes_de_fecha_base(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    fecha_base = date(2026, 11, 26)
+
+    def fake_calcular_precio_comercial(**kwargs):
+        captured["horizonte_precio"] = kwargs["horizonte_meses"]
+        return SimpleNamespace(
+            precio_final_actual=Decimal("100.00"),
+            precio_final_proyectado=Decimal("130.00"),
+            advertencias=(),
+            ultima_fecha_observada=fecha_base,
+        )
+
+    monkeypatch.setattr(commercial_assistant, "calcular_precio_comercial", fake_calcular_precio_comercial)
+
+    def fake_recomendar_estrategia_contextual(*_args, **kwargs):
+        captured["fecha_objetivo_uso"] = kwargs["fecha_objetivo_uso"]
+        captured["hoy"] = kwargs["hoy"]
+        return ContextualPurchaseRecommendationResult(
+            material_id=1,
+            material_key="cemento-portland",
+            fase_obra="estructura",
+            fecha_objetivo_uso=kwargs["fecha_objetivo_uso"],
+            horizonte_meses=9,
+            tolerancia_riesgo="media",
+            criticidad="alta",
+            decision="COMPRAR_AHORA",
+            variacion_esperada_pct=Decimal("30.00"),
+            precio_actual=Decimal("100.00"),
+            precio_proyectado_horizonte=Decimal("130.00"),
+            precio_proyectado_optimista=None,
+            precio_proyectado_pesimista=None,
+            cantidad_objetivo=Decimal("30"),
+            impacto_economico_estimado=Decimal("900.00"),
+            umbral_decision_pct=Decimal("5.00"),
+            supera_umbral_decision=True,
+            confiabilidad="alta",
+            mape=Decimal("4.00"),
+            justificacion="Comprar ahora.",
+            advertencias=(),
+            fecha_base_observada=fecha_base,
+        )
+
+    monkeypatch.setattr(commercial_assistant, "recomendar_estrategia_contextual", fake_recomendar_estrategia_contextual)
+    pricing_repo = SimpleNamespace(
+        get_historical_prices=lambda _material_id, _since: [
+            SimpleNamespace(id=1, fecha=fecha_base, presentacion_id=None, precio_normalizado=Decimal("100.00")),
+        ]
+    )
+
+    result = generar_propuesta_comercial(
+        material=SimpleNamespace(id=1, nombre="Cemento Portland"),
+        cantidad=Decimal("30"),
+        fase_obra="estructura",
+        tolerancia_riesgo="media",
+        fecha_objetivo_uso=date(2025, 8, 1),
+        solicitud_original="fecha limite el 1 de agosto",
+        pricing_repo=pricing_repo,
+        db=object(),
+        client=FakeClient("Conviene comprar ahora con los valores calculados."),
+    )
+
+    assert captured["horizonte_precio"] == 9
+    assert captured["fecha_objetivo_uso"] == date(2027, 8, 1)
+    assert captured["hoy"] == fecha_base
+    assert result.fecha_objetivo_uso == date(2027, 8, 1)
+
+
+def test_generar_propuesta_cemento_bolsas_usa_25kg_y_base_forecast(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    fecha_base = date(2026, 3, 1)
+
+    monkeypatch.setattr(
+        commercial_assistant,
+        "obtener_ultima_fecha_forecast_observada",
+        lambda **_kwargs: fecha_base,
+    )
+
+    def fake_calcular_precio_comercial(**kwargs):
+        captured["horizonte_precio"] = kwargs["horizonte_meses"]
+        return SimpleNamespace(
+            precio_final_actual=Decimal("232.09"),
+            precio_final_proyectado=Decimal("253.08"),
+            advertencias=(),
+            ultima_fecha_observada=fecha_base,
+        )
+
+    def fake_recomendar_estrategia_contextual(*_args, **kwargs):
+        captured["cantidad_objetivo"] = kwargs["cantidad_objetivo"]
+        captured["fecha_objetivo_uso"] = kwargs["fecha_objetivo_uso"]
+        captured["hoy"] = kwargs["hoy"]
+        return ContextualPurchaseRecommendationResult(
+            material_id=1,
+            material_key="cemento-portland",
+            fase_obra="estructura",
+            fecha_objetivo_uso=kwargs["fecha_objetivo_uso"],
+            horizonte_meses=5,
+            tolerancia_riesgo="media",
+            criticidad="alta",
+            decision="SIN_VENTAJA_CLARA",
+            variacion_esperada_pct=Decimal("9.04"),
+            precio_actual=Decimal("193.41"),
+            precio_proyectado_horizonte=Decimal("210.90"),
+            precio_proyectado_optimista=None,
+            precio_proyectado_pesimista=None,
+            cantidad_objetivo=kwargs["cantidad_objetivo"],
+            impacto_economico_estimado=Decimal("13117.50"),
+            umbral_decision_pct=Decimal("5.00"),
+            supera_umbral_decision=True,
+            confiabilidad="alta",
+            mape=Decimal("4.48"),
+            justificacion="Sin ventaja clara.",
+            advertencias=(),
+            fecha_base_observada=fecha_base,
+        )
+
+    monkeypatch.setattr(commercial_assistant, "calcular_precio_comercial", fake_calcular_precio_comercial)
+    monkeypatch.setattr(commercial_assistant, "recomendar_estrategia_contextual", fake_recomendar_estrategia_contextual)
+
+    client = FakeClient("Sin ventaja clara con valores calculados.")
+    result = generar_propuesta_comercial(
+        material=SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg"),
+        cantidad=Decimal("30"),
+        fase_obra="estructura",
+        tolerancia_riesgo="media",
+        fecha_objetivo_uso=date(2025, 8, 1),
+        presupuesto_maximo=Decimal("200000"),
+        solicitud_original=(
+            "necesito comprar 30 bolsas de cemento y tengo como fecha limite el 1 de agosto "
+            "me conviene comprarlas ahora o esperar? tengo 200mil pesos de presupuesto"
+        ),
+        pricing_repo=object(),
+        db=object(),
+        client=client,
+    )
+
+    assert captured["horizonte_precio"] == 5
+    assert captured["fecha_objetivo_uso"] == date(2026, 8, 1)
+    assert captured["hoy"] == fecha_base
+    assert captured["cantidad_objetivo"] == Decimal("750")
+    assert result.fecha_base_calculo == fecha_base
+    assert result.fecha_objetivo_uso == date(2026, 8, 1)
+    assert result.total_actual == Decimal("174067.50")
+    assert result.total_proyectado == Decimal("189810.00")
+    assert '"cantidad_label": "30 bolsas de 25 kg (750 kg)"' in client.calls[0][0]["content"]
 
 
 def test_generar_propuesta_reemplaza_redaccion_llm_si_inventa_valores(monkeypatch) -> None:

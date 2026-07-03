@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import date
 from decimal import Decimal
 
 from fastapi import HTTPException
@@ -60,6 +61,7 @@ class PurchaseRecommendationResult:
     advertencias: tuple[str, ...]
     precio_proyectado_optimista: Decimal | None = None
     precio_proyectado_pesimista: Decimal | None = None
+    fecha_base_observada: date | None = None
 
 
 def _quantize_amount(value: Decimal) -> Decimal:
@@ -228,6 +230,7 @@ def evaluar_recomendacion_compra(
             ),
             advertencias=advertencias_tuple
             + ("No hay datos suficientes para construir una recomendacion cuantitativa.",),
+            fecha_base_observada=None,
         )
 
     if not _es_suficiente_confiabilidad(confiabilidad, no_calibrado):
@@ -251,6 +254,7 @@ def evaluar_recomendacion_compra(
             justificacion=_justificacion_conservadora_por_confiabilidad(confiabilidad, no_calibrado),
             advertencias=advertencias_tuple
             + ("La recomendacion se marca como conservadora por baja confiabilidad o no calibrado.",),
+            fecha_base_observada=None,
         )
 
     decision, justificacion, supera_umbral_decision = _resolver_decision_y_justificacion(
@@ -279,6 +283,7 @@ def evaluar_recomendacion_compra(
         criticidad=criticidad,
         justificacion=justificacion,
         advertencias=advertencias_tuple,
+        fecha_base_observada=None,
     )
 
 
@@ -344,6 +349,7 @@ def recomendar_momento_compra(
         )
 
     ultimo_precio = Decimal(f"{forecast_result.dataset[-1].y:.2f}")
+    ultima_fecha_observada = forecast_result.dataset[-1].ds
     punto_objetivo = forecast_result.forecast[-1]
     variacion_esperada_pct = calcular_variacion_esperada_porcentual(
         ultimo_precio,
@@ -362,7 +368,7 @@ def recomendar_momento_compra(
     if anomaly_gate:
         no_calibrado = True
 
-    return evaluar_recomendacion_compra(
+    result = evaluar_recomendacion_compra(
         material_id=material.id,
         material_key=selection.material_key if selection is not None and getattr(selection, "material_key", None) else material_key,
         horizonte_meses=horizonte_meses,
@@ -378,3 +384,4 @@ def recomendar_momento_compra(
         no_calibrado=no_calibrado,
         advertencias=advertencias,
     )
+    return replace(result, fecha_base_observada=ultima_fecha_observada)

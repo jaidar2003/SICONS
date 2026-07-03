@@ -48,6 +48,7 @@ class CommercialPriceResult:
     ganancia_unitaria_actual: Decimal | None
     ganancia_unitaria_proyectada: Decimal | None
     advertencias: tuple[str, ...]
+    ultima_fecha_observada: date | None = None
 
 
 def _quantize_money(value: Decimal) -> Decimal:
@@ -79,6 +80,33 @@ def _cargar_historial_base(
     if not precios:
         return None
     return max(precios, key=lambda precio: (precio.fecha, precio.id))
+
+
+def obtener_ultima_fecha_precio_observado(
+    pricing_repo: PricingRepository,
+    material_id: int,
+    presentation_id: int | None = None,
+) -> date | None:
+    historial_base = _cargar_historial_base(pricing_repo, material_id, presentation_id)
+    return historial_base.fecha if historial_base is not None else None
+
+
+def obtener_ultima_fecha_forecast_observada(
+    *,
+    material: Material,
+    pricing_repo: PricingRepository,
+    horizonte_meses: int = 1,
+    usar_selector_modelo: bool = True,
+) -> date | None:
+    forecast_result = forecast_material(
+        material,
+        horizonte_meses,
+        pricing_repo,
+        usar_selector_modelo=usar_selector_modelo,
+    )
+    if not forecast_result.dataset:
+        return None
+    return forecast_result.dataset[-1].ds
 
 
 def _cargar_candidatos(db: Session) -> list[CommercialMarginCandidate]:
@@ -182,10 +210,9 @@ def calcular_precio_comercial(
 
     material_key = derive_material_key(material.nombre)
     derived_product_key = product_key or derive_product_key(material.nombre, presentation.nombre_presentacion if presentation else None)
-    historial_base = _cargar_historial_base(pricing_repo, material.id, presentation_id)
-    costo_base_actual = _quantize_money(historial_base.precio_normalizado) if historial_base is not None else None
-
     forecast_base = None
+    costo_base_actual = None
+    ultima_fecha_observada = None
     try:
         forecast_result = forecast_material(
             material,
@@ -193,10 +220,20 @@ def calcular_precio_comercial(
             pricing_repo,
             usar_selector_modelo=usar_selector_modelo,
         )
+        forecast_dataset = getattr(forecast_result, "dataset", None) or []
+        if forecast_dataset:
+            ultima_observacion = forecast_dataset[-1]
+            costo_base_actual = _quantize_money(Decimal(f"{ultima_observacion.y:.2f}"))
+            ultima_fecha_observada = ultima_observacion.ds
         if forecast_result.forecast:
             forecast_base = _quantize_money(forecast_result.forecast[-1].precio_proyectado)
     except HTTPException as exc:
         advertencias.append(f"No fue posible calcular el costo proyectado: {exc.detail}")
+
+    historial_base = _cargar_historial_base(pricing_repo, material.id, presentation_id)
+    if costo_base_actual is None and historial_base is not None:
+        costo_base_actual = _quantize_money(historial_base.precio_normalizado)
+        ultima_fecha_observada = getattr(historial_base, "fecha", None)
 
     candidates = _cargar_candidatos(db)
     margin = resolve_commercial_margin(
@@ -251,6 +288,7 @@ def calcular_precio_comercial(
         ganancia_unitaria_actual=ganancia_unitaria_actual,
         ganancia_unitaria_proyectada=ganancia_unitaria_proyectada,
         advertencias=tuple(advertencias),
+        ultima_fecha_observada=ultima_fecha_observada,
     )
 
 

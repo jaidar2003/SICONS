@@ -38,7 +38,12 @@ def build_material_context(material, horizon: int, pricing_repo, *, is_admin: bo
         f"- Justificacion calculada: {recommendation.justificacion}",
     ]
     if recommendation.precio_actual is not None:
-        lines.append(f"- Ultimo precio observado: ARS {recommendation.precio_actual} por {material.unidad_base}.")
+        fecha_base = getattr(recommendation, "fecha_base_observada", None)
+        fecha_base_text = f" en {fecha_base.isoformat()}" if fecha_base is not None else ""
+        lines.append(
+            f"- Ultimo precio real observado: ARS {recommendation.precio_actual} por {material.unidad_base}"
+            f"{fecha_base_text}. Esta es la fecha base del calculo; no usar la fecha calendario de hoy como base."
+        )
     if recommendation.precio_proyectado_horizonte is not None:
         lines.append(
             f"- Precio proyectado al horizonte: ARS {recommendation.precio_proyectado_horizonte} por {material.unidad_base}."

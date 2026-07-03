@@ -449,9 +449,11 @@ def execute_operation(
             f"- Material: {material.nombre}; cantidad: {quantity} {material.unidad_base}.",
         ]
         for result in results:
+            fecha_base = getattr(result, "fecha_base_observada", None)
+            fecha_base_text = f" observado el {fecha_base}" if fecha_base is not None else ""
             lines.extend(
                 [
-                    f"- Horizonte {result.horizonte_meses} meses: precio actual ARS {result.precio_actual}; "
+                    f"- Horizonte {result.horizonte_meses} meses: ultimo precio real{fecha_base_text} ARS {result.precio_actual}; "
                     f"precio futuro ARS {result.precio_proyectado_horizonte}; variacion {result.variacion_esperada_pct}%.",
                     f"  Mejor estrategia: {result.mejor_estrategia}; ahorro estimado ARS {result.ahorro_estimado}; "
                     f"confiabilidad {result.confiabilidad}.",
@@ -489,6 +491,7 @@ def execute_operation(
         result = optimizar_compra_con_presupuesto(**kwargs)
         lines = [
             "RESULTADO DE OPTIMIZACION CALCULADO POR BUILDWISE:",
+            f"- Fecha base del calculo: {getattr(result, 'fecha_base_calculo', None) or 'no disponible'}; no se usa la fecha calendario de hoy como base.",
             f"- Presupuesto total: ARS {result.presupuesto_total}; utilizado: ARS {result.presupuesto_utilizado}; "
             f"restante: ARS {result.presupuesto_restante}; ahorro estimado: ARS {result.ahorro_total_estimado}.",
         ]
@@ -501,6 +504,7 @@ def execute_operation(
         result = generar_recomendacion_operativa_compra(**kwargs)
         lines = [
             "RESULTADO DE DECISION FINAL CALCULADO POR BUILDWISE:",
+            f"- Fecha base del calculo: {result.fecha_calculo}; corresponde al ultimo precio real observado disponible.",
             f"- {result.decision_resumen}",
             f"- Presupuesto: ARS {result.presupuesto_total}; utilizado ahora: ARS {result.presupuesto_utilizado}; "
             f"restante: ARS {result.presupuesto_restante}; ahorro estimado: ARS {result.ahorro_total_estimado}.",

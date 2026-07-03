@@ -53,6 +53,7 @@ class OptimizationCandidate:
     no_calibrado: bool
     mape: Decimal | None = None
     porcentaje_minimo_compra_inmediata: Decimal | None = None
+    fecha_base_observada: date | None = None
 
 
 @dataclass(frozen=True)
@@ -75,6 +76,7 @@ class PurchaseOptimizationItemResult:
     confiabilidad: str
     mape: Decimal | None
     no_calibrado: bool
+    fecha_base_observada: date | None = None
 
 
 @dataclass(frozen=True)
@@ -88,6 +90,7 @@ class PurchaseOptimizationResult:
     ahorro_total_estimado: Decimal
     justificacion: str
     advertencias: tuple[str, ...]
+    fecha_base_calculo: date | None = None
 
 
 @dataclass(frozen=True)
@@ -105,6 +108,7 @@ class OperationalPurchaseRecommendationItem:
     mejor_estrategia: str
     ventaja_estrategia_significativa: bool
     explicacion: str
+    fecha_base_observada: date | None = None
 
 
 @dataclass(frozen=True)
@@ -163,6 +167,7 @@ def _build_candidate(item: PurchaseOptimizationInputItem, material, forecast_res
     selection = getattr(forecast_result, "seleccion_modelo", None)
     material_key = selection.material_key if selection is not None and getattr(selection, "material_key", None) else derive_material_key(material.nombre)
     precio_actual = Decimal(f"{forecast_result.dataset[-1].y:.2f}")
+    fecha_base_observada = forecast_result.dataset[-1].ds
     precio_proyectado_horizonte = forecast_result.forecast[-1].precio_proyectado
     ahorro_unitario = max(precio_proyectado_horizonte - precio_actual, Decimal("0"))
     confiabilidad = _resolver_confiabilidad(forecast_result)
@@ -182,6 +187,7 @@ def _build_candidate(item: PurchaseOptimizationInputItem, material, forecast_res
         no_calibrado=no_calibrado,
         mape=mape,
         porcentaje_minimo_compra_inmediata=item.porcentaje_minimo_compra_inmediata,
+        fecha_base_observada=fecha_base_observada,
     )
 
 
@@ -277,6 +283,7 @@ def optimizar_compra_items(
                 confiabilidad=candidate.confiabilidad,
                 mape=candidate.mape,
                 no_calibrado=candidate.no_calibrado,
+                fecha_base_observada=candidate.fecha_base_observada,
             )
         )
 
@@ -284,6 +291,7 @@ def optimizar_compra_items(
     presupuesto_utilizado = _quantize_amount(presupuesto_utilizado)
     ahorro_total_estimado = _quantize_amount(ahorro_total_estimado)
     presupuesto_restante = _quantize_amount(presupuesto_total - presupuesto_utilizado)
+    fechas_base = [candidate.fecha_base_observada for candidate in candidates if candidate.fecha_base_observada is not None]
 
     return PurchaseOptimizationResult(
         presupuesto_total=_quantize_amount(presupuesto_total),
@@ -298,6 +306,7 @@ def optimizar_compra_items(
             "explicitas de compra inmediata y postergada, respetando el presupuesto disponible."
         ),
         advertencias=tuple(advertencias_resultado),
+        fecha_base_calculo=max(fechas_base) if fechas_base else None,
     )
 
 
@@ -423,6 +432,7 @@ def generar_recomendacion_operativa_compra(
                     f"mejor estrategia {strategy_comparison.mejor_estrategia}, ahorro unitario estimado "
                     f"{item.ahorro_unitario_estimado}, criticidad {item.criticidad}, confianza {item.confiabilidad}."
                 ),
+                fecha_base_observada=item.fecha_base_observada,
             )
         )
     items = tuple(items_list)
@@ -432,7 +442,7 @@ def generar_recomendacion_operativa_compra(
     postergar = sum(1 for item in items if item.accion_recomendada == "POSTERGAR")
 
     return OperationalPurchaseRecommendationResult(
-        fecha_calculo=date.today(),
+        fecha_calculo=optimizacion.fecha_base_calculo or date.today(),
         horizonte_meses=optimizacion.horizonte_meses,
         presupuesto_total=optimizacion.presupuesto_total,
         presupuesto_utilizado=optimizacion.presupuesto_utilizado,

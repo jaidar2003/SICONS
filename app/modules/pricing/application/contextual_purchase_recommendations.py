@@ -57,6 +57,7 @@ class ContextualPurchaseRecommendationResult:
     confiabilidad: str
     justificacion: str
     advertencias: tuple[str, ...]
+    fecha_base_observada: date | None = None
 
 
 def resolver_horizonte_contextual(
@@ -72,7 +73,7 @@ def resolver_horizonte_contextual(
 
     fecha_base = hoy or date.today()
     if fecha_objetivo_uso <= fecha_base:
-        raise HTTPException(status_code=422, detail="La fecha_objetivo_uso debe ser posterior a la fecha actual.")
+        raise HTTPException(status_code=422, detail="La fecha_objetivo_uso debe ser posterior a la fecha base de calculo.")
 
     meses = (fecha_objetivo_uso.year - fecha_base.year) * 12 + fecha_objetivo_uso.month - fecha_base.month
     if fecha_objetivo_uso.day > fecha_base.day:
@@ -214,4 +215,5 @@ def recomendar_estrategia_contextual(
         confiabilidad=recomendacion.confiabilidad,
         justificacion=justificacion,
         advertencias=recomendacion.advertencias,
+        fecha_base_observada=getattr(recomendacion, "fecha_base_observada", None),
     )

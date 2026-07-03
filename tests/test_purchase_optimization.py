@@ -14,6 +14,7 @@ from app.modules.pricing.application import purchase_optimization as purchase_op
 from app.modules.pricing.application.purchase_optimization import (
     OptimizationCandidate,
     PurchaseOptimizationInputItem,
+    generar_recomendacion_operativa_compra,
     optimizar_compra_con_presupuesto,
     optimizar_compra_items,
 )
@@ -435,6 +436,32 @@ def test_endpoint_responde_con_contrato_esperado(monkeypatch) -> None:
     assert body["items"][1]["cantidad_recomendada_comprar_ahora"] == "0.0000"
     assert body["items"][1]["cantidad_recomendada_postergar"] == "40.0000"
     assert body["items"][1]["accion_recomendada"] == "POSTERGAR"
+    assert body["fecha_base_calculo"] == "2024-01-01"
+    assert body["items"][0]["fecha_base_observada"] == "2024-01-01"
+
+
+def test_recomendacion_operativa_usa_ultima_fecha_observada_como_fecha_calculo(monkeypatch) -> None:
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+    fecha_base = date(2025, 3, 1)
+
+    forecast = _fake_forecast_result(actual="1000.00", proyectado="1300.00", confiabilidad="alta")
+    forecast.dataset = [SimpleNamespace(ds=fecha_base, y=1000.00)]
+    monkeypatch.setattr(purchase_optimization_module, "forecast_material", lambda *args, **kwargs: forecast)
+
+    class FakeMaterialRepo:
+        def get_by_id(self, material_id: int):
+            return material if material_id == 1 else None
+
+    result = generar_recomendacion_operativa_compra(
+        presupuesto_total=Decimal("200000.00"),
+        horizonte_meses=6,
+        materiales=[PurchaseOptimizationInputItem(material_id=1, cantidad_objetivo=Decimal("30"), criticidad="alta")],
+        material_repo=FakeMaterialRepo(),
+        pricing_repo=object(),
+    )
+
+    assert result.fecha_calculo == fecha_base
+    assert result.items[0].fecha_base_observada == fecha_base
 
 
 def test_endpoint_recomendacion_operativa_consolida_decision_trazable(monkeypatch) -> None:
@@ -485,7 +512,7 @@ def test_endpoint_recomendacion_operativa_consolida_decision_trazable(monkeypatc
 
     assert response.status_code == 200
     body = response.json()
-    assert body["fecha_calculo"]
+    assert body["fecha_calculo"] == "2024-01-01"
     assert body["horizonte_meses"] == 3
     assert body["presupuesto_total"] == "180000.00"
     assert body["ahorro_total_estimado"] != "0.00"
@@ -496,6 +523,7 @@ def test_endpoint_recomendacion_operativa_consolida_decision_trazable(monkeypatc
     assert all("recomendacion_simple" in item for item in body["items"])
     assert all("mejor_estrategia" in item for item in body["items"])
     assert all("ventaja_estrategia_significativa" in item for item in body["items"])
+    assert all(item["fecha_base_observada"] == "2024-01-01" for item in body["items"])
     assert all(item["accion_recomendada"] in {"COMPRAR_AHORA", "POSTERGAR", "COMPRA_PARCIAL"} for item in body["items"])
 
 

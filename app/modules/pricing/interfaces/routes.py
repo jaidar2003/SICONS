@@ -597,12 +597,14 @@ def optimizar_presupuesto_compra(
                 "criticidad": item.criticidad,
                 "peso_criticidad": item.peso_criticidad,
                 "confiabilidad": item.confiabilidad,
+                "fecha_base_observada": item.fecha_base_observada,
             }
             for item in result.items
         ],
         ahorro_total_estimado=result.ahorro_total_estimado,
         justificacion=result.justificacion,
         advertencias=list(result.advertencias),
+        fecha_base_calculo=result.fecha_base_calculo,
     )
 
 
@@ -653,6 +655,7 @@ def generar_recomendacion_operativa(
                 "mejor_estrategia": item.mejor_estrategia,
                 "ventaja_estrategia_significativa": item.ventaja_estrategia_significativa,
                 "explicacion": item.explicacion,
+                "fecha_base_observada": item.fecha_base_observada,
             }
             for item in result.items
         ],
@@ -793,6 +796,7 @@ def obtener_precio_comercial_material(
         precio_final_proyectado=result.precio_final_proyectado,
         ganancia_unitaria_actual=result.ganancia_unitaria_actual,
         ganancia_unitaria_proyectada=result.ganancia_unitaria_proyectada,
+        ultima_fecha_observada=getattr(result, "ultima_fecha_observada", None),
         advertencias=list(result.advertencias),
     )
 

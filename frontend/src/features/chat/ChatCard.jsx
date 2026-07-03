@@ -787,26 +787,43 @@ function RagEvidencePanel({ message }) {
     ["Fuentes", message.sources?.length ? message.sources.join(", ") : "-"],
     ["Visualización", message.visualization ? VISUALIZATION_LABELS[message.visualization.tipo] || message.visualization.tipo : "-"],
   ];
+  const summary = [
+    message.intent ? `Intención: ${message.intent}` : null,
+    message.resolvedMaterial ? `Material: ${message.resolvedMaterial}` : null,
+    message.resolvedHorizon ? `Horizonte: ${message.resolvedHorizon} meses` : null,
+    message.sources?.length ? `Fuentes: ${message.sources.length}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <Box className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <Typography variant="body2" fontWeight={900} color="text.secondary">
-        Datos usados por el RAG
-      </Typography>
-      <Box className="mt-2 grid gap-2 md:grid-cols-2">
-        {rows.map(([label, value]) => (
-          <Box key={label} className="rounded-md bg-white px-3 py-2">
-            <Typography variant="caption" color="text.secondary" fontWeight={800}>
-              {label}
-            </Typography>
-            <Typography variant="body2" fontWeight={800}>
-              {value}
-            </Typography>
-          </Box>
-        ))}
-      </Box>
-      {message.sourceEvidence?.length ? <SourceEvidenceList evidence={message.sourceEvidence} /> : null}
-    </Box>
+    <Accordion className="mt-3 rounded-lg border border-slate-200 bg-slate-50" disableGutters elevation={0} defaultExpanded={false}>
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Box className="min-w-0">
+          <Typography variant="body2" fontWeight={900} color="text.secondary">
+            Datos usados por el RAG
+          </Typography>
+          <Typography variant="body2" color="text.secondary" noWrap title={summary || "Sin detalle disponible"}>
+            {summary || "Resumen corto disponible al expandir"}
+          </Typography>
+        </Box>
+      </AccordionSummary>
+      <AccordionDetails>
+        <Box className="grid gap-2 md:grid-cols-2">
+          {rows.map(([label, value]) => (
+            <Box key={label} className="rounded-md bg-white px-3 py-2">
+              <Typography variant="caption" color="text.secondary" fontWeight={800}>
+                {label}
+              </Typography>
+              <Typography variant="body2" fontWeight={800}>
+                {value}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+        {message.sourceEvidence?.length ? <SourceEvidenceList evidence={message.sourceEvidence} /> : null}
+      </AccordionDetails>
+    </Accordion>
   );
 }
 

@@ -267,6 +267,7 @@ class CommercialPriceRead(BaseModel):
     precio_final_proyectado: Decimal | None
     ganancia_unitaria_actual: Decimal | None
     ganancia_unitaria_proyectada: Decimal | None
+    ultima_fecha_observada: date | None = None
     advertencias: list[str]
 
 
@@ -480,6 +481,7 @@ class PurchaseOptimizationItemRead(BaseModel):
     criticidad: str
     peso_criticidad: Decimal
     confiabilidad: str
+    fecha_base_observada: date | None = None
 
 
 class PurchaseOptimizationRead(BaseModel):
@@ -492,6 +494,7 @@ class PurchaseOptimizationRead(BaseModel):
     ahorro_total_estimado: Decimal
     justificacion: str
     advertencias: list[str]
+    fecha_base_calculo: date | None = None
 
 
 class OperationalPurchaseRecommendationCreate(PurchaseOptimizationCreate):
@@ -512,6 +515,7 @@ class OperationalPurchaseRecommendationItemRead(BaseModel):
     mejor_estrategia: Literal["COMPRAR_AHORA", "ESPERAR_AL_HORIZONTE", "COMPRA_PARCIAL"]
     ventaja_estrategia_significativa: bool
     explicacion: str
+    fecha_base_observada: date | None = None
 
 
 class OperationalPurchaseRecommendationRead(BaseModel):

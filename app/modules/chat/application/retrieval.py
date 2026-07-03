@@ -129,7 +129,7 @@ def classify_chat_intent(question: str, *, accepted_scope: bool = True, admin_on
         return "PRESUPUESTO"
     if re.search(r"\b(estrategia|estrategias|optimizar|priorizar|criticidad|conviene|recomendacion|comprar|esperar|decision)\b", normalized):
         return "RECOMENDACION"
-    if re.search(r"\b(forecast|proyeccion|proyectado|mape|mae|confiabilidad|modelo)\b", normalized):
+    if re.search(r"\b(forecast|proyeccion|proyectado|mape|mae|confiabilidad|modelo|anomalia|anomalias)\b", normalized):
         return "FORECAST"
     if _wants_history(question):
         return "HISTORICO"
