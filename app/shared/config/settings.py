@@ -1,3 +1,5 @@
+import re
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -30,6 +32,7 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = True
     smtp_use_ssl: bool = False
     smtp_timeout_seconds: int = 10
+    admin_notification_email: str | None = None
     openai_api_key: str | None = None
     openai_base_url: str | None = None
     openai_model: str | None = None
@@ -52,6 +55,11 @@ class Settings(BaseSettings):
             raise ValueError("AUTH_SECRET_KEY debe configurarse con un secreto seguro en produccion")
         if environment == "production" and "forecast_allow_synchronous_compute" not in self.model_fields_set:
             self.forecast_allow_synchronous_compute = False
+        if self.admin_notification_email:
+            email = self.admin_notification_email.strip().lower()
+            if "\n" in email or "\r" in email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+                raise ValueError("ADMIN_NOTIFICATION_EMAIL no es valido")
+            self.admin_notification_email = email
         return self
 
     @property
