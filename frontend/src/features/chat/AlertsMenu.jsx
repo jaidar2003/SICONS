@@ -1,6 +1,6 @@
 import { Badge, Box, Divider, IconButton, List, ListItem, ListItemText, Menu, Typography } from "@mui/material";
 import NotificationsIcon from "@mui/icons-material/Notifications";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import dayjs from "dayjs";
 
 import { listAlerts, markAlertsAsRead } from "./alerts.api.js";
@@ -10,7 +10,7 @@ export function AlertsMenu({ token }) {
   const [alerts, setAlerts] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const fetchAlerts = async () => {
+  const fetchAlerts = useCallback(async () => {
     try {
       const data = await listAlerts({ solo_no_leidas: true }, token);
       setAlerts(data);
@@ -18,7 +18,7 @@ export function AlertsMenu({ token }) {
     } catch (error) {
       console.error("Error fetching alerts:", error);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     if (token) {
@@ -26,7 +26,7 @@ export function AlertsMenu({ token }) {
       const interval = setInterval(fetchAlerts, 60000); // Polling cada 1 min
       return () => clearInterval(interval);
     }
-  }, [token]);
+  }, [fetchAlerts, token]);
 
   const handleOpen = (event) => setAnchorEl(event.currentTarget);
   const handleClose = () => setAnchorEl(null);

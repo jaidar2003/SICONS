@@ -6,7 +6,6 @@ import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.modules.catalog.infrastructure import models as catalog_models  # noqa: F401
 from app.modules.pricing.infrastructure.models import ExternalIndexValue
 from app.shared.database.session import SessionLocal
 

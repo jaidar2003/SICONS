@@ -7,12 +7,12 @@ on:
     branches: [ main, master ]
 
 jobs:
-  test:
+  backend:
     runs-on: ubuntu-latest
     
     services:
       postgres:
-        image: postgres:15
+        image: postgres:16
         env:
           POSTGRES_USER: user
           POSTGRES_PASSWORD: password
@@ -43,11 +43,22 @@ jobs:
       - name: Lint with ruff
         run: ruff check .
 
+      - name: Verify migrations
+        env:
+          DATABASE_URL: postgresql://user:password@localhost:5432/buildwise
+          AUTH_SECRET_KEY: buildwise-ci-test-secret
+          ENVIRONMENT: test
+        run: |
+          alembic upgrade head
+          alembic current
+          alembic check
+
       - name: Run tests with coverage
         env:
           DATABASE_URL: postgresql://user:password@localhost:5432/buildwise
           AUTH_SECRET_KEY: buildwise-ci-test-secret
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ENVIRONMENT: test
+          RUN_POSTGRES_INTEGRATION: '1'
         run: |
           pytest --cov=app --cov-report=xml
 
@@ -56,4 +67,21 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./coverage.xml
-          fail_ci_if_error: false
+          fail_ci_if_error: true
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

@@ -1,6 +1,6 @@
 import hashlib
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 from time import monotonic
@@ -20,7 +20,11 @@ from app.modules.pricing.application.forecasting import (
 )
 from app.modules.pricing.application.model_selector import ForecastModelSelection, resolve_model_selection
 from app.modules.pricing.application.series import PrecioSerieInput, PuntoSeriePrecio, construir_serie_mensual
-from app.modules.pricing.domain.exceptions import InsufficientDataException
+from app.modules.pricing.domain.exceptions import (
+    ExternalRegressorUnavailableError,
+    ForecastSnapshotRequired,
+    InsufficientDataException,
+)
 from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.infrastructure.forecast_runtime import configurar_cmdstan, importar_dependencias_forecast
 from app.modules.pricing.infrastructure.forecast_snapshots import cargar_forecast_snapshot, guardar_forecast_snapshot
@@ -45,6 +49,7 @@ class ForecastMaterialResult:
     supuesto_regresores: str = FORECAST_REGRESSOR_NOTE
     seleccion_modelo: ForecastSelectionRead | None = None
     serie_mensual: list[PuntoSeriePrecio] | None = None
+    resolution_source: str = "computed"
 
 
 @dataclass(frozen=True)
@@ -157,8 +162,8 @@ def _resolver_plan_selector(material_key: str, horizonte_meses: int, pd) -> Fore
 
     try:
         regresores_df = cargar_regresores_mensuales(pd, selection.regresores)
-    except HTTPException as exc:
-        fallback_metadata = _fallback_selection_for_missing_regressors(selection, str(exc.detail))
+    except ExternalRegressorUnavailableError as exc:
+        fallback_metadata = _fallback_selection_for_missing_regressors(selection, str(exc))
         return ForecastExecutionPlan(
             modelo="prophet_base",
             regresores=(),
@@ -231,7 +236,7 @@ def _cargar_forecast_cacheado_o_snapshot(
 ) -> ForecastMaterialResult | None:
     forecast_cacheado = obtener_forecast_cacheado(material_id, horizonte_meses, dataset_signature)
     if forecast_cacheado is not None:
-        return forecast_cacheado
+        return replace(forecast_cacheado, resolution_source="memory_cache")
 
     cache_key = ForecastCacheKey(
         material_id=material_id,
@@ -246,7 +251,16 @@ def _cargar_forecast_cacheado_o_snapshot(
         result=deepcopy(forecast_persistido),
         expires_at=monotonic() + settings.forecast_cache_ttl_seconds,
     )
-    return deepcopy(forecast_persistido)
+    return replace(deepcopy(forecast_persistido), resolution_source="snapshot")
+
+
+def _require_synchronous_compute_allowed(material: Material, horizonte_meses: int) -> None:
+    if settings.forecast_allow_synchronous_compute:
+        return
+    raise ForecastSnapshotRequired(
+        f"No hay un snapshot vigente para {material.nombre} a {horizonte_meses} meses; "
+        "el calculo sincrono esta deshabilitado."
+    )
 
 
 def serie_mensual_material(material: Material, pricing_repo: PricingRepository):
@@ -411,6 +425,8 @@ def forecast_material(
         if forecast_cacheado is not None:
             return forecast_cacheado
 
+        _require_synchronous_compute_allowed(material, horizonte_meses)
+
         cmdstanpy, pd, Prophet, CmdStanPyBackend, IStanBackend = importar_dependencias_forecast()
         configurar_cmdstan(cmdstanpy, CmdStanPyBackend, IStanBackend)
         plan = _resolver_plan_legacy(pd)
@@ -438,7 +454,6 @@ def forecast_material(
         return forecast_cacheado
 
     cmdstanpy, pd, Prophet, CmdStanPyBackend, IStanBackend = importar_dependencias_forecast()
-    configurar_cmdstan(cmdstanpy, CmdStanPyBackend, IStanBackend)
     plan = _resolver_plan_ejecucion(material_key, horizonte_meses, usar_selector_modelo, pd)
 
     dataset_signature = f"{signature_base}:{plan.cache_signature}"
@@ -449,6 +464,9 @@ def forecast_material(
     )
     if forecast_cacheado is not None:
         return forecast_cacheado
+
+    _require_synchronous_compute_allowed(material, horizonte_meses)
+    configurar_cmdstan(cmdstanpy, CmdStanPyBackend, IStanBackend)
 
     forecast_result = _forecast_material(material, horizonte_meses, dataset, pd, Prophet, plan)
     forecast_result = ForecastMaterialResult(

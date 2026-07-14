@@ -1,6 +1,5 @@
 
 import pytest
-from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -13,6 +12,12 @@ from app.modules.auth.application.service import (
     restablecer_password,
     solicitar_recuperacion_password,
     validar_token_recuperacion_password,
+)
+from app.modules.auth.domain.exceptions import (
+    AuthConflict,
+    AuthResourceNotFound,
+    InvalidAuthRequest,
+    InvalidCredentials,
 )
 from app.modules.auth.infrastructure.models import Usuario
 from app.shared.security.tokens import hash_password, verify_password
@@ -90,7 +95,7 @@ def test_registrar_cliente_rechaza_email_duplicado() -> None:
         password="password123",
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AuthConflict, match="El email ya esta registrado"):
         registrar_cliente(
             session,
             username="cliente_b",
@@ -99,8 +104,6 @@ def test_registrar_cliente_rechaza_email_duplicado() -> None:
             password="password123",
         )
 
-    assert exc_info.value.status_code == 409
-    assert exc_info.value.detail == "El email ya esta registrado"
 
 
 def test_usuario_inactivo_no_puede_autenticarse_hasta_habilitarse() -> None:
@@ -113,10 +116,8 @@ def test_usuario_inactivo_no_puede_autenticarse_hasta_habilitarse() -> None:
         password="password123",
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(InvalidCredentials):
         autenticar_usuario(session, username="cliente_nuevo", password="password123")
-
-    assert exc_info.value.status_code == 401
 
     habilitado = habilitar_usuario(session, user_id=result.usuario.id)
     login = autenticar_usuario(session, username="cliente_nuevo", password="password123")
@@ -127,35 +128,29 @@ def test_usuario_inactivo_no_puede_autenticarse_hasta_habilitarse() -> None:
 
 def test_registrar_cliente_invalid_data() -> None:
     session, _engine = make_session()
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(InvalidAuthRequest):
         registrar_cliente(session, username="", nombre="n", email="e@e.com", password="p")
-    assert exc.value.status_code == 400
     
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(InvalidAuthRequest):
         registrar_cliente(session, username="u", nombre="", email="e@e.com", password="p")
-    assert exc.value.status_code == 400
     
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(InvalidAuthRequest):
         registrar_cliente(session, username="u", nombre="n", email="invalid-email", password="p")
-    assert exc.value.status_code == 400
 
 def test_registrar_cliente_duplicate() -> None:
     session, _engine = make_session()
     registrar_cliente(session, username="dup", nombre="n", email="dup@e.com", password="p")
     
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AuthConflict):
         registrar_cliente(session, username="dup", nombre="n2", email="other@e.com", password="p")
-    assert exc.value.status_code == 409
     
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AuthConflict):
         registrar_cliente(session, username="other", nombre="n2", email="dup@e.com", password="p")
-    assert exc.value.status_code == 409
 
 def test_habilitar_usuario_not_found() -> None:
     session, _engine = make_session()
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AuthResourceNotFound):
         habilitar_usuario(session, user_id=999)
-    assert exc.value.status_code == 404
 
 def test_eliminar_usuario_restrictions() -> None:
     session, _engine = make_session()
@@ -165,23 +160,19 @@ def test_eliminar_usuario_restrictions() -> None:
     session.commit()
     
     # Delete self
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(InvalidAuthRequest):
         eliminar_usuario(session, user_id=1, current_user=admin)
-    assert exc.value.status_code == 400
     
     # Delete non-existent
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AuthResourceNotFound):
         eliminar_usuario(session, user_id=999, current_user=admin)
-    assert exc.value.status_code == 404
         
     # Test case: target is admin
     admin2 = Usuario(username="admin2", email="admin2@example.com", nombre="Admin 2", password_hash="p", rol="admin", activo=True)
     session.add(admin2)
     session.commit()
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(InvalidAuthRequest, match="No se puede eliminar un usuario admin"):
         eliminar_usuario(session, user_id=admin2.id, current_user=admin)
-    assert exc.value.status_code == 400
-    assert "No se puede eliminar un usuario admin" in exc.value.detail
 
 
 def test_habilitar_usuario_sin_email() -> None:
@@ -192,10 +183,8 @@ def test_habilitar_usuario_sin_email() -> None:
     session.add(user)
     session.commit()
     
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(InvalidAuthRequest, match="no tiene email"):
         habilitar_usuario(session, user_id=user.id)
-    assert exc.value.status_code == 400
-    assert "no tiene email" in exc.value.detail
 
 
 def test_solicitar_recuperacion_password_actualiza_clave_y_envia_email(monkeypatch) -> None:
@@ -247,11 +236,8 @@ def test_solicitar_recuperacion_password_informa_mail_no_registrado(monkeypatch)
         fake_send_password_recovery_email,
     )
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(AuthResourceNotFound, match="Este mail no esta registrado"):
         solicitar_recuperacion_password(session, identifier="nadie@example.com")
-
-    assert exc.value.status_code == 404
-    assert exc.value.detail == "Este mail no esta registrado"
     assert called is False
 
 
@@ -360,7 +346,5 @@ def test_restablecer_password_rechaza_token_reutilizado(monkeypatch) -> None:
     token = sent_payload["reset_url"].split("reset_token=", 1)[1]
     restablecer_password(session, token=token, password="newpassword123")
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(InvalidAuthRequest, match="no es valido o expiro"):
         restablecer_password(session, token=token, password="otherpassword123")
-
-    assert exc.value.status_code == 400

@@ -12,8 +12,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
-  Stack,
   Typography,
 } from "@mui/material";
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from "chart.js";
@@ -42,6 +40,12 @@ const GLOSSARY_ITEMS = [
   ["Recall", "Proporción de anomalías confirmadas que el detector logró encontrar."],
   ["F1", "Balance entre precisión y recall; resume detección y falsos positivos en una sola métrica."],
 ];
+
+const SEVERITY_CONFIG = {
+  leve: { label: "Leve", color: "#F59E0B", bg: "#FFF7ED" },
+  media: { label: "Media", color: "#F97316", bg: "#FFF7ED" },
+  alta: { label: "Alta", color: "#DC2626", bg: "#FEF2F2" },
+};
 
 function buildMonthlyAnomalySeries(points, values) {
   const buckets = new Map();
@@ -90,11 +94,7 @@ function buildMonthlyAnomalySeries(points, values) {
 }
 
 export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desde, hasta, className = "" }) {
-  const severityConfig = {
-    leve: { label: "Leve", color: "#F59E0B", bg: "#FFF7ED" },
-    media: { label: "Media", color: "#F97316", bg: "#FFF7ED" },
-    alta: { label: "Alta", color: "#DC2626", bg: "#FEF2F2" },
-  };
+  const severityConfig = SEVERITY_CONFIG;
   const severityFilters = [
     { value: "todas", label: "Todas" },
     { value: "alta", label: "Alta" },
@@ -148,7 +148,7 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
         const config = severityConfig[point.dominantSeverity] || severityConfig.media;
         return config.color;
       }),
-    [chartPoints]
+    [chartPoints, severityConfig]
   );
   const chartBackgroundColors = useMemo(
     () =>
@@ -156,7 +156,7 @@ export function AnomaliesCard({ serie, showPrices, selectedMaterial, token, desd
         const config = severityConfig[point.dominantSeverity] || severityConfig.media;
         return !selectedMonthKey || selectedMonthKey === point.monthKey ? config.color : `${config.color}55`;
       }),
-    [chartPoints, selectedMonthKey]
+    [chartPoints, selectedMonthKey, severityConfig]
   );
   useEffect(() => {
     setSeverityFilter("todas");
@@ -567,27 +567,6 @@ function MetricTile({ label, value, helper }) {
       <Typography color="text.secondary" variant="body2" mt={0.5}>
         {helper}
       </Typography>
-    </Box>
-  );
-}
-
-function DetailList({ title, values, emptyText, className = "" }) {
-  return (
-    <Box className={`rounded-xl border border-slate-200 bg-slate-50 p-3 ${className}`}>
-      <Typography color="text.secondary" variant="body2" fontWeight={800}>
-        {title}
-      </Typography>
-      {values?.length ? (
-        <Box className="mt-2 flex flex-wrap gap-1.5">
-          {values.map((value) => (
-            <Chip key={String(value)} label={String(value)} size="small" />
-          ))}
-        </Box>
-      ) : (
-        <Typography color="text.secondary" variant="body2" mt={0.75}>
-          {emptyText}
-        </Typography>
-      )}
     </Box>
   );
 }

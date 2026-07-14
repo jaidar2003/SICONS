@@ -2,7 +2,6 @@ from decimal import Decimal
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import HTTPException
 
 from app.modules.chat.application.commercial_assistant import (
     _optional_date,
@@ -11,6 +10,7 @@ from app.modules.chat.application.commercial_assistant import (
     generar_propuesta_comercial,
     interpretar_necesidad_comercial,
 )
+from app.modules.chat.domain.exceptions import CommercialInterpretationError, InvalidCommercialRequest
 
 
 def test_optional_decimal_invalid():
@@ -28,9 +28,8 @@ def test_optional_horizon_invalid():
 def test_interpretar_necesidad_comercial_json_error():
     client = MagicMock()
     client.complete.return_value = "invalid json"
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(CommercialInterpretationError, match="interpretacion estructurada"):
         interpretar_necesidad_comercial("hola", materials=[], client=client)
-    assert exc.value.status_code == 502
 
 def test_interpretar_necesidad_comercial_invalid_id():
     client = MagicMock()
@@ -41,16 +40,14 @@ def test_interpretar_necesidad_comercial_invalid_id():
 def test_interpretar_necesidad_comercial_decimal_error():
     client = MagicMock()
     client.complete.return_value = '{"cantidad": "invalido"}'
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(CommercialInterpretationError, match="importes invalidos"):
         interpretar_necesidad_comercial("hola", materials=[], client=client)
-    assert exc.value.status_code == 502
 
 def test_generar_propuesta_comercial_unsupported_material():
     material = MagicMock()
     material.nombre = "Material No Soportado"
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(InvalidCommercialRequest, match="no pertenece"):
         generar_propuesta_comercial(material=material, cantidad=Decimal("10"), fase_obra="general", tolerancia_riesgo="media", pricing_repo=None, db=None, client=None)
-    assert exc.value.status_code == 422
 
 def test_generar_propuesta_comercial_escalonar(monkeypatch):
     from app.modules.pricing.application.commercial_prices import CommercialPriceResult
@@ -58,7 +55,7 @@ def test_generar_propuesta_comercial_escalonar(monkeypatch):
         ContextualPurchaseRecommendationResult,
     )
     
-    material = MagicMock(id=1, nombre="Cemento Portland")
+    material = MagicMock(id=1, nombre="Cemento Portland", unidad_base="kg")
     # Cemento Portland is in SUPPORTED_PRODUCT_KEYS
     
     price_res = CommercialPriceResult(

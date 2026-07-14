@@ -7,8 +7,8 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Identity,
     Index,
-    Integer,
     Numeric,
     String,
     Text,
@@ -18,6 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.shared.database.base import Base
+from app.shared.database.types import BIGINT_ID
 
 if TYPE_CHECKING:
     from app.modules.pricing.infrastructure.models import PrecioHistorico
@@ -27,7 +28,7 @@ class Material(Base):
     __tablename__ = "materiales"
     __table_args__ = (UniqueConstraint("nombre", "unidad_base", "marca", name="materiales_nombre_unidad_marca_unique"),)
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BIGINT_ID, Identity(always=True), primary_key=True)
     nombre: Mapped[str] = mapped_column(String(150))
     categoria: Mapped[str | None] = mapped_column(String(100))
     marca: Mapped[str | None] = mapped_column(String(100))
@@ -50,8 +51,8 @@ class Presentacion(Base):
         Index("idx_presentaciones_material_id", "material_id"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    material_id: Mapped[int] = mapped_column(ForeignKey("materiales.id", name="presentaciones_material_id_fkey", ondelete="RESTRICT"))
+    id: Mapped[int] = mapped_column(BIGINT_ID, Identity(always=True), primary_key=True)
+    material_id: Mapped[int] = mapped_column(BIGINT_ID, ForeignKey("materiales.id", name="presentaciones_material_id_fkey", ondelete="RESTRICT"))
     nombre_presentacion: Mapped[str] = mapped_column(String(100))
     cantidad_base: Mapped[Decimal] = mapped_column(Numeric(12, 4))
     unidad_presentacion: Mapped[str] = mapped_column(String(20))
@@ -70,7 +71,7 @@ class Fuente(Base):
     __tablename__ = "fuentes"
     __table_args__ = (UniqueConstraint("nombre", name="fuentes_nombre_key"),)
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BIGINT_ID, Identity(always=True), primary_key=True)
     nombre: Mapped[str] = mapped_column(String(150))
     tipo_fuente: Mapped[str | None] = mapped_column(String(50))
     descripcion: Mapped[str | None] = mapped_column(Text)
@@ -78,4 +79,3 @@ class Fuente(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     precios: Mapped[list["PrecioHistorico"]] = relationship(back_populates="fuente")
-

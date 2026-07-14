@@ -7,6 +7,7 @@ from app.modules.auth.infrastructure.models import Usuario  # noqa: F401
 from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion  # noqa: F401
 from app.modules.chat.infrastructure.models import ChatConversation, ChatMessage  # noqa: F401
 from app.modules.pricing.infrastructure.models import (  # noqa: F401
+    Alerta,
     CommercialMargin,
     ExternalIndexValue,
     PrecioHistorico,

@@ -8,6 +8,7 @@ from app.operations.bootstrap.common import (
     get_or_create_presentacion,
     get_or_create_usuario,
 )
+from app.shared.config.settings import settings
 from app.shared.database.session import SessionLocal
 
 
@@ -53,20 +54,21 @@ def seed(db: Session) -> None:
         tipo_fuente="manual",
         descripcion="Carga manual tomada de comercios o presupuestos",
     )
-    get_or_create_usuario(
-        db,
-        username="admin",
-        nombre="Duenio BuildWise",
-        password="admin123",
-        rol="admin",
-    )
-    get_or_create_usuario(
-        db,
-        username="cliente",
-        nombre="Cliente demo",
-        password="cliente123",
-        rol="cliente",
-    )
+    if not settings.is_production:
+        get_or_create_usuario(
+            db,
+            username="admin",
+            nombre="Duenio BuildWise",
+            password="admin123",
+            rol="admin",
+        )
+        get_or_create_usuario(
+            db,
+            username="cliente",
+            nombre="Cliente demo",
+            password="cliente123",
+            rol="cliente",
+        )
 
 
 def main() -> None:

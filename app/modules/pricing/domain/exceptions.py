@@ -22,6 +22,18 @@ class ExternalRegressorError(PricingDomainException):
         super().__init__(message)
 
 
+class ExternalRegressorUnavailableError(ExternalRegressorError):
+    """Raised when regressor infrastructure or configured sources are unavailable."""
+
+
+class ForecastRuntimeError(PricingDomainException):
+    """Raised when the local forecasting runtime cannot execute Prophet."""
+
+
+class ForecastSnapshotRequired(PricingDomainException):
+    """A valid precomputed snapshot is required by the runtime policy."""
+
+
 class ExternalIndexSyncError(PricingDomainException):
     """Raised when an external index cannot be fetched or persisted."""
 

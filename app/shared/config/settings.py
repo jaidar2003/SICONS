@@ -1,8 +1,15 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+INSECURE_AUTH_SECRETS = {
+    "buildwise-dev-secret-change-me",
+    "change-this-auth-secret-key",
+}
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+psycopg://sicons:sicons@localhost:5432/sicons"
+    environment: str = "development"
+    database_url: str = "postgresql+psycopg://buildwise:buildwise@localhost:5432/buildwise"
     auth_secret_key: str
     auth_token_ttl_minutes: int = 480
     password_reset_token_ttl_minutes: int = 60
@@ -14,6 +21,7 @@ class Settings(BaseSettings):
     )
     forecast_cache_ttl_seconds: int = 1800
     forecast_snapshot_path: str = "tmp/forecast_snapshots.json"
+    forecast_allow_synchronous_compute: bool = True
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None
@@ -34,6 +42,19 @@ class Settings(BaseSettings):
     anthropic_max_tokens: int = 1024
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        environment = self.environment.strip().lower()
+        if environment not in {"development", "test", "production"}:
+            raise ValueError("ENVIRONMENT debe ser development, test o production")
+        if environment == "production" and self.auth_secret_key in INSECURE_AUTH_SECRETS:
+            raise ValueError("AUTH_SECRET_KEY debe configurarse con un secreto seguro en produccion")
+        return self
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.strip().lower() == "production"
 
     @property
     def sqlalchemy_database_url(self) -> str:

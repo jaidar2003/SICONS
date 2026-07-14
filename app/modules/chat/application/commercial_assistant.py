@@ -7,11 +7,11 @@ from dataclasses import dataclass, replace
 from datetime import date
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.modules.catalog.application.utils import derive_material_key
 from app.modules.chat.application.service import ChatCompletionClient
+from app.modules.chat.domain.exceptions import CommercialInterpretationError, InvalidCommercialRequest
 from app.modules.pricing.application.commercial_prices import (
     calcular_precio_comercial,
     obtener_ultima_fecha_forecast_observada,
@@ -24,13 +24,16 @@ from app.modules.pricing.application.contextual_purchase_recommendations import 
     recomendar_estrategia_contextual,
     resolver_horizonte_contextual,
 )
-from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.domain.exceptions import InsufficientDataException
+from app.modules.pricing.domain.repositories import PricingRepository
 
 SUPPORTED_PRODUCT_KEYS = {"cemento-portland", "pastina", "membrana-megaflex"}
 VALID_PHASES = {"estructura", "terminaciones", "impermeabilizacion", "general"}
 VALID_RISK_LEVELS = {"baja", "media", "alta"}
-CEMENT_BAG_KG = Decimal("25")
+# The business bought 50 kg bags historically, then switched exclusively to
+# 25 kg bags when the former presentation disappeared. Historical records keep
+# their actual presentation; current commercial requests use this conversion.
+CURRENT_CEMENT_BAG_KG = Decimal("25")
 
 
 @dataclass(frozen=True)
@@ -240,7 +243,7 @@ def interpretar_necesidad_comercial(
     try:
         parsed = json.loads(_strip_json_fence(content))
     except (json.JSONDecodeError, TypeError) as exc:
-        raise HTTPException(status_code=502, detail="La IA no devolvio una interpretacion estructurada valida.") from exc
+        raise CommercialInterpretationError("La IA no devolvio una interpretacion estructurada valida.") from exc
 
     try:
         requested_id = int(parsed.get("material_id")) if parsed.get("material_id") is not None else None
@@ -256,8 +259,7 @@ def interpretar_necesidad_comercial(
         cantidad = _optional_decimal(parsed.get("cantidad"))
         presupuesto = _optional_decimal(parsed.get("presupuesto_maximo"))
     except ValueError as exc:
-        cantidad = None
-        presupuesto = None
+        raise CommercialInterpretationError("La IA devolvio importes invalidos.") from exc
 
     if matched is not None and derive_material_key(matched.nombre) == "cemento-portland":
         cantidad = _extract_bag_count_from_solicitud(solicitud) or cantidad
@@ -266,9 +268,6 @@ def interpretar_necesidad_comercial(
         cantidad = _extract_quantity_from_solicitud(solicitud)
     if presupuesto is None:
         presupuesto = _extract_budget_from_solicitud(solicitud)
-    if cantidad is None or presupuesto is None:
-        raise HTTPException(status_code=502, detail="La IA devolvio importes invalidos.") from None
-
     fase = parsed.get("fase_obra") if parsed.get("fase_obra") in VALID_PHASES else None
     fecha_objetivo = _optional_date(parsed.get("fecha_objetivo_uso"))
     horizonte = _optional_horizon(parsed.get("horizonte_meses")) if fecha_objetivo is None else None
@@ -319,8 +318,8 @@ def _commercial_quantity_context(*, material, cantidad: Decimal, solicitud_origi
     material_key = derive_material_key(material.nombre)
     unidad_base = getattr(material, "unidad_base", None)
     if material_key == "cemento-portland" and unidad_base == "kg" and _mentions_bags(solicitud_original):
-        cantidad_calculo = cantidad * CEMENT_BAG_KG
-        return cantidad_calculo, f"{cantidad} bolsas de 25 kg ({cantidad_calculo} kg)", CEMENT_BAG_KG
+        cantidad_calculo = cantidad * CURRENT_CEMENT_BAG_KG
+        return cantidad_calculo, f"{cantidad} bolsas de 25 kg ({cantidad_calculo} kg)", CURRENT_CEMENT_BAG_KG
     return cantidad, f"{cantidad} {unidad_base or 'unidades'}", None
 
 
@@ -417,7 +416,7 @@ def generar_propuesta_comercial(
     usar_selector_modelo: bool = True,
 ) -> CommercialProposalResult:
     if derive_material_key(material.nombre) not in SUPPORTED_PRODUCT_KEYS:
-        raise HTTPException(status_code=422, detail="El producto no pertenece al alcance de compra del MVP.")
+        raise InvalidCommercialRequest("El producto no pertenece al alcance de compra del MVP.")
 
     try:
         fecha_base_calculo = obtener_ultima_fecha_forecast_observada(
@@ -426,7 +425,7 @@ def generar_propuesta_comercial(
             horizonte_meses=1,
             usar_selector_modelo=usar_selector_modelo,
         )
-    except (AttributeError, HTTPException, InsufficientDataException):
+    except (AttributeError, InsufficientDataException):
         try:
             fecha_base_calculo = obtener_ultima_fecha_precio_observado(pricing_repo, material.id)
         except AttributeError:
