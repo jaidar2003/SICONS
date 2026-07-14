@@ -1,10 +1,11 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Identity, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.shared.database.base import Base
+from app.shared.database.types import BIGINT_ID
 
 
 class ChatConversation(Base):
@@ -15,10 +16,10 @@ class ChatConversation(Base):
         Index("idx_chat_conversations_usuario_archived", "usuario_id", "archived_at"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    usuario_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
+    id: Mapped[int] = mapped_column(BIGINT_ID, Identity(always=True), primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(BIGINT_ID, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
     titulo: Mapped[str] = mapped_column(String(160), nullable=False)
-    material_actual_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("materiales.id", ondelete="SET NULL"), nullable=True)
+    material_actual_id: Mapped[int | None] = mapped_column(BIGINT_ID, ForeignKey("materiales.id", ondelete="SET NULL"), nullable=True)
     horizonte_actual: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -39,9 +40,9 @@ class ChatMessage(Base):
         Index("idx_chat_messages_conversation_created", "conversation_id", "created_at"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BIGINT_ID, Identity(always=True), primary_key=True)
     conversation_id: Mapped[int] = mapped_column(
-        BigInteger,
+        BIGINT_ID,
         ForeignKey("chat_conversations.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -51,7 +52,7 @@ class ChatMessage(Base):
     contexto_usado: Mapped[bool | None] = mapped_column(nullable=True)
     fuentes_recuperadas: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     fuentes_evidencia: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
-    material_resuelto_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("materiales.id", ondelete="SET NULL"), nullable=True)
+    material_resuelto_id: Mapped[int | None] = mapped_column(BIGINT_ID, ForeignKey("materiales.id", ondelete="SET NULL"), nullable=True)
     material_resuelto: Mapped[str | None] = mapped_column(String(160), nullable=True)
     material_resolution_source: Mapped[str | None] = mapped_column(String(30), nullable=True)
     horizonte_resuelto: Mapped[int | None] = mapped_column(Integer, nullable=True)

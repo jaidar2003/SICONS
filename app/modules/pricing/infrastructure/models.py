@@ -1,6 +1,5 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -9,8 +8,8 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Identity,
     Index,
-    Integer,
     Numeric,
     String,
     Text,
@@ -20,11 +19,10 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.modules.auth.infrastructure.models import Usuario
+from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion
 from app.shared.database.base import Base
-
-if TYPE_CHECKING:
-    from app.modules.auth.infrastructure.models import Usuario
-    from app.modules.catalog.infrastructure.models import Fuente, Material, Presentacion
+from app.shared.database.types import BIGINT_ID
 
 
 class PrecioHistorico(Base):
@@ -57,12 +55,12 @@ class PrecioHistorico(Base):
         ),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    material_id: Mapped[int] = mapped_column(ForeignKey("materiales.id", name="precios_historicos_material_id_fkey", ondelete="RESTRICT"))
+    id: Mapped[int] = mapped_column(BIGINT_ID, Identity(always=True), primary_key=True)
+    material_id: Mapped[int] = mapped_column(BIGINT_ID, ForeignKey("materiales.id", name="precios_historicos_material_id_fkey", ondelete="RESTRICT"))
     presentacion_id: Mapped[int | None] = mapped_column(
-        ForeignKey("presentaciones.id", name="precios_historicos_presentacion_id_fkey", ondelete="RESTRICT")
+        BIGINT_ID, ForeignKey("presentaciones.id", name="precios_historicos_presentacion_id_fkey", ondelete="RESTRICT")
     )
-    fuente_id: Mapped[int | None] = mapped_column(ForeignKey("fuentes.id", name="precios_historicos_fuente_id_fkey", ondelete="SET NULL"))
+    fuente_id: Mapped[int | None] = mapped_column(BIGINT_ID, ForeignKey("fuentes.id", name="precios_historicos_fuente_id_fkey", ondelete="SET NULL"))
     fecha: Mapped[date] = mapped_column(Date)
     precio_original: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     precio_normalizado: Mapped[Decimal] = mapped_column(Numeric(14, 4))
@@ -86,7 +84,7 @@ class ExternalIndexValue(Base):
         Index("idx_external_index_values_series_date", "series_id", "date"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BIGINT_ID, Identity(always=True), primary_key=True)
     source_name: Mapped[str] = mapped_column(String(50))
     series_id: Mapped[str] = mapped_column(String(100))
     date: Mapped[date] = mapped_column(Date)
@@ -128,11 +126,11 @@ class CommercialMargin(Base):
         Index("idx_commercial_margins_product_key", "product_key"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BIGINT_ID, Identity(always=True), primary_key=True)
     scope: Mapped[str] = mapped_column(String(20), nullable=False)
-    material_id: Mapped[int | None] = mapped_column(ForeignKey("materiales.id", name="commercial_margins_material_id_fkey", ondelete="RESTRICT"))
+    material_id: Mapped[int | None] = mapped_column(BIGINT_ID, ForeignKey("materiales.id", name="commercial_margins_material_id_fkey", ondelete="RESTRICT"))
     presentation_id: Mapped[int | None] = mapped_column(
-        ForeignKey("presentaciones.id", name="commercial_margins_presentation_id_fkey", ondelete="RESTRICT")
+        BIGINT_ID, ForeignKey("presentaciones.id", name="commercial_margins_presentation_id_fkey", ondelete="RESTRICT")
     )
     product_key: Mapped[str | None] = mapped_column(String(200))
     margen_ganancia_pct: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
@@ -157,12 +155,12 @@ class Alerta(Base):
         Index("idx_alertas_created_at", text("created_at DESC")),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BIGINT_ID, Identity(always=True), primary_key=True)
     usuario_id: Mapped[int | None] = mapped_column(
-        ForeignKey("usuarios.id", name="alertas_usuario_id_fkey", ondelete="CASCADE")
+        BIGINT_ID, ForeignKey("usuarios.id", name="alertas_usuario_id_fkey", ondelete="CASCADE")
     )
     material_id: Mapped[int | None] = mapped_column(
-        ForeignKey("materiales.id", name="alertas_material_id_fkey", ondelete="CASCADE")
+        BIGINT_ID, ForeignKey("materiales.id", name="alertas_material_id_fkey", ondelete="CASCADE")
     )
     tipo: Mapped[str] = mapped_column(String(50), nullable=False)
     prioridad: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -174,4 +172,3 @@ class Alerta(Base):
 
     usuario: Mapped["Usuario | None"] = relationship(foreign_keys=[usuario_id])
     material: Mapped["Material | None"] = relationship(foreign_keys=[material_id])
-

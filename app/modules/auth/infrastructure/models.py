@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Integer, String, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Identity, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.shared.database.base import Base
+from app.shared.database.types import BIGINT_ID
 
 
 class Usuario(Base):
@@ -13,7 +14,7 @@ class Usuario(Base):
         CheckConstraint("trim(username) <> ''", name="usuarios_username_not_blank"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BIGINT_ID, Identity(always=True), primary_key=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     email: Mapped[str | None] = mapped_column(String(160), unique=True, nullable=True)
     nombre: Mapped[str] = mapped_column(String(120), nullable=False)
