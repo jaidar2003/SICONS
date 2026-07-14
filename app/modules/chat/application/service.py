@@ -3,6 +3,7 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Protocol
 
+from app.modules.chat.application.response_validation import deterministic_grounded_fallback, validate_grounded_response
 from app.shared.config.settings import settings
 
 OUT_OF_SCOPE_RESPONSE = (
@@ -152,6 +153,7 @@ class ChatAnswer:
     proveedor_utilizado: bool
     proveedor_ia: str | None = None
     fallback_usado: bool = False
+    validacion_respuesta: str = "not_applicable"
 
 
 def _tokens(text: str) -> set[str]:
@@ -198,6 +200,16 @@ def answer_question(
     messages.extend((history or [])[-8:])
     messages.append({"role": "user", "content": question.strip()})
     response = client.complete(messages)
+    validation_status = "not_applicable"
+    validation_fallback = False
+    if context:
+        validation = validate_grounded_response(response, context=context, user_message=question)
+        if not validation.valid:
+            response = deterministic_grounded_fallback(context)
+            validation_status = "rejected:" + ",".join(validation.reasons)
+            validation_fallback = True
+        else:
+            validation_status = "validated"
     return ChatAnswer(
         aceptada=True,
         respuesta=response,
@@ -207,5 +219,6 @@ def answer_question(
             "last_provider_name",
             getattr(client, "provider_name", "claude" if settings.chat_provider.strip().lower() == "anthropic" else "facultad"),
         ),
-        fallback_usado=bool(getattr(client, "last_fallback_used", False)),
+        fallback_usado=bool(getattr(client, "last_fallback_used", False)) or validation_fallback,
+        validacion_respuesta=validation_status,
     )
