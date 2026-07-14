@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
+
+BASE_URL = os.getenv("BUILDWISE_API_URL", "http://127.0.0.1:8000").rstrip("/")
+
+
+def request(method: str, path: str, *, token: str | None = None, payload: dict | None = None) -> tuple[int, object]:
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    body = json.dumps(payload).encode() if payload is not None else None
+    try:
+        with urlopen(Request(f"{BASE_URL}{path}", data=body, headers=headers, method=method), timeout=60) as response:
+            raw = response.read()
+            return response.status, json.loads(raw) if raw else None
+    except HTTPError as exc:
+        raw = exc.read()
+        return exc.code, json.loads(raw) if raw else None
+
+
+def expect(method: str, path: str, status: int, **kwargs) -> object:
+    actual, payload = request(method, path, **kwargs)
+    if actual != status:
+        raise AssertionError(f"{method} {path}: esperado {status}, recibido {actual}: {payload}")
+    return payload
+
+
+def login(username: str, password: str) -> str:
+    payload = expect("POST", "/auth/login", 200, payload={"username": username, "password": password})
+    return payload["access_token"]
+
+
+def main() -> None:
+    expect("GET", "/health", 200)
+    admin_token = login(os.getenv("SMOKE_ADMIN_USERNAME", "admin"), os.getenv("SMOKE_ADMIN_PASSWORD", "admin123"))
+    expect("POST", "/auth/login", 401, payload={"username": "admin", "password": "invalid-smoke-password"})
+    client_token = login(os.getenv("SMOKE_CLIENT_USERNAME", "cliente"), os.getenv("SMOKE_CLIENT_PASSWORD", "cliente123"))
+    expect("GET", "/auth/usuarios", 403, token=client_token)
+    expect("GET", "/auth/usuarios", 200, token=admin_token)
+
+    materials = expect("GET", "/materiales", 200)
+    names = {material["nombre"] for material in materials}
+    required = {"Cemento Portland", "Pastina", "Membrana Megaflex"}
+    if not required.issubset(names):
+        raise AssertionError(f"Faltan materiales MVP: {sorted(required - names)}")
+    cement = next(material for material in materials if material["nombre"] == "Cemento Portland")
+    history = expect("GET", f"/materiales/{cement['id']}/precios", 200, token=client_token)
+    if not history:
+        raise AssertionError("El historico de Cemento Portland esta vacio")
+
+    conversation = expect("POST", "/chat/conversaciones", 201, token=client_token, payload={"titulo": "Smoke API"})
+    conversation_id = conversation["id"]
+    expect("GET", f"/chat/conversaciones/{conversation_id}/mensajes", 200, token=client_token)
+    expect(
+        "PATCH",
+        f"/chat/conversaciones/{conversation_id}",
+        200,
+        token=client_token,
+        payload={"archived": True},
+    )
+
+    catalog_answer = expect("POST", "/chat/consultas", 200, token=client_token, payload={"pregunta": "que materiales hay?"})
+    if catalog_answer.get("proveedor_utilizado"):
+        raise AssertionError("La consulta deterministica de catalogo no debe depender de un LLM")
+
+    print("BuildWise API smoke: OK")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:
+        print(f"BuildWise API smoke: FAIL: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
