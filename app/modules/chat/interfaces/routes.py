@@ -1,12 +1,11 @@
 import re
 import unicodedata
 from collections import Counter
-from datetime import UTC, datetime
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from math import ceil
 from time import perf_counter
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -48,7 +47,7 @@ from app.modules.chat.infrastructure.llm_client import (
     LLMProviderError,
     OpenAICompatibleChatClient,
 )
-from app.modules.chat.infrastructure.models import ChatConversation, ChatMessage, ChatProviderSetting
+from app.modules.chat.infrastructure.models import ChatMessage, ChatProviderSetting
 from app.modules.chat.infrastructure.provider_config import (
     LAST_PROVIDER_STATUS as _LAST_PROVIDER_STATUS,
 )
@@ -64,17 +63,29 @@ from app.modules.chat.infrastructure.provider_config import remember_provider_er
 from app.modules.chat.infrastructure.provider_config import remember_provider_success as _remember_provider_success
 from app.modules.chat.infrastructure.provider_config import resolve_provider_metadata as _resolve_provider_metadata
 from app.modules.chat.infrastructure.provider_config import settings_provider_key as _settings_provider_key
+from app.modules.chat.interfaces.audit_routes import build_audit_router
+from app.modules.chat.interfaces.conversation_routes import (
+    conversation_history as _conversation_history,
+)
+from app.modules.chat.interfaces.conversation_routes import (
+    get_owned_conversation as _get_owned_conversation,
+)
+from app.modules.chat.interfaces.conversation_routes import (
+    latest_assistant_message as _latest_assistant_message,
+)
+from app.modules.chat.interfaces.conversation_routes import (
+    persist_conversation_turn as _persist_conversation_turn,
+)
+from app.modules.chat.interfaces.conversation_routes import (
+    router as conversation_router,
+)
 from app.modules.chat.interfaces.schemas import (
     ChatAuditLogRead,
     ChatAuditMetricsRead,
-    ChatConversationCreate,
-    ChatConversationRead,
-    ChatConversationUpdate,
     ChatDeterminismCanonicalItemRead,
     ChatDeterminismCanonicalReportRead,
     ChatDeterminismGroupRead,
     ChatDeterminismReportRead,
-    ChatMessageRead,
     ChatProviderConfigRead,
     ChatProviderConfigUpdate,
     ChatProviderStatusRead,
@@ -95,50 +106,12 @@ from app.shared.database.audit_service import register_audit_log
 from app.shared.database.session import get_db
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+router.include_router(conversation_router)
 settings = provider_config.settings
 
 
 def _chat_config_from_settings() -> dict[str, str | None]:
     return chat_config_from_settings()
-
-def _conversation_title(question: str | None = None) -> str:
-    text = (question or "Nueva conversación").strip()
-    if not text:
-        return "Nueva conversación"
-    return text[:157] + "..." if len(text) > 160 else text
-
-
-def _get_owned_conversation(db: Session, conversation_id: int, user_id: int) -> ChatConversation:
-    conversation = db.get(ChatConversation, conversation_id)
-    if conversation is None or conversation.usuario_id != user_id or conversation.archived_at is not None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversación no encontrada")
-    return conversation
-
-
-def _message_to_history(message: ChatMessage) -> dict[str, str]:
-    return {"role": message.role, "content": message.content}
-
-
-def _conversation_history(db: Session, conversation: ChatConversation, limit: int = 8) -> list[dict[str, str]]:
-    rows = list(
-        db.scalars(
-            select(ChatMessage)
-            .where(ChatMessage.conversation_id == conversation.id)
-            .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
-            .limit(limit)
-        )
-    )
-    return [_message_to_history(message) for message in reversed(rows)]
-
-
-def _latest_assistant_message(db: Session, conversation: ChatConversation) -> ChatMessage | None:
-    return db.scalar(
-        select(ChatMessage)
-        .where(ChatMessage.conversation_id == conversation.id, ChatMessage.role == "assistant")
-        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
-        .limit(1)
-    )
-
 
 def _semantic_question_for_conversation(question: str, latest_assistant: ChatMessage | None) -> str:
     if latest_assistant is None:
@@ -160,80 +133,6 @@ def _semantic_question_for_conversation(question: str, latest_assistant: ChatMes
     if previous_type in {"FORECAST", "PRICE_HISTORY_FORECAST"} and re.search(r"\b(ahora|mostra|mostrame|ver|grafica|graficame|mes|meses|horizonte|12|6|3)\b", normalized):
         return f"{question} forecast"
     return question
-
-
-def _message_read(message: ChatMessage) -> ChatMessageRead:
-    return ChatMessageRead(
-        id=message.id,
-        conversation_id=message.conversation_id,
-        role=message.role,
-        content=message.content,
-        tipo_intencion=message.tipo_intencion,
-        contexto_usado=message.contexto_usado,
-        fuentes_recuperadas=message.fuentes_recuperadas or [],
-        fuentes_evidencia=message.fuentes_evidencia or [],
-        material_resuelto_id=message.material_resuelto_id,
-        material_resuelto=message.material_resuelto,
-        material_resolution_source=message.material_resolution_source,
-        horizonte_resuelto=message.horizonte_resuelto,
-        visualizacion_sugerida=message.visualizacion_sugerida,
-        proveedor_ia=message.proveedor_ia,
-        fallback_usado=message.fallback_usado,
-        created_at=message.created_at,
-    )
-
-
-def _conversation_read(db: Session, conversation: ChatConversation) -> ChatConversationRead:
-    latest = db.scalar(
-        select(ChatMessage)
-        .where(ChatMessage.conversation_id == conversation.id)
-        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
-        .limit(1)
-    )
-    return ChatConversationRead(
-        id=conversation.id,
-        titulo=conversation.titulo,
-        material_actual_id=conversation.material_actual_id,
-        horizonte_actual=conversation.horizonte_actual,
-        created_at=conversation.created_at,
-        updated_at=conversation.updated_at,
-        archived_at=conversation.archived_at,
-        ultimo_mensaje=latest.content if latest is not None else None,
-    )
-
-
-def _persist_conversation_turn(
-    db: Session,
-    *,
-    conversation: ChatConversation,
-    question: str,
-    response: ChatResponseRead,
-) -> None:
-    db.add(ChatMessage(conversation_id=conversation.id, role="user", content=question.strip()))
-    db.add(
-        ChatMessage(
-            conversation_id=conversation.id,
-            role="assistant",
-            content=response.respuesta,
-            tipo_intencion=response.tipo_intencion,
-            contexto_usado=response.contexto_usado,
-            fuentes_recuperadas=response.fuentes_recuperadas,
-            fuentes_evidencia=[item.model_dump(mode="json") for item in response.fuentes_evidencia],
-            material_resuelto_id=response.material_resuelto_id,
-            material_resuelto=response.material_resuelto,
-            material_resolution_source=response.material_resolution_source,
-            horizonte_resuelto=response.horizonte_resuelto,
-            visualizacion_sugerida=response.visualizacion_sugerida.model_dump(mode="json") if response.visualizacion_sugerida else None,
-            proveedor_ia=response.proveedor_ia,
-            fallback_usado=response.fallback_usado,
-        )
-    )
-    if response.material_resuelto_id is not None:
-        conversation.material_actual_id = response.material_resuelto_id
-    if response.horizonte_resuelto is not None:
-        conversation.horizonte_actual = response.horizonte_resuelto
-    conversation.updated_at = datetime.now(UTC)
-    db.flush()
 
 
 def _requires_calculated_material_context(question: str) -> bool:
@@ -625,80 +524,6 @@ def get_chat_client() -> ChatCompletionClient:
     return FallbackChatClient(primary, fallback)
 
 
-@router.get("/conversaciones", response_model=list[ChatConversationRead])
-def listar_conversaciones(
-    include_archived: bool = False,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
-) -> list[ChatConversationRead]:
-    stmt = select(ChatConversation).where(ChatConversation.usuario_id == current_user.id)
-    if not include_archived:
-        stmt = stmt.where(ChatConversation.archived_at.is_(None))
-    stmt = stmt.order_by(ChatConversation.updated_at.desc(), ChatConversation.id.desc())
-    return [_conversation_read(db, conversation) for conversation in db.scalars(stmt)]
-
-
-@router.post("/conversaciones", response_model=ChatConversationRead, status_code=status.HTTP_201_CREATED)
-def crear_conversacion(
-    payload: ChatConversationCreate,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
-) -> ChatConversationRead:
-    conversation = ChatConversation(
-        usuario_id=current_user.id,
-        titulo=_conversation_title(payload.titulo),
-    )
-    db.add(conversation)
-    db.commit()
-    db.refresh(conversation)
-    return _conversation_read(db, conversation)
-
-
-@router.get("/conversaciones/{conversation_id}/mensajes", response_model=list[ChatMessageRead])
-def listar_mensajes_conversacion(
-    conversation_id: int,
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-    order: str = Query("asc", pattern="^(asc|desc)$"),
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
-) -> list[ChatMessageRead]:
-    conversation = _get_owned_conversation(db, conversation_id, current_user.id)
-    order_by = (
-        (ChatMessage.created_at.desc(), ChatMessage.id.desc())
-        if order == "desc"
-        else (ChatMessage.created_at.asc(), ChatMessage.id.asc())
-    )
-    messages = db.scalars(
-        select(ChatMessage)
-        .where(ChatMessage.conversation_id == conversation.id)
-        .order_by(*order_by)
-        .offset(offset)
-        .limit(limit)
-    )
-    return [_message_read(message) for message in messages]
-
-
-@router.patch("/conversaciones/{conversation_id}", response_model=ChatConversationRead)
-def actualizar_conversacion(
-    conversation_id: int,
-    payload: ChatConversationUpdate,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
-) -> ChatConversationRead:
-    conversation = _get_owned_conversation(db, conversation_id, current_user.id)
-    if payload.titulo is not None:
-        conversation.titulo = _conversation_title(payload.titulo)
-    if payload.archived is True:
-        conversation.archived_at = datetime.now(UTC)
-    elif payload.archived is False:
-        conversation.archived_at = None
-    conversation.updated_at = datetime.now(UTC)
-    db.commit()
-    db.refresh(conversation)
-    return _conversation_read(db, conversation)
-
-
 def _provider_key_from_settings() -> str:
     return _settings_provider_key()
 
@@ -1018,6 +843,16 @@ def _register_chat_audit(
         db.rollback()
 
 
+router.include_router(
+    build_audit_router(
+        audit_log_read=_audit_log_read,
+        build_metrics=_build_chat_metrics,
+        build_determinism=lambda logs, limit: _build_determinism_report(logs, limit_groups=limit),
+        build_canonical=_build_canonical_determinism_report,
+    )
+)
+
+
 @router.get("/config", response_model=ChatProviderConfigRead)
 def obtener_configuracion_chat(
     db: Session = Depends(get_db),
@@ -1064,98 +899,6 @@ def obtener_estado_chat(
         fallback_ultima_llamada=_LAST_PROVIDER_STATUS["fallback_ultima_llamada"],
         error_ultima_llamada=_LAST_PROVIDER_STATUS["error_ultima_llamada"],
     )
-
-
-@router.get("/auditoria", response_model=list[ChatAuditLogRead])
-def listar_auditoria_chat(
-    limit: int = Query(default=50, ge=1, le=200),
-    tipo_intencion: str | None = Query(default=None),
-    fallback_usado: bool | None = Query(default=None),
-    usuario_id: int | None = Query(default=None, ge=1),
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
-) -> list[ChatAuditLogRead]:
-    if current_user.rol != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un admin puede ver la auditoria del asistente.")
-
-    stmt = (
-        select(AuditLog, Usuario.username)
-        .outerjoin(Usuario, Usuario.id == AuditLog.usuario_id)
-        .where(AuditLog.accion == "CHAT_QUERY")
-        .where(AuditLog.recurso == "ChatConsulta")
-        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
-        .limit(limit)
-    )
-    if usuario_id is not None:
-        stmt = stmt.where(AuditLog.usuario_id == usuario_id)
-    if tipo_intencion:
-        stmt = stmt.where(AuditLog.cambios["tipo_intencion"].as_string() == tipo_intencion)
-    if fallback_usado is not None:
-        stmt = stmt.where(AuditLog.cambios["fallback_usado"].as_boolean() == fallback_usado)
-
-    rows = db.execute(stmt).all()
-    return [_audit_log_read(log, username) for log, username in rows]
-
-
-@router.get("/auditoria/metricas", response_model=ChatAuditMetricsRead)
-def obtener_metricas_auditoria_chat(
-    limit: int = Query(default=500, ge=10, le=1000),
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
-) -> ChatAuditMetricsRead:
-    if current_user.rol != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un admin puede ver las metricas de auditoria.")
-
-    stmt = (
-        select(AuditLog)
-        .where(AuditLog.accion == "CHAT_QUERY")
-        .where(AuditLog.recurso == "ChatConsulta")
-        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
-        .limit(limit)
-    )
-    logs = list(db.scalars(stmt))
-    return _build_chat_metrics(logs)
-
-
-@router.get("/auditoria/determinismo", response_model=ChatDeterminismReportRead)
-def medir_determinismo_rag(
-    limit: int = Query(default=200, ge=2, le=1000),
-    limit_groups: int = Query(default=20, ge=1, le=100),
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
-) -> ChatDeterminismReportRead:
-    if current_user.rol != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un admin puede medir determinismo del RAG.")
-
-    stmt = (
-        select(AuditLog)
-        .where(AuditLog.accion == "CHAT_QUERY")
-        .where(AuditLog.recurso == "ChatConsulta")
-        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
-        .limit(limit)
-    )
-    logs = list(db.scalars(stmt))
-    return _build_determinism_report(logs, limit_groups=limit_groups)
-
-
-@router.get("/auditoria/determinismo/canonicas", response_model=ChatDeterminismCanonicalReportRead)
-def medir_determinismo_canonicas(
-    limit: int = Query(default=500, ge=10, le=1000),
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
-) -> ChatDeterminismCanonicalReportRead:
-    if current_user.rol != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo un admin puede medir la bateria canonica del RAG.")
-
-    stmt = (
-        select(AuditLog)
-        .where(AuditLog.accion == "CHAT_QUERY")
-        .where(AuditLog.recurso == "ChatConsulta")
-        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
-        .limit(limit)
-    )
-    logs = list(db.scalars(stmt))
-    return _build_canonical_determinism_report(logs)
 
 
 @router.patch("/config", response_model=ChatProviderConfigRead)

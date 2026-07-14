@@ -27,6 +27,7 @@ from app.modules.chat.infrastructure.llm_client import (
     OpenAICompatibleChatClient,
 )
 from app.modules.chat.infrastructure.models import ChatConversation, ChatMessage
+from app.modules.chat.interfaces import conversation_routes
 from app.modules.chat.interfaces import routes as chat_routes
 from app.modules.chat.interfaces.routes import (
     _persist_conversation_turn,
@@ -171,9 +172,9 @@ def test_listar_mensajes_conversacion_aplica_paginacion_y_orden_desc(monkeypatch
             ]
 
     db = CapturingDb()
-    monkeypatch.setattr(chat_routes, "_get_owned_conversation", lambda *_args: SimpleNamespace(id=7))
+    monkeypatch.setattr(conversation_routes, "get_owned_conversation", lambda *_args: SimpleNamespace(id=7))
 
-    result = chat_routes.listar_mensajes_conversacion(
+    result = conversation_routes.listar_mensajes_conversacion(
         7,
         limit=2,
         offset=4,
