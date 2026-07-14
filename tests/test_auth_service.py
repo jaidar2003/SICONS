@@ -1,6 +1,6 @@
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -20,6 +20,8 @@ from app.modules.auth.domain.exceptions import (
     InvalidCredentials,
 )
 from app.modules.auth.infrastructure.models import Usuario
+from app.shared.database.audit_models import AuditLog
+from app.shared.notifications.email import EmailDeliveryResult, EmailDeliveryStatus
 from app.shared.security.tokens import hash_password, verify_password
 
 
@@ -83,6 +85,55 @@ def test_registrar_cliente_crea_usuario_inactivo() -> None:
     assert result.usuario.email == "cliente@example.com"
     assert result.usuario.rol == "cliente"
     assert result.usuario.activo is False
+    assert result.admin_notification_status == "admin_email_not_configured"
+
+
+def test_registrar_cliente_notifica_una_vez_y_audita(monkeypatch) -> None:
+    session, _engine = make_session()
+    calls = []
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_pending_registration_admin_email",
+        lambda **kwargs: calls.append(kwargs) or EmailDeliveryResult(EmailDeliveryStatus.SENT),
+    )
+
+    result = registrar_cliente(
+        session,
+        username="cliente_nuevo",
+        nombre="Cliente Nuevo",
+        email="cliente@example.com",
+        password="password123",
+    )
+
+    actions = list(session.scalars(select(AuditLog.accion).order_by(AuditLog.id)))
+    assert len(calls) == 1
+    assert calls[0]["user_id"] == result.usuario.id
+    assert result.admin_notification_status == "sent"
+    assert actions == ["REGISTER", "ADMIN_REGISTRATION_NOTIFICATION_SENT"]
+
+
+def test_registrar_cliente_preserva_usuario_si_falla_notificacion(monkeypatch) -> None:
+    session, _engine = make_session()
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_pending_registration_admin_email",
+        lambda **_kwargs: EmailDeliveryResult(EmailDeliveryStatus.DELIVERY_FAILED),
+    )
+
+    result = registrar_cliente(
+        session,
+        username="cliente_nuevo",
+        nombre="Cliente Nuevo",
+        email="cliente@example.com",
+        password="password123",
+    )
+    session.expire_all()
+
+    persisted = session.get(Usuario, result.usuario.id)
+    assert persisted is not None
+    assert persisted.activo is False
+    assert result.admin_notification_status == "delivery_failed"
+    assert session.scalar(
+        select(AuditLog).where(AuditLog.accion == "ADMIN_REGISTRATION_NOTIFICATION_FAILED")
+    ) is not None
 
 
 def test_registrar_cliente_rechaza_email_duplicado() -> None:
@@ -146,6 +197,21 @@ def test_registrar_cliente_duplicate() -> None:
     
     with pytest.raises(AuthConflict):
         registrar_cliente(session, username="other", nombre="n2", email="dup@e.com", password="p")
+
+
+def test_registrar_cliente_duplicado_no_notifica(monkeypatch) -> None:
+    session, _engine = make_session()
+    calls = []
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_pending_registration_admin_email",
+        lambda **kwargs: calls.append(kwargs) or EmailDeliveryResult(EmailDeliveryStatus.SENT),
+    )
+    registrar_cliente(session, username="dup", nombre="n", email="dup@e.com", password="p")
+    assert len(calls) == 1
+
+    with pytest.raises(AuthConflict):
+        registrar_cliente(session, username="other", nombre="n2", email="dup@e.com", password="p")
+    assert len(calls) == 1
 
 def test_habilitar_usuario_not_found() -> None:
     session, _engine = make_session()

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import logging
 import smtplib
+from dataclasses import dataclass
+from datetime import datetime
 from email.message import EmailMessage
+from enum import StrEnum
 from html import escape
 from pathlib import Path
 
@@ -12,6 +15,106 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 REPO_ROOT = Path(__file__).resolve().parents[3]
 LOGO_PATH = REPO_ROOT / "frontend" / "bwlogo.png"
+
+
+class EmailDeliveryStatus(StrEnum):
+    SENT = "sent"
+    SMTP_NOT_CONFIGURED = "smtp_not_configured"
+    ADMIN_EMAIL_NOT_CONFIGURED = "admin_email_not_configured"
+    DELIVERY_FAILED = "delivery_failed"
+
+
+@dataclass(frozen=True)
+class EmailDeliveryResult:
+    status: EmailDeliveryStatus
+
+    @property
+    def sent(self) -> bool:
+        return self.status == EmailDeliveryStatus.SENT
+
+
+def _masked_email(address: str) -> str:
+    local, separator, domain = address.partition("@")
+    return f"{local[:1]}***@{domain}" if separator else "***"
+
+
+def _attach_logo(message: EmailMessage, *, logo_cid: str) -> None:
+    if not LOGO_PATH.exists():
+        logger.info("Logo de correo no disponible; se envia el mensaje sin imagen embebida")
+        return
+    with LOGO_PATH.open("rb") as logo_file:
+        message.get_payload()[1].add_related(
+            logo_file.read(),
+            maintype="image",
+            subtype="png",
+            cid=logo_cid,
+            filename="bwlogo.png",
+        )
+
+
+def _build_pending_registration_admin_message(
+    *,
+    to_email: str,
+    nombre: str,
+    username: str,
+    registered_email: str,
+    registered_at: datetime,
+    user_id: int | None,
+) -> EmailMessage:
+    sender = settings.smtp_sender or settings.smtp_username or "noreply@buildwise.local"
+    registered_at_text = registered_at.isoformat(timespec="seconds")
+    user_id_text = str(user_id) if user_id is not None else "No disponible"
+    logo_cid = "buildwise-logo"
+
+    message = EmailMessage()
+    message["Subject"] = "Nuevo usuario pendiente de aprobación en BuildWise"
+    message["From"] = sender
+    message["To"] = to_email
+    message.set_content(
+        f"""Se registró un nuevo usuario en BuildWise y espera aprobación administrativa.
+
+Nombre: {nombre}
+Usuario: {username}
+Email: {registered_email}
+Fecha de registro: {registered_at_text}
+ID: {user_id_text}
+Estado: Pendiente de aprobación
+
+Ingresá al panel administrativo de BuildWise para revisar la solicitud.
+La cuenta no fue aprobada automáticamente.
+"""
+    )
+    message.add_alternative(
+        f"""
+        <html>
+          <body style="margin:0;padding:0;background:#f5f7fb;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+            <div style="max-width:640px;margin:0 auto;padding:32px 16px;">
+              <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">
+                <div style="background:#0f172a;padding:24px;text-align:center;">
+                  <img src="cid:{logo_cid}" alt="BuildWise" style="max-width:200px;width:100%;height:auto;" />
+                </div>
+                <div style="padding:28px;">
+                  <h1 style="font-size:22px;margin:0 0 16px;">Nuevo usuario pendiente</h1>
+                  <p>Se registró un nuevo usuario en BuildWise y espera aprobación administrativa.</p>
+                  <table style="width:100%;border-collapse:collapse;">
+                    <tr><th style="text-align:left;padding:6px;">Nombre</th><td style="padding:6px;">{escape(nombre)}</td></tr>
+                    <tr><th style="text-align:left;padding:6px;">Usuario</th><td style="padding:6px;">{escape(username)}</td></tr>
+                    <tr><th style="text-align:left;padding:6px;">Email</th><td style="padding:6px;">{escape(registered_email)}</td></tr>
+                    <tr><th style="text-align:left;padding:6px;">Fecha</th><td style="padding:6px;">{escape(registered_at_text)}</td></tr>
+                    <tr><th style="text-align:left;padding:6px;">ID</th><td style="padding:6px;">{escape(user_id_text)}</td></tr>
+                    <tr><th style="text-align:left;padding:6px;">Estado</th><td style="padding:6px;">Pendiente de aprobación</td></tr>
+                  </table>
+                  <p>Ingresá al panel administrativo para revisar la solicitud. La cuenta no fue aprobada automáticamente.</p>
+                </div>
+              </div>
+            </div>
+          </body>
+        </html>
+        """,
+        subtype="html",
+    )
+    _attach_logo(message, logo_cid=logo_cid)
+    return message
 
 
 def _build_welcome_message(*, to_email: str, nombre: str, username: str) -> EmailMessage:
@@ -254,12 +357,11 @@ Equipo BuildWise
     return message
 
 
-def _send_email(message: EmailMessage, *, to_email: str, log_label: str) -> bool:
+def _deliver_email(message: EmailMessage, *, to_email: str, log_label: str) -> EmailDeliveryResult:
     if not settings.smtp_host or not settings.smtp_sender:
-        logger.info("SMTP no configurado, se omite el mail de %s para %s", log_label, to_email)
-        return False
+        logger.info("SMTP no configurado; se omite el correo de %s", log_label)
+        return EmailDeliveryResult(EmailDeliveryStatus.SMTP_NOT_CONFIGURED)
 
-    sender = settings.smtp_sender or settings.smtp_username or "noreply@buildwise.local"
     try:
         if settings.smtp_use_ssl:
             server: smtplib.SMTP | smtplib.SMTP_SSL = smtplib.SMTP_SSL(
@@ -280,11 +382,42 @@ def _send_email(message: EmailMessage, *, to_email: str, log_label: str) -> bool
             if settings.smtp_username and settings.smtp_password:
                 server.login(settings.smtp_username, settings.smtp_password)
             server.send_message(message)
-        logger.info("Mail de %s enviado a %s desde %s", log_label, to_email, sender)
-        return True
-    except Exception:
-        logger.exception("No se pudo enviar el mail de %s a %s", log_label, to_email)
-        return False
+        logger.info("Correo de %s enviado a %s", log_label, _masked_email(to_email))
+        return EmailDeliveryResult(EmailDeliveryStatus.SENT)
+    except (smtplib.SMTPException, OSError, TimeoutError) as exc:
+        logger.warning("Fallo seguro al enviar correo de %s: %s", log_label, type(exc).__name__)
+        return EmailDeliveryResult(EmailDeliveryStatus.DELIVERY_FAILED)
+
+
+def _send_email(message: EmailMessage, *, to_email: str, log_label: str) -> bool:
+    return _deliver_email(message, to_email=to_email, log_label=log_label).sent
+
+
+def send_pending_registration_admin_email(
+    *,
+    nombre: str,
+    username: str,
+    registered_email: str,
+    registered_at: datetime,
+    user_id: int | None,
+) -> EmailDeliveryResult:
+    to_email = settings.admin_notification_email
+    if not to_email:
+        logger.info("Destinatario administrativo no configurado; se omite la notificacion de registro")
+        return EmailDeliveryResult(EmailDeliveryStatus.ADMIN_EMAIL_NOT_CONFIGURED)
+    try:
+        message = _build_pending_registration_admin_message(
+            to_email=to_email,
+            nombre=nombre,
+            username=username,
+            registered_email=registered_email,
+            registered_at=registered_at,
+            user_id=user_id,
+        )
+    except (ValueError, TypeError, OSError) as exc:
+        logger.warning("No se pudo construir la notificacion de registro: %s", type(exc).__name__)
+        return EmailDeliveryResult(EmailDeliveryStatus.DELIVERY_FAILED)
+    return _deliver_email(message, to_email=to_email, log_label="registro pendiente")
 
 
 def send_welcome_email(*, to_email: str, nombre: str, username: str) -> bool:

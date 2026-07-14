@@ -51,7 +51,18 @@ POSTGRES_PASSWORD=una-clave-fuerte
 AUTH_SECRET_KEY=otra-clave-fuerte
 API_DOMAIN=api-buildwise.tu-dominio.edu.ar
 CORS_ORIGINS=https://buildwise-tif.vercel.app,http://localhost:3000,http://127.0.0.1:3000
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_SENDER=
+SMTP_USE_TLS=true
+SMTP_USE_SSL=false
+SMTP_TIMEOUT_SECONDS=10
+ADMIN_NOTIFICATION_EMAIL=
 ```
+
+`ADMIN_NOTIFICATION_EMAIL` es opcional. Cuando se configura junto con SMTP, el backend notifica al administrador cada registro pendiente. No incluir `.env.openstack` en Git. Ver [notificación administrativa de registros](admin-registration-email.md).
 
 `API_DOMAIN` debe tener un registro DNS apuntando a la IP flotante de OpenStack. Caddy usa ese dominio para emitir HTTPS automaticamente.
 
@@ -109,4 +120,3 @@ Cuando haya cambios nuevos:
 git pull
 docker compose -f docker-compose.openstack.yml --env-file .env.openstack up -d --build
 ```
-

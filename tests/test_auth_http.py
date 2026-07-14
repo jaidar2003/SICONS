@@ -9,6 +9,7 @@ from sqlalchemy.pool import StaticPool
 from app.main import app
 from app.modules.auth.infrastructure.models import Usuario
 from app.shared.database.session import get_db
+from app.shared.notifications.email import EmailDeliveryResult, EmailDeliveryStatus
 from app.shared.security.tokens import hash_password
 
 
@@ -114,6 +115,31 @@ def test_register_crea_usuario_pendiente_y_bloquea_login() -> None:
     assert response.status_code == 201
     assert response.json()["usuario"]["email"] == "cliente@example.com"
     assert login_response.status_code == 401
+    assert response.json()["message"] == "Cuenta creada. Queda pendiente de habilitacion por un administrador."
+
+
+def test_register_smtp_failure_preserves_http_contract_and_inactive_user(monkeypatch) -> None:
+    session, _engine = make_session()
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_pending_registration_admin_email",
+        lambda **_kwargs: EmailDeliveryResult(EmailDeliveryStatus.DELIVERY_FAILED),
+    )
+    with with_test_client(session) as client:
+        response = client.post(
+            "/auth/register",
+            json={
+                "username": "cliente-fallo-smtp",
+                "nombre": "Cliente SMTP",
+                "email": "smtp@example.com",
+                "password": "password123",
+            },
+        )
+
+    persisted = session.scalar(select(Usuario).where(Usuario.email == "smtp@example.com"))
+    assert response.status_code == 201
+    assert response.json()["message"] == "Cuenta creada. Queda pendiente de habilitacion por un administrador."
+    assert "admin_notification" not in response.json()
+    assert persisted is not None and persisted.activo is False
 
 
 def test_password_recovery_informa_mail_no_registrado(monkeypatch) -> None:
