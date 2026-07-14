@@ -83,7 +83,7 @@ export function LoginPage({ onLogin, onRegister }) {
         if (cancelled) return;
         setMode(RESET_MODE);
         setResetToken(initialResetState.resetToken);
-      } catch (_validationError) {
+      } catch {
         if (cancelled) return;
         setMode(LOGIN_MODE);
         setResetToken("");

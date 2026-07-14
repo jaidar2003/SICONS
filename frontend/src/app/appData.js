@@ -55,7 +55,6 @@ export async function loadMaterialAnalysis({
   from,
   to,
   horizon,
-  materials,
   token,
   includeForecast = true,
   includeCommercial = true,
