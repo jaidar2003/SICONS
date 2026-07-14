@@ -29,7 +29,7 @@ export function PriceChart({
   canShowCostDetails = true,
 }) {
   const presentation = getMaterialPresentation(selectedMaterial?.nombre, selectedMaterial?.unidad_base);
-  const showBagEquivalents = presentation.type === "cement" && serie.some((point) => point.precio_equivalente_25kg !== null);
+  const showBagEquivalents = presentation.type === "cement" && serie.some((point) => point.precio_equivalente_50kg !== null);
   const baseValue = serie.length ? Number(serie[0].precio_promedio_normalizado) : 0;
   const lastObservedValue = serie.length ? Number(serie[serie.length - 1].precio_promedio_normalizado) : 0;
   const commercialMarginNumber = Number(commercialMarginPct);
@@ -97,7 +97,7 @@ export function PriceChart({
       : showPrices && chartMode === "comparative"
         ? "Costo y precio minorista superpuestos"
         : showPrices
-          ? "Evolucion historica del precio normalizado"
+          ? "Evolucion historica del precio de referencia"
           : "Evolucion historica porcentual";
   const forecastBoundaryNote = forecastPoints.length ? " La franja naranja marca el tramo estimado." : "";
   const chartDescription =
@@ -443,9 +443,9 @@ export function PriceChart({
               if (showPrices) {
                 const point = forecastPoints[forecastIndex];
                 return [
-                  `${datasetLabel}: ${formatCurrency(point.precio_proyectado)}`,
-                  `Optimista: ${formatCurrency(point.precio_optimista)}`,
-                  `Pesimista: ${formatCurrency(point.precio_pesimista)}`,
+                  `${datasetLabel}: ${formatCurrency(getDisplayPrice(point.precio_proyectado, selectedMaterial?.nombre, forecast?.unidad_base))}`,
+                  `Optimista: ${point.precio_optimista == null ? "-" : formatCurrency(getDisplayPrice(point.precio_optimista, selectedMaterial?.nombre, forecast?.unidad_base))}`,
+                  `Pesimista: ${point.precio_pesimista == null ? "-" : formatCurrency(getDisplayPrice(point.precio_pesimista, selectedMaterial?.nombre, forecast?.unidad_base))}`,
                 ];
               }
               return [
@@ -463,7 +463,7 @@ export function PriceChart({
               if (!canShowCostDetails) return publicLines;
               return [
                 publicLines[0],
-                chartMode === "base" && showBagEquivalents ? `25 kg / 50 kg: ${formatCurrency(point.precio_equivalente_25kg)} / ${formatCurrency(point.precio_equivalente_50kg)}` : null,
+                chartMode === "base" && showBagEquivalents ? `Referencia 50 kg: ${formatCurrency(point.precio_equivalente_50kg)}` : null,
                 `Muestra: ${point.cantidad_registros} ${point.cantidad_registros === 1 ? "precio" : "precios"}`,
                 publicLines[1],
                 `Fuentes: ${point.fuentes.join(", ") || "-"}`,

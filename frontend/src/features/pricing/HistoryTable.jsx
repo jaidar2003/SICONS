@@ -10,7 +10,7 @@ const ExpandMoreIcon = resolveMuiIcon(ExpandMoreIconModule);
 
 export function HistoryTable({ serie, showPrices, selectedMaterial, className = "" }) {
   const presentation = getMaterialPresentation(selectedMaterial?.nombre, serie[0]?.unidad_base);
-  const showBagEquivalents = presentation.type === "cement" && serie.some((point) => point.precio_equivalente_25kg !== null);
+  const showBagEquivalents = presentation.type === "cement" && serie.some((point) => point.precio_equivalente_50kg !== null);
 
   return (
     <Card className={`h-full ${className}`}>
@@ -27,8 +27,7 @@ export function HistoryTable({ serie, showPrices, selectedMaterial, className = 
                   <TableRow>
                     <TableCell align="center">Fecha</TableCell>
                     {showPrices ? <TableCell align="center">{presentation.tablePriceLabel}</TableCell> : null}
-                    {showPrices && showBagEquivalents ? <TableCell align="center">25 kg</TableCell> : null}
-                    {showPrices && showBagEquivalents ? <TableCell align="center">50 kg</TableCell> : null}
+                    {showPrices && showBagEquivalents ? <TableCell align="center">Bolsa 50 kg</TableCell> : null}
                     <TableCell align="center">Registros</TableCell>
                     <TableCell align="center">Variacion</TableCell>
                     <TableCell align="center">Fuentes</TableCell>
@@ -39,7 +38,6 @@ export function HistoryTable({ serie, showPrices, selectedMaterial, className = 
                     <TableRow key={point.observacion_id ?? `${point.fecha}-${index}`}>
                       <TableCell align="center">{point.fecha}</TableCell>
                       {showPrices ? <TableCell align="center">{formatCurrency(getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))}</TableCell> : null}
-                      {showPrices && showBagEquivalents ? <TableCell align="center">{formatCurrency(point.precio_equivalente_25kg)}</TableCell> : null}
                       {showPrices && showBagEquivalents ? <TableCell align="center">{formatCurrency(point.precio_equivalente_50kg)}</TableCell> : null}
                       <TableCell align="center">
                         {point.cantidad_registros} {point.cantidad_registros === 1 ? "precio" : "precios"}

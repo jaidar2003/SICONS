@@ -20,15 +20,15 @@ export function getMaterialPresentation(name, unitBase = "unidad") {
   if (isCementMaterial(name)) {
     return {
       type: "cement",
-      displayMultiplier: 1,
-      displayUnitLabel: unitBase,
-      primaryPriceLabel: "Precio normalizado",
-      primaryPriceHelper: "Base comparable por cambio de packaging",
-      tablePriceLabel: "Precio/kg",
-      chartAxisLabel: "ARS/kg",
-      tooltipPriceLabel: "Precio/kg",
-      summaryUnitText: `por ${unitBase}`,
-      fixedPresentationLabel: null,
+      displayMultiplier: 25,
+      displayUnitLabel: "bolsa 25 kg",
+      primaryPriceLabel: "Bolsa 25 kg",
+      primaryPriceHelper: "Presentacion comercial actual",
+      tablePriceLabel: "Bolsa 25 kg",
+      chartAxisLabel: "ARS por bolsa 25 kg",
+      tooltipPriceLabel: "Bolsa 25 kg",
+      summaryUnitText: "por bolsa de 25 kg",
+      fixedPresentationLabel: "Bolsa 25 kg",
     };
   }
 
