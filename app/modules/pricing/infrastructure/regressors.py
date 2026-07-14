@@ -1,9 +1,9 @@
 from datetime import date
 from pathlib import Path
 
-from fastapi import HTTPException
 from sqlalchemy import select
 
+from app.modules.pricing.domain.exceptions import ExternalRegressorError, ExternalRegressorUnavailableError
 from app.modules.pricing.infrastructure.models import ExternalIndexValue
 from app.shared.database.session import SessionLocal
 
@@ -31,7 +31,7 @@ REGRESSOR_TREND_WINDOW_MONTHS = 12
 
 def _cargar_dolar_mensual(pd, path: Path, columna: str):
     if not path.exists():
-        raise HTTPException(status_code=500, detail=f"No se encontro el CSV del regresor {columna}.")
+        raise ExternalRegressorUnavailableError(f"No se encontro el CSV del regresor {columna}.")
 
     df = pd.read_csv(path)
     df["fecha"] = pd.to_datetime(df["fecha"])
@@ -43,7 +43,7 @@ def _cargar_dolar_mensual(pd, path: Path, columna: str):
 
 def _cargar_ipc_mensual(pd, path: Path):
     if not path.exists():
-        raise HTTPException(status_code=500, detail="No se encontro el CSV del regresor ipc.")
+        raise ExternalRegressorUnavailableError("No se encontro el CSV del regresor ipc.")
 
     df = pd.read_csv(path)
     df["fecha"] = pd.to_datetime(df["fecha"])
@@ -65,7 +65,7 @@ def _cargar_indice_externo_mensual(pd, series_id: str, columna: str):
         rows = list(db.scalars(stmt))
 
     if not rows:
-        raise HTTPException(status_code=500, detail=f"No hay valores cargados para el regresor {columna}.")
+        raise ExternalRegressorUnavailableError(f"No hay valores cargados para el regresor {columna}.")
 
     return pd.DataFrame(
         [
@@ -104,7 +104,7 @@ def cargar_regresores_mensuales(pd, columnas: tuple[str, ...] = ("dolar_oficial"
 
     faltantes = [columna for columna in columnas if columna not in loaders]
     if faltantes:
-        raise HTTPException(status_code=500, detail=f"Regresores no soportados: {', '.join(faltantes)}.")
+        raise ExternalRegressorUnavailableError(f"Regresores no soportados: {', '.join(faltantes)}.")
 
     combinado = loaders[columnas[0]]()
     for columna in columnas[1:]:
@@ -115,7 +115,7 @@ def cargar_regresores_mensuales(pd, columnas: tuple[str, ...] = ("dolar_oficial"
 def proyectar_regresores_futuros(pd, regresores_historicos, fechas_futuras, columnas: tuple[str, ...]):
     historial = regresores_historicos.sort_values("ds").tail(REGRESSOR_TREND_WINDOW_MONTHS).copy()
     if historial.empty:
-        raise HTTPException(status_code=422, detail="No hay historial suficiente de regresores externos para proyectar el forecast.")
+        raise ExternalRegressorError("No hay historial suficiente de regresores externos para proyectar el forecast.")
 
     futuros = {"ds": pd.to_datetime(fechas_futuras)}
     periodos = max(len(historial) - 1, 1)
@@ -123,7 +123,7 @@ def proyectar_regresores_futuros(pd, regresores_historicos, fechas_futuras, colu
     for columna in columnas:
         valores = historial[columna].dropna().tolist()
         if not valores:
-            raise HTTPException(status_code=422, detail=f"No hay datos del regresor {columna} para proyectar el forecast.")
+            raise ExternalRegressorError(f"No hay datos del regresor {columna} para proyectar el forecast.")
 
         ultimo_valor = float(valores[-1])
         primer_valor = float(valores[0])

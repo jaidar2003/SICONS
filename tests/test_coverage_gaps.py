@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from app.modules.pricing.application import external_indices, historical_prices, imputation
 from app.modules.pricing.application.forecast_service import (
     FORECAST_MODEL_NAME,
+    ForecastMaterialResult,
     _forecast_material,
     backtesting_forecast,
     forecast_material,
@@ -21,6 +22,8 @@ from app.modules.pricing.application.forecast_service import (
 from app.modules.pricing.application.forecasting import ProphetRow
 from app.modules.pricing.domain.exceptions import (
     ExternalIndexSyncError,
+    ExternalRegressorError,
+    ExternalRegressorUnavailableError,
     InsufficientDataException,
     PriceImputationError,
 )
@@ -402,17 +405,17 @@ def test_regressors_cargan_csv_y_proyectan(tmp_path, monkeypatch: pytest.MonkeyP
 def test_regressors_cubren_errores(monkeypatch: pytest.MonkeyPatch) -> None:
     assert regressors.cargar_regresores_mensuales(pd, ()) is None
 
-    with pytest.raises(HTTPException, match="Regresores no soportados"):
+    with pytest.raises(ExternalRegressorUnavailableError, match="Regresores no soportados"):
         regressors.cargar_regresores_mensuales(pd, ("nope",))
 
     monkeypatch.setattr(regressors, "IPC_CSV", regressors.PROJECT_ROOT / "no-existe.csv")
-    with pytest.raises(HTTPException, match="No se encontro el CSV"):
+    with pytest.raises(ExternalRegressorUnavailableError, match="No se encontro el CSV"):
         regressors.cargar_regresores_mensuales(pd, ("ipc",))
 
-    with pytest.raises(HTTPException, match="No hay historial suficiente"):
+    with pytest.raises(ExternalRegressorError, match="No hay historial suficiente"):
         regressors.proyectar_regresores_futuros(pd, pd.DataFrame({"ds": []}), [date(2026, 1, 1)], ("ipc",))
 
-    with pytest.raises(HTTPException, match="No hay datos del regresor"):
+    with pytest.raises(ExternalRegressorError, match="No hay datos del regresor"):
         regressors.proyectar_regresores_futuros(
             pd,
             pd.DataFrame({"ds": pd.to_datetime(["2026-01-01"]), "ipc": [None]}),
@@ -432,7 +435,7 @@ def test_forecast_material_cubre_insuficiente_y_snapshot_persistido(monkeypatch:
         forecast_material(material, 3, object())
 
     full_dataset = [ProphetRow(ds=date(2024, 1, 1), y=100.0 + index) for index in range(30)]
-    persisted = SimpleNamespace(
+    persisted = ForecastMaterialResult(
         dataset=full_dataset,
         metricas=ForecastMetricasRead(folds=1, mae=Decimal("1"), mape=Decimal("2"), efectividad_informal=Decimal("98")),
         forecast=[ForecastPuntoRead(fecha=date(2026, 1, 1), precio_proyectado=Decimal("200"))],

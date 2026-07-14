@@ -654,7 +654,6 @@ def _detectar_anomalias_random_forest(
         residual_signed_display = residual_signed_decimal.quantize(Decimal("0.00"))
         residual_limit_display = residual_limit.quantize(Decimal("0.00"))
         uncertainty_display = Decimal(f"{incertidumbre_modelo_pct:.4f}").quantize(Decimal("0.00"))
-        variacion_display = Decimal(f"{variacion_actual:.4f}").quantize(Decimal("0.00"))
         lower_expected = _quantize(predicted_decimal * (Decimal("1") - (residual_limit / Decimal("100"))))
         upper_expected = _quantize(predicted_decimal * (Decimal("1") + (residual_limit / Decimal("100"))))
         lower_expected_display = lower_expected.quantize(Decimal("0.00"))

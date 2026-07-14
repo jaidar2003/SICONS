@@ -388,9 +388,11 @@ def test_selector_activado_hace_fallback_por_material_si_no_hay_horizonte_exacto
 
 
 def test_regresor_faltante_no_rompe_el_forecast(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.modules.pricing.domain.exceptions import ExternalRegressorUnavailableError
+
     monkeypatch.setattr(
         "app.modules.pricing.application.forecast_service.cargar_regresores_mensuales",
-        lambda _pd, _columnas: (_ for _ in ()).throw(HTTPException(status_code=500, detail="Regresor faltante")),
+        lambda _pd, _columnas: (_ for _ in ()).throw(ExternalRegressorUnavailableError("Regresor faltante")),
     )
 
     selection = _resolver_plan_ejecucion(material_key="cemento-portland", horizonte_meses=3, usar_selector_modelo=True, pd=object())
@@ -600,7 +602,35 @@ def test_forecast_material_loads_snapshot(monkeypatch):
     monkeypatch.setattr("app.modules.pricing.application.forecast_service.cargar_forecast_snapshot", lambda *args: res)
     
     result = forecast_material(material, 3, object())
+    assert result.resolution_source == "snapshot"
     assert result.forecast[0].precio_proyectado == Decimal("100.00")
+
+
+def test_forecast_material_requiere_snapshot_si_calculo_sincrono_esta_deshabilitado(monkeypatch):
+    from app.modules.pricing.domain.exceptions import ForecastSnapshotRequired
+
+    limpiar_forecast_cache()
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+    dataset = [ProphetRow(ds=date(2024, 1, 1), y=100.0)] * 30
+    monkeypatch.setattr(
+        "app.modules.pricing.application.forecast_service.serie_mensual_material",
+        lambda *_args: ["serie"],
+    )
+    monkeypatch.setattr(
+        "app.modules.pricing.application.forecast_service.construir_dataset_prophet",
+        lambda *_args, **_kwargs: dataset,
+    )
+    monkeypatch.setattr(
+        "app.modules.pricing.application.forecast_service.cargar_forecast_snapshot",
+        lambda *_args: None,
+    )
+    monkeypatch.setattr(
+        "app.modules.pricing.application.forecast_service.settings.forecast_allow_synchronous_compute",
+        False,
+    )
+
+    with pytest.raises(ForecastSnapshotRequired, match="calculo sincrono esta deshabilitado"):
+        forecast_material(material, 3, object())
 
 def test_precomputar_forecasts_materiales(monkeypatch):
     material = SimpleNamespace(id=1, nombre="Cemento", unidad_base="kg")

@@ -47,8 +47,8 @@ from app.modules.pricing.application.purchase_strategies import comparar_estrate
 from app.modules.pricing.application.series import (
     PrecioSerieInput,
     calcular_variacion_entre_fechas,
-    construir_serie_observaciones,
     construir_serie_mensual,
+    construir_serie_observaciones,
     construir_serie_precios,
     evaluar_anomalias_detectadas,
 )
