@@ -24,6 +24,7 @@ services:
       - path: .env.openstack
         required: false
     environment:
+      ENVIRONMENT: production
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-buildwise}:${POSTGRES_PASSWORD:-buildwise}@postgres:5432/${POSTGRES_DB:-buildwise}
     expose:
       - "8000"
@@ -42,6 +43,7 @@ services:
       - path: .env.openstack
         required: false
     environment:
+      ENVIRONMENT: production
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-buildwise}:${POSTGRES_PASSWORD:-buildwise}@postgres:5432/${POSTGRES_DB:-buildwise}
     depends_on:
       postgres:

@@ -13,6 +13,7 @@ services:
     container_name: buildwise-api
     restart: unless-stopped
     environment:
+      ENVIRONMENT: development
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-buildwise}:${POSTGRES_PASSWORD:-buildwise}@postgres:5432/${POSTGRES_DB:-buildwise}
       AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-buildwise-dev-secret-change-me}
       AUTH_TOKEN_TTL_MINUTES: ${AUTH_TOKEN_TTL_MINUTES:-480}
@@ -43,6 +44,7 @@ services:
     container_name: buildwise-bootstrap
     profiles: ["ops"]
     environment:
+      ENVIRONMENT: development
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-buildwise}:${POSTGRES_PASSWORD:-buildwise}@postgres:5432/${POSTGRES_DB:-buildwise}
       AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-buildwise-dev-secret-change-me}
       AUTH_TOKEN_TTL_MINUTES: ${AUTH_TOKEN_TTL_MINUTES:-480}
