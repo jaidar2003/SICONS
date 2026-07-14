@@ -2,14 +2,19 @@ from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import quote
 
-from fastapi import HTTPException, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.modules.auth.domain.exceptions import (
+    AuthConflict,
+    AuthResourceNotFound,
+    InvalidAuthRequest,
+    InvalidCredentials,
+)
 from app.modules.auth.infrastructure.models import Usuario
+from app.shared.config.settings import settings
 from app.shared.database.audit_service import register_audit_log
 from app.shared.notifications.email import send_account_deleted_email, send_password_recovery_email, send_welcome_email
-from app.shared.config.settings import settings
 from app.shared.security.tokens import (
     create_access_token,
     create_password_reset_token,
@@ -51,18 +56,18 @@ def _get_password_reset_user(db: Session, *, token: str) -> Usuario:
     try:
         payload = decode_password_reset_token(token)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace de recuperacion no es valido o expiro") from exc
+        raise InvalidAuthRequest("El enlace de recuperacion no es valido o expiro") from exc
 
     user_id = payload.get("sub")
     if not isinstance(user_id, int):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace de recuperacion no es valido o expiro")
+        raise InvalidAuthRequest("El enlace de recuperacion no es valido o expiro")
 
     user = db.get(Usuario, user_id)
     if user is None or not user.activo:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace de recuperacion no es valido o expiro")
+        raise InvalidAuthRequest("El enlace de recuperacion no es valido o expiro")
 
     if payload.get("pwd") != password_reset_fingerprint(user.password_hash):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El enlace de recuperacion no es valido o expiro")
+        raise InvalidAuthRequest("El enlace de recuperacion no es valido o expiro")
 
     return user
 
@@ -70,7 +75,7 @@ def _get_password_reset_user(db: Session, *, token: str) -> Usuario:
 def autenticar_usuario(db: Session, *, username: str, password: str) -> LoginResult:
     user = db.scalar(select(Usuario).where(Usuario.username == username))
     if user is None or not user.activo or not verify_password(password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario o clave incorrectos")
+        raise InvalidCredentials("Usuario o clave incorrectos")
 
     token, expires_at = create_access_token(user_id=user.id, username=user.username, rol=user.rol)
 
@@ -92,19 +97,19 @@ def registrar_cliente(db: Session, *, username: str, nombre: str, email: str, pa
     email = email.strip().lower()
 
     if not username:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El usuario no puede estar vacio")
+        raise InvalidAuthRequest("El usuario no puede estar vacio")
     if not nombre:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El nombre no puede estar vacio")
+        raise InvalidAuthRequest("El nombre no puede estar vacio")
     if "@" not in email or email.startswith("@") or email.endswith("@"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El email no es valido")
+        raise InvalidAuthRequest("El email no es valido")
 
     existing_username = db.scalar(select(Usuario).where(Usuario.username == username))
     if existing_username is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="El usuario ya existe")
+        raise AuthConflict("El usuario ya existe")
 
     existing_email = db.scalar(select(Usuario).where(Usuario.email == email))
     if existing_email is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="El email ya esta registrado")
+        raise AuthConflict("El email ya esta registrado")
 
     user = Usuario(
         username=username,
@@ -137,7 +142,7 @@ def registrar_cliente(db: Session, *, username: str, nombre: str, email: str, pa
 def solicitar_recuperacion_password(db: Session, *, identifier: str) -> PasswordRecoveryResult:
     identifier = identifier.strip()
     if not identifier:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ingresá tu usuario o email")
+        raise InvalidAuthRequest("Ingresá tu usuario o email")
 
     email_identifier = identifier.lower()
     user = db.scalar(
@@ -150,11 +155,11 @@ def solicitar_recuperacion_password(db: Session, *, identifier: str) -> Password
     )
     if user is None:
         detail = "Este mail no esta registrado" if "@" in identifier else "Este usuario no esta registrado"
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+        raise AuthResourceNotFound(detail)
     if not user.email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Este usuario no tiene un email registrado")
+        raise InvalidAuthRequest("Este usuario no tiene un email registrado")
     if not user.activo:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Este usuario no esta habilitado")
+        raise InvalidAuthRequest("Este usuario no esta habilitado")
 
     reset_token, _expires_at = create_password_reset_token(user_id=user.id, password_hash=user.password_hash)
     reset_url = f"{settings.frontend_base_url.rstrip('/')}/reset-password?reset_token={quote(reset_token)}"
@@ -208,10 +213,10 @@ def listar_usuarios_registrados(db: Session) -> list[Usuario]:
 def habilitar_usuario(db: Session, *, user_id: int) -> Usuario:
     user = db.get(Usuario, user_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+        raise AuthResourceNotFound("Usuario no encontrado")
 
     if not user.email:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El usuario no tiene email")
+        raise InvalidAuthRequest("El usuario no tiene email")
 
     was_active = user.activo
     user.activo = True
@@ -235,13 +240,13 @@ def habilitar_usuario(db: Session, *, user_id: int) -> Usuario:
 
 def eliminar_usuario(db: Session, *, user_id: int, current_user: Usuario) -> None:
     if current_user.id == user_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No te puedes eliminar a vos mismo")
+        raise InvalidAuthRequest("No te puedes eliminar a vos mismo")
 
     user = db.get(Usuario, user_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+        raise AuthResourceNotFound("Usuario no encontrado")
     if user.rol == "admin":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No se puede eliminar un usuario admin")
+        raise InvalidAuthRequest("No se puede eliminar un usuario admin")
 
     user_email = user.email
     user_nombre = user.nombre

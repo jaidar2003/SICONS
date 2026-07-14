@@ -4,6 +4,8 @@ from fastapi.testclient import TestClient
 from app.modules.pricing.domain.exceptions import (
     ExternalIndexSyncError,
     ExternalRegressorError,
+    ExternalRegressorUnavailableError,
+    ForecastRuntimeError,
     InsufficientDataException,
     MaterialNotFoundException,
     PriceImputationError,
@@ -27,6 +29,14 @@ def test_exception_handlers():
     @app.get("/external-regressor")
     def trigger_external_regressor():
         raise ExternalRegressorError("Error en regresores")
+
+    @app.get("/external-regressor-unavailable")
+    def trigger_external_regressor_unavailable():
+        raise ExternalRegressorUnavailableError("Regresor no disponible")
+
+    @app.get("/forecast-runtime")
+    def trigger_forecast_runtime():
+        raise ForecastRuntimeError("Runtime no disponible")
 
     @app.get("/external-index-sync")
     def trigger_external_index_sync():
@@ -53,6 +63,9 @@ def test_exception_handlers():
     response = client.get("/external-regressor")
     assert response.status_code == 422
     assert response.json() == {"detail": "Error en regresores"}
+
+    assert client.get("/external-regressor-unavailable").status_code == 500
+    assert client.get("/forecast-runtime").status_code == 500
 
     response = client.get("/external-index-sync")
     assert response.status_code == 502
