@@ -39,6 +39,8 @@ from app.modules.chat.application.service import (
     is_admin_only_request,
     is_in_scope,
 )
+from app.modules.chat.domain.exceptions import CommercialInterpretationError, InvalidCommercialRequest
+from app.modules.chat.infrastructure import provider_config
 from app.modules.chat.infrastructure.llm_client import (
     AnthropicChatClient,
     FallbackChatClient,
@@ -47,6 +49,21 @@ from app.modules.chat.infrastructure.llm_client import (
     OpenAICompatibleChatClient,
 )
 from app.modules.chat.infrastructure.models import ChatConversation, ChatMessage, ChatProviderSetting
+from app.modules.chat.infrastructure.provider_config import (
+    LAST_PROVIDER_STATUS as _LAST_PROVIDER_STATUS,
+)
+from app.modules.chat.infrastructure.provider_config import (
+    apply_chat_config as _apply_chat_config,
+)
+from app.modules.chat.infrastructure.provider_config import chat_config_from_settings
+from app.modules.chat.infrastructure.provider_config import fallback_enabled as _fallback_enabled_from_settings
+from app.modules.chat.infrastructure.provider_config import provider_configured as _provider_configured
+from app.modules.chat.infrastructure.provider_config import provider_model as _provider_model_from_settings
+from app.modules.chat.infrastructure.provider_config import read_persisted_chat_config as _read_persisted_chat_config
+from app.modules.chat.infrastructure.provider_config import remember_provider_error as _remember_provider_error
+from app.modules.chat.infrastructure.provider_config import remember_provider_success as _remember_provider_success
+from app.modules.chat.infrastructure.provider_config import resolve_provider_metadata as _resolve_provider_metadata
+from app.modules.chat.infrastructure.provider_config import settings_provider_key as _settings_provider_key
 from app.modules.chat.interfaces.schemas import (
     ChatAuditLogRead,
     ChatAuditMetricsRead,
@@ -59,8 +76,8 @@ from app.modules.chat.interfaces.schemas import (
     ChatDeterminismReportRead,
     ChatMessageRead,
     ChatProviderConfigRead,
-    ChatProviderStatusRead,
     ChatProviderConfigUpdate,
+    ChatProviderStatusRead,
     ChatQueryCreate,
     ChatResponseRead,
     CommercialNeedCreate,
@@ -68,25 +85,21 @@ from app.modules.chat.interfaces.schemas import (
     CommercialProposalCreate,
     CommercialProposalRead,
 )
-from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.application.forecast_service import forecast_material, serie_mensual_material
 from app.modules.pricing.application.purchase_recommendations import recomendar_momento_compra
+from app.modules.pricing.domain.repositories import PricingRepository
 from app.modules.pricing.infrastructure.models import CommercialMargin
 from app.modules.pricing.interfaces.dependencies import get_pricing_repository
-from app.shared.config.settings import settings
 from app.shared.database.audit_models import AuditLog
 from app.shared.database.audit_service import register_audit_log
-from app.shared.database.session import SessionLocal, get_db
+from app.shared.database.session import get_db
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+settings = provider_config.settings
 
-_LAST_PROVIDER_STATUS: dict[str, object] = {
-    "estado_ultima_llamada": "sin_datos",
-    "proveedor_ultima_llamada": None,
-    "fallback_ultima_llamada": None,
-    "error_ultima_llamada": None,
-}
 
+def _chat_config_from_settings() -> dict[str, str | None]:
+    return chat_config_from_settings()
 
 def _conversation_title(question: str | None = None) -> str:
     text = (question or "Nueva conversación").strip()
@@ -244,78 +257,8 @@ def _requires_calculated_material_context(question: str) -> bool:
     return any(trigger in normalized for trigger in triggers)
 
 
-def _resolve_provider_metadata(client) -> tuple[str | None, bool]:
-    default_provider = _provider_key_from_settings()
-    provider_name = getattr(client, "last_provider_name", getattr(client, "provider_name", default_provider))
-    fallback_used = bool(getattr(client, "last_fallback_used", False))
-    return provider_name, fallback_used
-
-
-def _remember_provider_success(client) -> None:
-    provider_name, fallback_used = _resolve_provider_metadata(client)
-    _LAST_PROVIDER_STATUS.update(
-        {
-            "estado_ultima_llamada": "ok",
-            "proveedor_ultima_llamada": provider_name,
-            "fallback_ultima_llamada": fallback_used,
-            "error_ultima_llamada": None,
-        }
-    )
-
-
-def _remember_provider_error(client, error: Exception) -> None:
-    provider_name, fallback_used = _resolve_provider_metadata(client)
-    _LAST_PROVIDER_STATUS.update(
-        {
-            "estado_ultima_llamada": "error",
-            "proveedor_ultima_llamada": provider_name,
-            "fallback_ultima_llamada": fallback_used,
-            "error_ultima_llamada": str(error),
-        }
-    )
-
-
 def _historical_display_horizon(intent: str | None, horizon: int | None) -> int | None:
     return None if intent == "HISTORICO" else horizon
-
-
-def _settings_provider_key() -> str:
-    return "claude" if settings.chat_provider.strip().lower() == "anthropic" else "facultad"
-
-
-def _chat_config_from_settings() -> dict[str, str | None]:
-    return {
-        "proveedor_activo": _settings_provider_key(),
-        "modelo_facultad": settings.openai_model,
-        "modelo_claude": settings.anthropic_model,
-    }
-
-
-def _read_persisted_chat_config(db: Session | None = None) -> dict[str, str | None]:
-    close_db = False
-    if db is None:
-        db = SessionLocal()
-        close_db = True
-    try:
-        row = db.get(ChatProviderSetting, "default")
-        if row is None:
-            return _chat_config_from_settings()
-        return {
-            "proveedor_activo": row.proveedor_activo,
-            "modelo_facultad": row.modelo_facultad,
-            "modelo_claude": row.modelo_claude,
-        }
-    except SQLAlchemyError:
-        return _chat_config_from_settings()
-    finally:
-        if close_db:
-            db.close()
-
-
-def _apply_chat_config(config: dict[str, str | None]) -> None:
-    settings.chat_provider = "anthropic" if config["proveedor_activo"] == "claude" else "openai"
-    settings.openai_model = config.get("modelo_facultad")
-    settings.anthropic_model = config.get("modelo_claude")
 
 
 def _latest_price_answer(
@@ -758,25 +701,6 @@ def actualizar_conversacion(
 
 def _provider_key_from_settings() -> str:
     return _settings_provider_key()
-
-
-def _provider_configured(provider_key: str, config: dict[str, str | None] | None = None) -> bool:
-    config = config or _chat_config_from_settings()
-    if provider_key == "claude":
-        return bool(settings.anthropic_base_url and settings.anthropic_api_key and config.get("modelo_claude"))
-    return bool(settings.openai_base_url and settings.openai_api_key and config.get("modelo_facultad"))
-
-
-def _fallback_enabled_from_settings(config: dict[str, str | None] | None = None) -> bool:
-    config = config or _chat_config_from_settings()
-    primary_key = str(config["proveedor_activo"])
-    fallback_key = "facultad" if primary_key == "claude" else "claude"
-    return _provider_configured(fallback_key, config)
-
-
-def _provider_model_from_settings(provider_key: str, config: dict[str, str | None] | None = None) -> str | None:
-    config = config or _chat_config_from_settings()
-    return config.get("modelo_claude") if provider_key == "claude" else config.get("modelo_facultad")
 
 
 def _audit_changes(log: AuditLog) -> dict:
@@ -1626,6 +1550,8 @@ def interpretar_necesidad_para_presupuesto(
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except LLMProviderError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    except CommercialInterpretationError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return CommercialNeedInterpretationRead(
         **{
             "solicitud_original": result.solicitud_original,
@@ -1675,6 +1601,8 @@ def generar_propuesta_de_presupuesto(
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except LLMProviderError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    except InvalidCommercialRequest as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     provider_name, fallback_used = _resolve_provider_metadata(client)
     return CommercialProposalRead(
         material_id=result.material_id,

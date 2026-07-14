@@ -260,6 +260,7 @@ def test_pricing_routes_decision_y_admin(monkeypatch: pytest.MonkeyPatch) -> Non
             ahorro_total_estimado=Decimal("50"),
             justificacion="Asignacion parcial",
             advertencias=(),
+            fecha_base_calculo=None,
         ),
     )
     optimization = pricing_routes.optimizar_presupuesto_compra(
