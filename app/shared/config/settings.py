@@ -50,6 +50,8 @@ class Settings(BaseSettings):
             raise ValueError("ENVIRONMENT debe ser development, test o production")
         if environment == "production" and self.auth_secret_key in INSECURE_AUTH_SECRETS:
             raise ValueError("AUTH_SECRET_KEY debe configurarse con un secreto seguro en produccion")
+        if environment == "production" and "forecast_allow_synchronous_compute" not in self.model_fields_set:
+            self.forecast_allow_synchronous_compute = False
         return self
 
     @property

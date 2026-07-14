@@ -32,3 +32,26 @@ def test_production_accepts_explicit_secure_secret() -> None:
     )
 
     assert settings.is_production is True
+    assert settings.forecast_allow_synchronous_compute is False
+
+
+def test_production_allows_conscious_synchronous_forecast_override() -> None:
+    settings = Settings(
+        environment="production",
+        auth_secret_key="a-production-secret-managed-outside-the-repository",
+        forecast_allow_synchronous_compute=True,
+        _env_file=None,
+    )
+
+    assert settings.forecast_allow_synchronous_compute is True
+
+
+@pytest.mark.parametrize("environment", ["development", "test"])
+def test_non_production_keeps_synchronous_forecast_fallback(environment: str) -> None:
+    settings = Settings(
+        environment=environment,
+        auth_secret_key="buildwise-dev-secret-change-me",
+        _env_file=None,
+    )
+
+    assert settings.forecast_allow_synchronous_compute is True
