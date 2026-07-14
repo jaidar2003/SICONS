@@ -813,6 +813,7 @@ def _register_chat_audit(
     response: ChatResponseRead,
     duration_ms: int,
     ip_address: str | None,
+    validation_status: str | None = None,
 ) -> None:
     try:
         register_audit_log(
@@ -834,6 +835,7 @@ def _register_chat_audit(
                 "proveedor_utilizado": response.proveedor_utilizado,
                 "proveedor_ia": response.proveedor_ia,
                 "fallback_usado": response.fallback_usado,
+                "validacion_respuesta": validation_status,
                 "duration_ms": duration_ms,
             },
             ip_address=ip_address,
@@ -1272,6 +1274,7 @@ def consultar_chat(
         response=response,
         duration_ms=int((perf_counter() - started_at) * 1000),
         ip_address=request.client.host if request.client else None,
+        validation_status=result.validacion_respuesta,
     )
     return response
 

@@ -62,6 +62,12 @@ jobs:
         run: |
           pytest --cov=app --cov-report=xml
 
+      - name: Run canonical chat evaluation
+        env:
+          ENVIRONMENT: test
+          AUTH_SECRET_KEY: buildwise-ci-test-secret
+        run: pytest -m chat_evaluation -o addopts=''
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:

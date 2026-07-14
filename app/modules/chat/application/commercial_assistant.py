@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.catalog.application.utils import derive_material_key
 from app.modules.chat.application.service import ChatCompletionClient
+from app.modules.chat.domain.commercial_units import CURRENT_CEMENT_BAG_KG
 from app.modules.chat.domain.exceptions import CommercialInterpretationError, InvalidCommercialRequest
 from app.modules.pricing.application.commercial_prices import (
     calcular_precio_comercial,
@@ -30,10 +31,6 @@ from app.modules.pricing.domain.repositories import PricingRepository
 SUPPORTED_PRODUCT_KEYS = {"cemento-portland", "pastina", "membrana-megaflex"}
 VALID_PHASES = {"estructura", "terminaciones", "impermeabilizacion", "general"}
 VALID_RISK_LEVELS = {"baja", "media", "alta"}
-# The business bought 50 kg bags historically, then switched exclusively to
-# 25 kg bags when the former presentation disappeared. Historical records keep
-# their actual presentation; current commercial requests use this conversion.
-CURRENT_CEMENT_BAG_KG = Decimal("25")
 
 
 @dataclass(frozen=True)
