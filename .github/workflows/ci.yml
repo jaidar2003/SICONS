@@ -85,3 +85,35 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  api-smoke:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API and bootstrap images
+        run: docker compose build api bootstrap
+
+      - name: Start PostgreSQL
+        run: docker compose up -d postgres
+
+      - name: Bootstrap deterministic dataset
+        run: docker compose --profile ops run --rm bootstrap
+
+      - name: Start API
+        run: docker compose up -d api
+
+      - name: Wait for API health
+        run: curl --retry 30 --retry-delay 2 --retry-connrefused --fail http://127.0.0.1:8000/health
+
+      - name: Run critical API smoke
+        run: python scripts/smoke_test.py
+
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose logs --no-color api postgres
+
+      - name: Stop smoke services
+        if: always()
+        run: docker compose stop api postgres
