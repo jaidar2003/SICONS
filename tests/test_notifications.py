@@ -1,3 +1,5 @@
+import smtplib
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,6 +17,7 @@ def mock_settings(monkeypatch):
     monkeypatch.setattr(settings, "smtp_password", "pass")
     monkeypatch.setattr(settings, "smtp_use_tls", True)
     monkeypatch.setattr(settings, "smtp_use_ssl", False)
+    monkeypatch.setattr(settings, "admin_notification_email", "admin@example.com")
     return settings
 
 def test_build_welcome_message():
@@ -73,7 +76,7 @@ def test_send_welcome_email_no_config(monkeypatch):
 
 def test_send_welcome_email_failure(mock_settings):
     with patch("app.shared.notifications.email.smtplib.SMTP") as mock_smtp:
-        mock_smtp.side_effect = Exception("SMTP error")
+        mock_smtp.side_effect = smtplib.SMTPException("SMTP error")
         result = email.send_welcome_email(to_email="user@example.com", nombre="User", username="user")
         assert result is False
 
@@ -93,7 +96,7 @@ def test_send_account_deleted_email_no_config(monkeypatch):
 
 def test_send_account_deleted_email_failure(mock_settings):
     with patch("app.shared.notifications.email.smtplib.SMTP") as mock_smtp:
-        mock_smtp.side_effect = Exception("SMTP error")
+        mock_smtp.side_effect = smtplib.SMTPException("SMTP error")
         result = email.send_account_deleted_email(to_email="user@example.com", nombre="User", username="user")
         assert result is False
 
@@ -118,3 +121,87 @@ def test_send_password_recovery_email_success(mock_settings):
 
         assert result is True
         mock_server.send_message.assert_called_once()
+
+
+def test_build_pending_registration_admin_message_escapes_html_and_has_no_secrets(mock_settings, monkeypatch):
+    monkeypatch.setattr(email, "LOGO_PATH", MagicMock(exists=lambda: False))
+    message = email._build_pending_registration_admin_message(
+        to_email="admin@example.com",
+        nombre='<script>alert("x")</script>',
+        username="user\nBcc: attacker@example.com",
+        registered_email="new@example.com",
+        registered_at=datetime(2026, 7, 14, 20, 0, tzinfo=UTC),
+        user_id=42,
+    )
+    text = message.get_body(preferencelist=("plain",)).get_content()
+    html = message.get_body(preferencelist=("html",)).get_content()
+
+    assert message["Subject"] == "Nuevo usuario pendiente de aprobación en BuildWise"
+    assert message["To"] == "admin@example.com"
+    assert message["From"] == "test@buildwise.local"
+    assert "Pendiente de aprobación" in text
+    assert "2026-07-14T20:00:00+00:00" in text
+    assert "ID: 42" in text
+    assert "&lt;script&gt;" in html
+    assert "<script>" not in html
+    assert "password" not in text.lower()
+    assert "smtp" not in text.lower()
+    assert message["Bcc"] is None
+    assert message["Cc"] is None
+
+
+def test_pending_registration_admin_email_requires_recipient(mock_settings, monkeypatch):
+    monkeypatch.setattr(settings, "admin_notification_email", None)
+    result = email.send_pending_registration_admin_email(
+        nombre="Nuevo",
+        username="nuevo",
+        registered_email="new@example.com",
+        registered_at=datetime.now(UTC),
+        user_id=1,
+    )
+    assert result.status == email.EmailDeliveryStatus.ADMIN_EMAIL_NOT_CONFIGURED
+
+
+def test_pending_registration_admin_email_success(mock_settings):
+    with patch("app.shared.notifications.email.smtplib.SMTP") as mock_smtp:
+        result = email.send_pending_registration_admin_email(
+            nombre="Nuevo",
+            username="nuevo",
+            registered_email="new@example.com",
+            registered_at=datetime.now(UTC),
+            user_id=1,
+        )
+    assert result.sent is True
+    message = mock_smtp.return_value.send_message.call_args.args[0]
+    assert message["To"] == "admin@example.com"
+
+
+def test_pending_registration_admin_email_builder_failure_is_safe(mock_settings, monkeypatch):
+    monkeypatch.setattr(
+        email,
+        "_build_pending_registration_admin_message",
+        lambda **_kwargs: (_ for _ in ()).throw(ValueError("invalid header")),
+    )
+    result = email.send_pending_registration_admin_email(
+        nombre="Nuevo",
+        username="nuevo",
+        registered_email="new@example.com",
+        registered_at=datetime.now(UTC),
+        user_id=1,
+    )
+    assert result.status == email.EmailDeliveryStatus.DELIVERY_FAILED
+
+
+@pytest.mark.parametrize("failure", [TimeoutError(), smtplib.SMTPAuthenticationError(535, b"denied"), smtplib.SMTPException()])
+def test_pending_registration_admin_email_failure_is_safe(mock_settings, failure, caplog):
+    with patch("app.shared.notifications.email.smtplib.SMTP", side_effect=failure):
+        result = email.send_pending_registration_admin_email(
+            nombre="Nuevo",
+            username="nuevo",
+            registered_email="new@example.com",
+            registered_at=datetime.now(UTC),
+            user_id=1,
+        )
+    assert result.status == email.EmailDeliveryStatus.DELIVERY_FAILED
+    assert "admin@example.com" not in caplog.text
+    assert "denied" not in caplog.text

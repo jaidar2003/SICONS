@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine, func, inspect, select
 from sqlalchemy.orm import Session
 
+from app.modules.auth.application.service import registrar_cliente
 from app.modules.auth.infrastructure.models import Usuario
 from app.modules.catalog.infrastructure.models import Material
 from app.modules.chat.infrastructure.models import ChatConversation, ChatMessage
@@ -12,6 +13,7 @@ from app.modules.chat.interfaces.conversation_routes import get_owned_conversati
 from app.operations.bootstrap.seed import seed
 from app.shared.config.settings import settings
 from app.shared.database.audit_models import AuditLog
+from app.shared.notifications.email import EmailDeliveryResult, EmailDeliveryStatus
 
 pytestmark = [
     pytest.mark.integration,
@@ -102,6 +104,39 @@ def test_chat_persistence_ownership_and_audit_in_postgresql(postgres_engine) -> 
             )
             assert [message.role for message in messages] == ["user", "assistant"]
             assert db.scalar(select(func.count()).select_from(AuditLog).where(AuditLog.usuario_id == owner.id)) >= 1
+    finally:
+        transaction.rollback()
+        connection.close()
+
+
+def test_registration_notification_failure_does_not_rollback_postgresql(postgres_engine, monkeypatch) -> None:
+    connection = postgres_engine.connect()
+    transaction = connection.begin()
+    try:
+        monkeypatch.setattr(
+            "app.modules.auth.application.service.send_pending_registration_admin_email",
+            lambda **_kwargs: EmailDeliveryResult(EmailDeliveryStatus.DELIVERY_FAILED),
+        )
+        with Session(bind=connection) as db:
+            result = registrar_cliente(
+                db,
+                username="phase5-postgres-pending",
+                nombre="Phase 5 PostgreSQL",
+                email="phase5-postgres@example.invalid",
+                password="test-only-password",
+            )
+            persisted = db.get(Usuario, result.usuario.id)
+            actions = set(
+                db.scalars(
+                    select(AuditLog.accion).where(
+                        AuditLog.recurso == "Usuario",
+                        AuditLog.recurso_id == str(result.usuario.id),
+                    )
+                )
+            )
+            assert persisted is not None and persisted.activo is False
+            assert result.admin_notification_status == "delivery_failed"
+            assert {"REGISTER", "ADMIN_REGISTRATION_NOTIFICATION_FAILED"}.issubset(actions)
     finally:
         transaction.rollback()
         connection.close()

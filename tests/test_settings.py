@@ -55,3 +55,20 @@ def test_non_production_keeps_synchronous_forecast_fallback(environment: str) ->
     )
 
     assert settings.forecast_allow_synchronous_compute is True
+
+
+def test_admin_notification_email_is_optional_and_normalized() -> None:
+    without_recipient = Settings(environment="test", auth_secret_key="safe-test-secret")
+    configured = Settings(
+        environment="test",
+        auth_secret_key="safe-test-secret",
+        admin_notification_email=" Admin@Example.COM ",
+    )
+    assert without_recipient.admin_notification_email is None
+    assert configured.admin_notification_email == "admin@example.com"
+
+
+@pytest.mark.parametrize("value", ["invalid", "a@", "a@example.com\nBcc:x@example.com"])
+def test_admin_notification_email_rejects_invalid_values(value: str) -> None:
+    with pytest.raises(ValueError, match="ADMIN_NOTIFICATION_EMAIL"):
+        Settings(environment="test", auth_secret_key="safe-test-secret", admin_notification_email=value)
