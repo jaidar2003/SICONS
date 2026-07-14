@@ -1,8 +1,9 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from urllib.parse import quote
 
 from sqlalchemy import or_, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.modules.auth.domain.exceptions import (
@@ -14,7 +15,13 @@ from app.modules.auth.domain.exceptions import (
 from app.modules.auth.infrastructure.models import Usuario
 from app.shared.config.settings import settings
 from app.shared.database.audit_service import register_audit_log
-from app.shared.notifications.email import send_account_deleted_email, send_password_recovery_email, send_welcome_email
+from app.shared.notifications.email import (
+    EmailDeliveryStatus,
+    send_account_deleted_email,
+    send_password_recovery_email,
+    send_pending_registration_admin_email,
+    send_welcome_email,
+)
 from app.shared.security.tokens import (
     create_access_token,
     create_password_reset_token,
@@ -36,6 +43,7 @@ class LoginResult:
 class RegisterResult:
     message: str
     usuario: Usuario
+    admin_notification_status: str
 
 
 @dataclass(frozen=True)
@@ -133,9 +141,36 @@ def registrar_cliente(db: Session, *, username: str, nombre: str, email: str, pa
     )
     db.commit()
 
+    notification = send_pending_registration_admin_email(
+        nombre=user.nombre,
+        username=user.username,
+        registered_email=user.email,
+        registered_at=user.created_at or datetime.now(UTC),
+        user_id=user.id,
+    )
+    try:
+        if notification.status == EmailDeliveryStatus.SENT:
+            audit_action = "ADMIN_REGISTRATION_NOTIFICATION_SENT"
+        elif notification.status == EmailDeliveryStatus.DELIVERY_FAILED:
+            audit_action = "ADMIN_REGISTRATION_NOTIFICATION_FAILED"
+        else:
+            audit_action = "ADMIN_REGISTRATION_NOTIFICATION_SKIPPED"
+        register_audit_log(
+            db,
+            usuario_id=None,
+            accion=audit_action,
+            recurso="Usuario",
+            recurso_id=str(user.id),
+            cambios={"resultado": notification.status.value},
+        )
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+
     return RegisterResult(
         message="Cuenta creada. Queda pendiente de habilitacion por un administrador.",
         usuario=user,
+        admin_notification_status=notification.status.value,
     )
 
 
