@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.catalog.infrastructure.models import Fuente, Presentacion
 from app.modules.chat.application.context import resolve_horizon
+from app.modules.chat.application.interpretation import classify_intent
 from app.modules.pricing.infrastructure.models import CommercialMargin, ExternalIndexValue, PrecioHistorico
 
 BACKEND_CONTEXT_HEADER = (
@@ -119,6 +120,11 @@ def suggest_visualization(question: str, *, intent: str | None, material: object
 def classify_chat_intent(question: str, *, accepted_scope: bool = True, admin_only: bool = False) -> str:
     if not accepted_scope:
         return "FUERA_ALCANCE"
+    structured = classify_intent(question)
+    if structured.value != "FUERA_ALCANCE":
+        if admin_only:
+            return "ADMIN"
+        return str(structured.value)
     normalized = _normalized(question)
     if admin_only or re.search(
         r"\b(usuario|usuarios|margen|margenes|registrar|cargar|crear|actualizar|modificar|habilitar|eliminar|borrar)\b",
