@@ -15,7 +15,10 @@ ENV CMDSTAN=/home/buildwise/.cmdstan/cmdstan-2.38.0
 
 COPY --chown=buildwise:buildwise requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
-RUN python -c "import cmdstanpy; cmdstanpy.install_cmdstan(version='2.38.0', cores=2)"
+ARG INSTALL_CMDSTAN=true
+RUN if [ "$INSTALL_CMDSTAN" = "true" ]; then \
+        python -c "import cmdstanpy; cmdstanpy.install_cmdstan(version='2.38.0', cores=2)"; \
+    fi
 
 COPY --chown=buildwise:buildwise . .
 
