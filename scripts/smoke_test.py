@@ -34,11 +34,19 @@ def login(username: str, password: str) -> str:
     return payload["access_token"]
 
 
+def required_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Falta la variable obligatoria {name}")
+    return value
+
+
 def main() -> None:
     expect("GET", "/health", 200)
-    admin_token = login(os.getenv("SMOKE_ADMIN_USERNAME", "admin"), os.getenv("SMOKE_ADMIN_PASSWORD", "admin123"))
-    expect("POST", "/auth/login", 401, payload={"username": "admin", "password": "invalid-smoke-password"})
-    client_token = login(os.getenv("SMOKE_CLIENT_USERNAME", "cliente"), os.getenv("SMOKE_CLIENT_PASSWORD", "cliente123"))
+    admin_username = required_env("SMOKE_ADMIN_USERNAME")
+    admin_token = login(admin_username, required_env("SMOKE_ADMIN_PASSWORD"))
+    expect("POST", "/auth/login", 401, payload={"username": admin_username, "password": "invalid-smoke-password"})
+    client_token = login(required_env("SMOKE_CLIENT_USERNAME"), required_env("SMOKE_CLIENT_PASSWORD"))
     expect("GET", "/auth/usuarios", 403, token=client_token)
     expect("GET", "/auth/usuarios", 200, token=admin_token)
 

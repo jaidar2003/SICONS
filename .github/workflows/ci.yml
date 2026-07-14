@@ -104,6 +104,20 @@ jobs:
       - name: Start API
         run: docker compose up -d api
 
+      - name: Prepare ephemeral smoke credentials
+        run: |
+          echo "SMOKE_ADMIN_USERNAME=admin" >> "$GITHUB_ENV"
+          echo "SMOKE_CLIENT_USERNAME=cliente" >> "$GITHUB_ENV"
+          echo "SMOKE_ADMIN_PASSWORD=$(openssl rand -hex 18)" >> "$GITHUB_ENV"
+          echo "SMOKE_CLIENT_PASSWORD=$(openssl rand -hex 18)" >> "$GITHUB_ENV"
+
+      - name: Apply ephemeral smoke credentials
+        run: |
+          docker compose exec -T \
+            -e SMOKE_ADMIN_PASSWORD="$SMOKE_ADMIN_PASSWORD" \
+            -e SMOKE_CLIENT_PASSWORD="$SMOKE_CLIENT_PASSWORD" \
+            api python -c "from sqlalchemy import select; from app.modules.auth.infrastructure.models import Usuario; from app.shared.database.session import SessionLocal; from app.shared.security.tokens import hash_password; db=SessionLocal(); admin=db.scalar(select(Usuario).where(Usuario.username == 'admin')); client=db.scalar(select(Usuario).where(Usuario.username == 'cliente')); admin.password_hash=hash_password('$SMOKE_ADMIN_PASSWORD'); client.password_hash=hash_password('$SMOKE_CLIENT_PASSWORD'); db.commit(); db.close()"
+
       - name: Wait for API health
         run: curl --retry 30 --retry-delay 2 --retry-connrefused --fail http://127.0.0.1:8000/health
 
