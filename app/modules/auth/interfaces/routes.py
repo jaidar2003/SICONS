@@ -1,9 +1,14 @@
-from fastapi import APIRouter, Depends, status
+from html import escape
+
+from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.modules.auth.application.service import (
     autenticar_usuario,
     listar_usuarios_registrados,
+    preview_registration_action,
+    process_registration_action,
     registrar_cliente,
     restablecer_password,
     solicitar_recuperacion_password,
@@ -34,6 +39,18 @@ from app.shared.database.session import get_db
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _registration_action_page(*, token: str, action: str, username: str) -> str:
+    verb = "habilitar" if action == "approve" else "rechazar y eliminar"
+    color = "#166534" if action == "approve" else "#991b1b"
+    return f"""<!doctype html><html lang="es"><head><meta charset="utf-8"><title>BuildWise</title></head>
+<body style="font-family:Arial,sans-serif;background:#f5f7fb;padding:40px;color:#0f172a">
+<main style="max-width:560px;margin:auto;background:white;padding:28px;border:1px solid #e2e8f0">
+<h1>Confirmar solicitud</h1><p>Vas a {verb} la cuenta <strong>{escape(username)}</strong>.</p>
+<form method="post" action="/auth/registration-action?token={escape(token, quote=True)}">
+<button type="submit" style="background:{color};color:white;border:0;padding:12px 18px;cursor:pointer">Confirmar</button>
+</form><p>Si no querés realizar la acción, cerrá esta ventana.</p></main></body></html>"""
+
+
 @router.post("/login", response_model=LoginResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse:
     result = autenticar_usuario(db, username=payload.username, password=payload.password)
@@ -50,6 +67,19 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> Registe
         password=payload.password,
     )
     return RegisterResponse(message=result.message, usuario=result.usuario)
+
+
+@router.get("/registration-action/confirm", response_class=HTMLResponse, include_in_schema=False)
+def confirm_registration_action(token: str = Query(min_length=1, max_length=2000), db: Session = Depends(get_db)) -> str:
+    preview = preview_registration_action(db, token=token)
+    return _registration_action_page(token=token, action=preview.action, username=preview.username)
+
+
+@router.post("/registration-action", response_class=HTMLResponse, include_in_schema=False)
+def execute_registration_action(token: str = Query(min_length=1, max_length=2000), db: Session = Depends(get_db)) -> str:
+    result = process_registration_action(db, token=token)
+    outcome = "habilitada" if result.action == "approve" else "rechazada y eliminada"
+    return f"<!doctype html><html lang='es'><meta charset='utf-8'><body><h1>Solicitud procesada</h1><p>La cuenta {escape(result.username)} fue {outcome}.</p></body></html>"
 
 
 @router.post("/password-recovery", response_model=MessageResponse)

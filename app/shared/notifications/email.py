@@ -60,6 +60,8 @@ def _build_pending_registration_admin_message(
     registered_email: str,
     registered_at: datetime,
     user_id: int | None,
+    approve_url: str | None = None,
+    reject_url: str | None = None,
 ) -> EmailMessage:
     sender = settings.smtp_sender or settings.smtp_username or "noreply@buildwise.local"
     registered_at_text = registered_at.isoformat(timespec="seconds")
@@ -82,6 +84,8 @@ Estado: Pendiente de aprobación
 
 Ingresá al panel administrativo de BuildWise para revisar la solicitud.
 La cuenta no fue aprobada automáticamente.
+{f'Para habilitar: {approve_url}' if approve_url else ''}
+{f'Para rechazar y eliminar: {reject_url}' if reject_url else ''}
 """
     )
     message.add_alternative(
@@ -105,6 +109,7 @@ La cuenta no fue aprobada automáticamente.
                     <tr><th style="text-align:left;padding:6px;">Estado</th><td style="padding:6px;">Pendiente de aprobación</td></tr>
                   </table>
                   <p>Ingresá al panel administrativo para revisar la solicitud. La cuenta no fue aprobada automáticamente.</p>
+                  {f'<p><a href="{escape(approve_url, quote=True)}" style="display:inline-block;padding:12px 18px;background:#166534;color:#fff;text-decoration:none;">Habilitar</a> <a href="{escape(reject_url, quote=True)}" style="display:inline-block;padding:12px 18px;background:#991b1b;color:#fff;text-decoration:none;">Rechazar y eliminar</a></p>' if approve_url and reject_url else ''}
                 </div>
               </div>
             </div>
@@ -400,6 +405,8 @@ def send_pending_registration_admin_email(
     registered_email: str,
     registered_at: datetime,
     user_id: int | None,
+    approve_url: str | None = None,
+    reject_url: str | None = None,
 ) -> EmailDeliveryResult:
     to_email = settings.admin_notification_email
     if not to_email:
@@ -413,6 +420,8 @@ def send_pending_registration_admin_email(
             registered_email=registered_email,
             registered_at=registered_at,
             user_id=user_id,
+            approve_url=approve_url,
+            reject_url=reject_url,
         )
     except (ValueError, TypeError, OSError) as exc:
         logger.warning("No se pudo construir la notificacion de registro: %s", type(exc).__name__)

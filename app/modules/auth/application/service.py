@@ -25,9 +25,12 @@ from app.shared.notifications.email import (
 from app.shared.security.tokens import (
     create_access_token,
     create_password_reset_token,
+    create_registration_action_token,
     decode_password_reset_token,
+    decode_registration_action_token,
     hash_password,
     password_reset_fingerprint,
+    registration_action_fingerprint,
     verify_password,
 )
 
@@ -141,12 +144,17 @@ def registrar_cliente(db: Session, *, username: str, nombre: str, email: str, pa
     )
     db.commit()
 
+    approve_token, _ = create_registration_action_token(user_id=user.id, email=user.email, action="approve")
+    reject_token, _ = create_registration_action_token(user_id=user.id, email=user.email, action="reject")
+    action_base_url = f"{settings.backend_public_url.rstrip('/')}/auth/registration-action/confirm"
     notification = send_pending_registration_admin_email(
         nombre=user.nombre,
         username=user.username,
         registered_email=user.email,
         registered_at=user.created_at or datetime.now(UTC),
         user_id=user.id,
+        approve_url=f"{action_base_url}?token={quote(approve_token)}",
+        reject_url=f"{action_base_url}?token={quote(reject_token)}",
     )
     try:
         if notification.status == EmailDeliveryStatus.SENT:
@@ -172,6 +180,58 @@ def registrar_cliente(db: Session, *, username: str, nombre: str, email: str, pa
         usuario=user,
         admin_notification_status=notification.status.value,
     )
+
+
+@dataclass(frozen=True)
+class RegistrationActionResult:
+    action: str
+    username: str
+
+
+def _pending_registration_from_token(db: Session, token: str) -> tuple[dict, Usuario]:
+    try:
+        payload = decode_registration_action_token(token)
+    except ValueError as exc:
+        raise InvalidAuthRequest("El enlace de aprobación no es válido o expiró") from exc
+    user_id = payload.get("sub")
+    user = db.get(Usuario, user_id) if isinstance(user_id, int) else None
+    if user is None or user.activo or payload.get("email") != registration_action_fingerprint(user.email):
+        raise InvalidAuthRequest("La solicitud ya no está pendiente o el enlace no es válido")
+    return payload, user
+
+
+def preview_registration_action(db: Session, *, token: str) -> RegistrationActionResult:
+    payload, user = _pending_registration_from_token(db, token)
+    return RegistrationActionResult(action=str(payload["action"]), username=user.username)
+
+
+def process_registration_action(db: Session, *, token: str) -> RegistrationActionResult:
+    payload, user = _pending_registration_from_token(db, token)
+    user_id = user.id
+    action = str(payload["action"])
+    username = user.username
+    user_email = user.email
+    user_name = user.nombre
+    if action == "approve":
+        user.activo = True
+        audit_action = "REGISTRATION_APPROVED_BY_EMAIL"
+    else:
+        db.delete(user)
+        audit_action = "REGISTRATION_REJECTED_BY_EMAIL"
+    register_audit_log(
+        db,
+        usuario_id=None,
+        accion=audit_action,
+        recurso="Usuario",
+        recurso_id=str(user_id),
+        cambios={"username": username},
+    )
+    db.commit()
+    if action == "approve":
+        send_welcome_email(to_email=user_email, nombre=user_name, username=username)
+    else:
+        send_account_deleted_email(to_email=user_email, nombre=user_name, username=username)
+    return RegistrationActionResult(action=action, username=username)
 
 
 def solicitar_recuperacion_password(db: Session, *, identifier: str) -> PasswordRecoveryResult:

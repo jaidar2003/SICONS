@@ -1,6 +1,7 @@
 from collections.abc import Generator
 from contextlib import contextmanager
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -10,7 +11,15 @@ from app.main import app
 from app.modules.auth.infrastructure.models import Usuario
 from app.shared.database.session import get_db
 from app.shared.notifications.email import EmailDeliveryResult, EmailDeliveryStatus
-from app.shared.security.tokens import hash_password
+from app.shared.security.tokens import create_registration_action_token, hash_password
+
+
+@pytest.fixture(autouse=True)
+def stub_admin_registration_email(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_pending_registration_admin_email",
+        lambda **_kwargs: EmailDeliveryResult(EmailDeliveryStatus.ADMIN_EMAIL_NOT_CONFIGURED),
+    )
 
 
 def make_session():
@@ -140,6 +149,60 @@ def test_register_smtp_failure_preserves_http_contract_and_inactive_user(monkeyp
     assert response.json()["message"] == "Cuenta creada. Queda pendiente de habilitacion por un administrador."
     assert "admin_notification" not in response.json()
     assert persisted is not None and persisted.activo is False
+
+
+def test_registration_email_action_requires_confirmation_and_is_single_use(monkeypatch) -> None:
+    session, _engine = make_session()
+    pending = add_user(
+        session,
+        username="pending-email",
+        email="pending@example.com",
+        password="password123",
+        activo=False,
+    )
+    token, _ = create_registration_action_token(user_id=pending.id, email=pending.email, action="approve")
+    welcome_calls = []
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_welcome_email",
+        lambda **kwargs: welcome_calls.append(kwargs) or True,
+    )
+    with with_test_client(session) as client:
+        preview = client.get("/auth/registration-action/confirm", params={"token": token})
+        session.refresh(pending)
+        result = client.post("/auth/registration-action", params={"token": token})
+        replay = client.post("/auth/registration-action", params={"token": token})
+
+    assert preview.status_code == 200
+    assert pending.activo is True
+    assert result.status_code == 200
+    assert "habilitada" in result.text
+    assert replay.status_code == 400
+    assert len(welcome_calls) == 1
+
+
+def test_registration_email_reject_action_deletes_pending_user(monkeypatch) -> None:
+    session, _engine = make_session()
+    pending = add_user(
+        session,
+        username="reject-email",
+        email="reject@example.com",
+        password="password123",
+        activo=False,
+    )
+    user_id = pending.id
+    token, _ = create_registration_action_token(user_id=user_id, email=pending.email, action="reject")
+    deleted_calls = []
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_account_deleted_email",
+        lambda **kwargs: deleted_calls.append(kwargs) or True,
+    )
+    with with_test_client(session) as client:
+        result = client.post("/auth/registration-action", params={"token": token})
+
+    assert result.status_code == 200
+    assert "rechazada y eliminada" in result.text
+    assert session.get(Usuario, user_id) is None
+    assert len(deleted_calls) == 1
 
 
 def test_password_recovery_informa_mail_no_registrado(monkeypatch) -> None:

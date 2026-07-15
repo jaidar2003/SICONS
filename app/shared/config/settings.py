@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     auth_token_ttl_minutes: int = 480
     password_reset_token_ttl_minutes: int = 60
     frontend_base_url: str = "http://localhost:3000"
+    backend_public_url: str = "http://localhost:8000"
+    registration_action_token_ttl_minutes: int = 60
     cors_origins: str = (
         "http://localhost:3000,http://127.0.0.1:3000,"
         "http://localhost:3001,http://127.0.0.1:3001,"
@@ -60,6 +62,8 @@ class Settings(BaseSettings):
             if "\n" in email or "\r" in email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
                 raise ValueError("ADMIN_NOTIFICATION_EMAIL no es valido")
             self.admin_notification_email = email
+            if environment == "production" and not self.backend_public_url.startswith("https://"):
+                raise ValueError("BACKEND_PUBLIC_URL debe usar HTTPS cuando las acciones administrativas por correo estan activas")
         return self
 
     @property

@@ -132,6 +132,8 @@ def test_build_pending_registration_admin_message_escapes_html_and_has_no_secret
         registered_email="new@example.com",
         registered_at=datetime(2026, 7, 14, 20, 0, tzinfo=UTC),
         user_id=42,
+        approve_url="https://api.example.com/auth/registration-action/confirm?token=approve",
+        reject_url="https://api.example.com/auth/registration-action/confirm?token=reject",
     )
     text = message.get_body(preferencelist=("plain",)).get_content()
     html = message.get_body(preferencelist=("html",)).get_content()
@@ -144,6 +146,8 @@ def test_build_pending_registration_admin_message_escapes_html_and_has_no_secret
     assert "ID: 42" in text
     assert "&lt;script&gt;" in html
     assert "<script>" not in html
+    assert ">Habilitar<" in html
+    assert ">Rechazar y eliminar<" in html
     assert "password" not in text.lower()
     assert "smtp" not in text.lower()
     assert message["Bcc"] is None

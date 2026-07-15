@@ -58,11 +58,12 @@ def test_non_production_keeps_synchronous_forecast_fallback(environment: str) ->
 
 
 def test_admin_notification_email_is_optional_and_normalized() -> None:
-    without_recipient = Settings(environment="test", auth_secret_key="safe-test-secret")
+    without_recipient = Settings(environment="test", auth_secret_key="safe-test-secret", _env_file=None)
     configured = Settings(
         environment="test",
         auth_secret_key="safe-test-secret",
         admin_notification_email=" Admin@Example.COM ",
+        _env_file=None,
     )
     assert without_recipient.admin_notification_email is None
     assert configured.admin_notification_email == "admin@example.com"
@@ -71,4 +72,15 @@ def test_admin_notification_email_is_optional_and_normalized() -> None:
 @pytest.mark.parametrize("value", ["invalid", "a@", "a@example.com\nBcc:x@example.com"])
 def test_admin_notification_email_rejects_invalid_values(value: str) -> None:
     with pytest.raises(ValueError, match="ADMIN_NOTIFICATION_EMAIL"):
-        Settings(environment="test", auth_secret_key="safe-test-secret", admin_notification_email=value)
+        Settings(environment="test", auth_secret_key="safe-test-secret", admin_notification_email=value, _env_file=None)
+
+
+def test_production_admin_actions_require_https_backend_url() -> None:
+    with pytest.raises(ValueError, match="BACKEND_PUBLIC_URL"):
+        Settings(
+            environment="production",
+            auth_secret_key="safe-production-secret",
+            admin_notification_email="admin@example.com",
+            backend_public_url="http://api.example.com",
+            _env_file=None,
+        )

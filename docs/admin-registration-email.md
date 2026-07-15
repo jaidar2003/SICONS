@@ -16,9 +16,11 @@ SMTP_USE_TLS=true
 SMTP_USE_SSL=false
 SMTP_TIMEOUT_SECONDS=10
 ADMIN_NOTIFICATION_EMAIL=
+BACKEND_PUBLIC_URL=https://api.example.com
+REGISTRATION_ACTION_TOKEN_TTL_MINUTES=60
 ```
 
-`ADMIN_NOTIFICATION_EMAIL` es opcional. Dejarla vacía desactiva únicamente la notificación administrativa. En OpenStack estas variables se colocan en `.env.openstack`, que se entrega al contenedor mediante `env_file` y no debe versionarse. Para puerto 587 se usa STARTTLS; para SMTP SSL directo se configura el puerto correspondiente, `SMTP_USE_SSL=true` y `SMTP_USE_TLS=false`.
+`ADMIN_NOTIFICATION_EMAIL` es opcional. Dejarla vacía desactiva únicamente la notificación administrativa. Cuando está configurada en producción, `BACKEND_PUBLIC_URL` debe usar HTTPS. Los botones Habilitar y Rechazar abren una confirmación; abrir el correo no ejecuta la acción. En OpenStack estas variables se colocan en `.env.openstack`, que se entrega al contenedor mediante `env_file` y no debe versionarse. Para puerto 587 se usa STARTTLS; para SMTP SSL directo se configura el puerto correspondiente, `SMTP_USE_SSL=true` y `SMTP_USE_TLS=false`.
 
 ## Fallos y trazabilidad
 
