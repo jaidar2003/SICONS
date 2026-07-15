@@ -246,6 +246,30 @@ def _catalog_direct_answer(
     return None
 
 
+def _is_capabilities_question(question: str) -> bool:
+    normalized = unicodedata.normalize("NFKD", question.lower()).encode("ascii", "ignore").decode("ascii")
+    if re.search(r"\d|\$|\bars\b", normalized):
+        return False
+    return bool(
+        re.search(r"\b(que|como)\s+(puedo|se puede)\s+(hacer|consultar|preguntar)(?:\s+con\s+(esto|el asistente|buildwise))?\b", normalized)
+        or re.search(r"\b(para que sirve|como se usa|como usar)\s+(esto|el asistente|buildwise)\b", normalized)
+        or re.fullmatch(r"\s*(ayuda|que funciones tiene|cuales son tus funciones)\s*[?.!]*\s*", normalized)
+    )
+
+
+def _capabilities_direct_answer(*, is_admin: bool) -> str:
+    capabilities = (
+        "Podes pedirme que consulte precios actuales e historicos; explique variaciones, proyecciones, MAPE y anomalias; "
+        "compare estrategias de compra; evalue si conviene comprar ahora, esperar o comprar por etapas; y prepare "
+        "presupuestos u optimizaciones con una cantidad y un limite de dinero. Tambien podes pedirme las fuentes o que "
+        "te explique un resultado con palabras mas simples."
+    )
+    admin_capability = " Si sos administrador, tambien puedo orientarte sobre usuarios, margenes y auditoria." if is_admin else ""
+    example = " Por ejemplo: 'Necesito 30 bolsas de cemento, tengo 200 mil pesos y las necesito en agosto'."
+    responsibility = " Los precios, proyecciones, importes y recomendaciones los calcula BuildWise; yo los consulto y te los explico."
+    return f"{capabilities}{admin_capability}{example}{responsibility}"
+
+
 def _calculated_direct_answer(
     *,
     question: str,
@@ -961,6 +985,7 @@ def consultar_chat(
         conversation = _get_owned_conversation(db, payload.conversation_id, current_user.id)
     latest_assistant = _latest_assistant_message(db, conversation) if conversation is not None else None
     semantic_question = _semantic_question_for_conversation(payload.pregunta, latest_assistant)
+    capabilities_question = _is_capabilities_question(semantic_question)
     effective_material_id = payload.material_id or (conversation.material_actual_id if conversation is not None else None)
     effective_horizon = (
         payload.horizonte_meses
@@ -968,11 +993,15 @@ def consultar_chat(
         else (conversation.horizonte_actual if conversation is not None else 3)
     )
     admin_only = is_admin_only_request(semantic_question)
-    should_load_context = is_in_scope(semantic_question, has_context=effective_material_id is not None)
-    tipo_intencion = classify_chat_intent(
-        semantic_question,
-        accepted_scope=should_load_context,
-        admin_only=admin_only,
+    should_load_context = False if capabilities_question else is_in_scope(semantic_question, has_context=effective_material_id is not None)
+    tipo_intencion = (
+        "CATALOGO"
+        if capabilities_question
+        else classify_chat_intent(
+            semantic_question,
+            accepted_scope=should_load_context,
+            admin_only=admin_only,
+        )
     )
     if current_user.rol != "admin" and admin_only:
         response = ChatResponseRead(
@@ -1118,15 +1147,19 @@ def consultar_chat(
                     material_resuelto_id = getattr(material_for_calculated_context, "id", material_resuelto_id)
                     horizonte_resuelto = retrieval.horizon
 
-        direct_answer = _demo_direct_answer(
-            question=semantic_question,
-            intent=tipo_intencion,
-            material=material_for_calculated_context,
-            horizon=horizonte_resuelto or effective_horizon,
-            pricing_repo=pricing_repo,
+        direct_answer = (
+            _capabilities_direct_answer(is_admin=current_user.rol == "admin")
+            if capabilities_question
+            else _demo_direct_answer(
+                question=semantic_question,
+                intent=tipo_intencion,
+                material=material_for_calculated_context,
+                horizon=horizonte_resuelto or effective_horizon,
+                pricing_repo=pricing_repo,
+            )
         )
         if direct_answer is not None:
-            fuentes_recuperadas.append("demo.respuesta_deterministica")
+            fuentes_recuperadas.append("asistente.capacidades" if capabilities_question else "demo.respuesta_deterministica")
 
         if direct_answer is None:
             direct_answer = (

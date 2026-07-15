@@ -414,6 +414,55 @@ def test_classify_chat_intent(question: str, expected: str) -> None:
     assert classify_chat_intent("receta de flan", accepted_scope=False) == "FUERA_ALCANCE"
 
 
+@pytest.mark.parametrize(
+    "question",
+    [
+        "que puedo hacer con este asistente?",
+        "que puedo hacer con esto",
+        "como se usa BuildWise?",
+        "cuales son tus funciones?",
+        "ayuda",
+    ],
+)
+def test_capabilities_question_detecta_consultas_generales(question: str) -> None:
+    assert chat_routes._is_capabilities_question(question) is True
+
+
+def test_capabilities_question_no_intercepta_presupuesto() -> None:
+    assert chat_routes._is_capabilities_question("que puedo hacer con 200 mil pesos?") is False
+
+
+def test_endpoint_capacidades_responde_sin_proveedor_aunque_haya_material_seleccionado() -> None:
+    provider = FakeChatClient()
+    db = FakeDb()
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(
+        get_by_id=lambda _id: material,
+        list_active=lambda: [material],
+    )
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={"pregunta": "que puedo hacer con esto", "material_id": 1},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["aceptada"] is True
+    assert body["tipo_intencion"] == "CATALOGO"
+    assert body["proveedor_utilizado"] is False
+    assert body["fallback_usado"] is False
+    assert "precios actuales e historicos" in body["respuesta"]
+    assert "los calcula BuildWise" in body["respuesta"]
+    assert provider.calls == []
+
+
 def test_plan_operation_extrae_accion_estructurada() -> None:
     client = FakeChatClient('{"action":"COMPARE_STRATEGIES","material_id":1,"cantidad":100,"horizonte_meses":6}')
     material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
