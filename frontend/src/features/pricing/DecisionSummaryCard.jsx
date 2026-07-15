@@ -1,8 +1,11 @@
-import { Box, Card, CardContent, Chip, Divider, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, Chip, Divider, Typography } from "@mui/material";
+import dayjs from "dayjs";
 
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
+import { getMapePresentation } from "./forecastMetrics.js";
 import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 import { getModelDisplayName } from "./forecastModelLabels.js";
+import { getForecastTrend, getSummaryDecisionPresentation } from "./summarySemantics.js";
 
 function confidenceColor(value) {
   const normalized = String(value || "").toLowerCase();
@@ -32,24 +35,13 @@ function anomalySeverityLabel(points) {
   return `Serie con ${severities.leve} anomalía${severities.leve === 1 ? "" : "s"} leve${severities.leve === 1 ? "" : "s"}`;
 }
 
-export function DecisionSummaryCard({ forecast, serie, selectedMaterial, showPrices }) {
+export function DecisionSummaryCard({ forecast, serie, selectedMaterial, showPrices, loading = false, error = "", onAnalyzePurchase }) {
   const selection = forecast?.seleccion_modelo || null;
   const presentation = getMaterialPresentation(selectedMaterial?.nombre, selectedMaterial?.unidad_base || forecast?.unidad_base);
   const nextPoint = forecast?.puntos?.[0] || null;
-  const lastObservedValue = Number(forecast?.ultimo_precio_observado || 0);
-  const nextForecastValue = Number(nextPoint?.precio_proyectado || 0);
-  const deltaPct =
-    forecast && nextPoint && lastObservedValue > 0
-      ? ((nextForecastValue - lastObservedValue) / lastObservedValue) * 100
-      : null;
-  const decisionText =
-    deltaPct === null
-      ? "Sin forecast disponible"
-      : deltaPct > 0
-        ? "Anticipar compra"
-        : deltaPct < 0
-          ? "Esperar si no es urgente"
-          : "Revisar urgencia";
+  const trend = getForecastTrend(forecast);
+  const presentationSummary = getSummaryDecisionPresentation({ forecast });
+  const mape = getMapePresentation(forecast?.metricas?.mape);
   const anomaliesLabel = anomalySeverityLabel(serie || []);
   const anomalyCount = (serie || []).filter((point) => point.es_anomalia).length;
 
@@ -61,10 +53,10 @@ export function DecisionSummaryCard({ forecast, serie, selectedMaterial, showPri
             Sintesis operativa
           </Typography>
           <Typography mt={0.5} variant="h3">
-            Estado actual de la decision
+            Estado actual de la proyección
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Una lectura compacta del forecast, la calidad de la serie y la accion sugerida.
+            Una lectura compacta de la tendencia, la fecha base y el error histórico observado.
           </Typography>
         </Box>
 
@@ -81,25 +73,32 @@ export function DecisionSummaryCard({ forecast, serie, selectedMaterial, showPri
               />
             </Box>
 
-            <Typography mt={1.5} variant="h2" lineHeight={1.1}>
-              {decisionText}
-            </Typography>
-            <Typography mt={1} color="text.secondary">
-              {forecast
-                ? `El sistema resume la proyeccion de ${selectedMaterial?.nombre || "el material"} con datos propios y reglas auditables.`
-                : "Todavia no hay una proyeccion disponible para sintetizar."}
-            </Typography>
+            {loading ? <Alert severity="info" sx={{ mt: 2 }}>Actualizando la proyección del material seleccionado.</Alert> : null}
+            {!loading && error ? <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert> : null}
+            {!loading && !error ? (
+              <>
+                <Typography mt={1.5} variant="overline" color="text.secondary">{presentationSummary.eyebrow}</Typography>
+                <Typography mt={0.5} variant="h2" lineHeight={1.1}>{presentationSummary.title}</Typography>
+                <Typography mt={1} color="text.secondary">{presentationSummary.description}</Typography>
+                <Typography mt={1} color="text.secondary" variant="body2" fontWeight={800}>{presentationSummary.provenance}</Typography>
+              </>
+            ) : null}
 
-            <Box className="mt-4 grid gap-3 sm:grid-cols-3">
+            <Box className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <MiniStat
                 label="Próximo precio"
                 value={nextPoint && showPrices && forecast ? formatCurrency(getDisplayPrice(nextPoint.precio_proyectado, forecast.material_nombre, forecast.unidad_base)) : "-"}
                 helper={nextPoint ? `${nextPoint.fecha}` : "Sin horizonte"}
               />
               <MiniStat
-                label="MAPE"
-                value={forecast?.metricas?.mape !== null && forecast?.metricas?.mape !== undefined ? `${formatNumber(forecast.metricas.mape)}%` : "Sin dato"}
-                helper={forecast?.metricas?.folds ? `${forecast.metricas.folds} folds` : "Backtesting temporal"}
+                label={mape.label}
+                value={mape.value}
+                helper={forecast?.metricas?.mape == null ? mape.explanation : "Cuanto menor, menor fue el error histórico promedio"}
+              />
+              <MiniStat
+                label="Datos observados hasta"
+                value={forecast?.ultima_fecha_observada ? dayjs(forecast.ultima_fecha_observada).format("DD/MM/YYYY") : "Sin dato"}
+                helper={forecast ? `Horizonte: ${forecast.horizonte_meses} meses` : "Fecha base no disponible"}
               />
               <MiniStat
                 label="Anomalías"
@@ -112,10 +111,8 @@ export function DecisionSummaryCard({ forecast, serie, selectedMaterial, showPri
           <Box className="grid gap-3 border-t border-slate-200 bg-white p-4 md:border-l md:border-t-0">
             <MiniStat
               label="Tendencia"
-              value={
-                deltaPct === null ? "Sin forecast" : deltaPct > 0 ? "Alcista" : deltaPct < 0 ? "Bajista" : "Estable"
-              }
-              helper={deltaPct === null ? "No hay proyección" : `${formatNumber(deltaPct)}% frente al último valor observado`}
+              value={trend.label}
+              helper={trend.deltaPct === null ? "No hay proyección" : `${formatNumber(trend.deltaPct)}% frente al último valor observado`}
             />
             <Divider />
             <MiniStat
@@ -141,6 +138,9 @@ export function DecisionSummaryCard({ forecast, serie, selectedMaterial, showPri
             <Typography color="text.secondary" variant="body2">
               {presentation.summaryUnitText}
             </Typography>
+            {onAnalyzePurchase ? (
+              <Button variant="outlined" onClick={onAnalyzePurchase}>Analizar compra</Button>
+            ) : null}
           </Box>
         </Box>
       </CardContent>

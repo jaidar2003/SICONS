@@ -24,6 +24,7 @@ import { AppHeader } from "../features/layout/AppHeader.jsx";
 import { FiltersBar } from "../features/pricing/FiltersBar.jsx";
 import { createPrecioHistorico, fetchCommercialPrice, fetchForecast } from "../features/pricing/pricing.api.js";
 import { getDisplayPrice } from "../features/pricing/materialPresentation.js";
+import { getForecastTrend, getSummaryDecisionPresentation } from "../features/pricing/summarySemantics.js";
 import { apiGet } from "../shared/api/http.js";
 import { resolveMuiIcon } from "../shared/components/resolveMuiIcon.js";
 import { formatCurrency, formatNumber } from "../shared/utils/formatters.js";
@@ -227,6 +228,7 @@ export function App() {
   const [forecast, setForecast] = useState(null);
   const [commercialPrice, setCommercialPrice] = useState(null);
   const [forecastLoading, setForecastLoading] = useState(false);
+  const [forecastError, setForecastError] = useState("");
   const [forecastHorizon, setForecastHorizon] = useState(3);
   const [forecastPriceView, setForecastPriceView] = useState("comparative");
   const [comparisonRows, setComparisonRows] = useState([]);
@@ -259,33 +261,10 @@ export function App() {
   const summaryNextForecastPoint = forecast?.puntos?.[0] || null;
   const summaryLastForecastPoint = forecast?.puntos?.[forecast?.puntos?.length - 1] || null;
   const summaryForecastSelection = forecast?.seleccion_modelo || null;
-  const summaryForecastDeltaPct =
-    forecast && summaryNextForecastPoint
-      ? ((Number(summaryNextForecastPoint.precio_proyectado) - Number(forecast.ultimo_precio_observado)) / Number(forecast.ultimo_precio_observado)) * 100
-      : null;
-  const summaryForecastConfidence = String(summaryForecastSelection?.confiabilidad || "").toLowerCase();
-  const summaryForecastRecommendation =
-    forecastLoading
-      ? "Preparando forecast sin bloquear la navegacion."
-      : summaryForecastDeltaPct === null
-      ? "Sin forecast disponible."
-      : summaryForecastDeltaPct > 0
-        ? summaryForecastConfidence === "baja"
-          ? "El precio tiende a subir, pero la confianza es baja. Conviene monitorear antes de decidir."
-          : "El precio tiende a subir. Conviene anticipar compra si el presupuesto lo permite."
-        : summaryForecastDeltaPct < 0
-          ? "El precio tiende a bajar. Conviene esperar si la urgencia lo permite."
-          : "El precio luce estable. La decisión depende más de la urgencia y del presupuesto.";
-  const summaryForecastDirection =
-    forecastLoading
-      ? "Calculando forecast"
-      : summaryForecastDeltaPct === null
-      ? "Sin proyeccion"
-      : summaryForecastDeltaPct > 0
-        ? "Tendencia alcista"
-        : summaryForecastDeltaPct < 0
-          ? "Tendencia bajista"
-          : "Tendencia estable";
+  const summaryForecastTrend = getForecastTrend(forecast);
+  const summaryForecastDeltaPct = summaryForecastTrend.deltaPct;
+  const summaryForecastDirection = forecastLoading ? "Calculando forecast" : summaryForecastTrend.label;
+  const summaryDecisionPresentation = getSummaryDecisionPresentation({ forecast });
 
   useEffect(() => {
     if (!visibleTabs.some((tab) => tab.value === activeView)) {
@@ -306,6 +285,9 @@ export function App() {
       const requestId = forecastRequestRef.current + 1;
       forecastRequestRef.current = requestId;
       setForecastLoading(true);
+      setForecastError("");
+      setForecast(null);
+      setCommercialPrice(null);
 
       try {
         const forecastResult = await fetchForecast({ materialId, horizonteMeses: horizon, token: activeToken });
@@ -320,6 +302,7 @@ export function App() {
         if (forecastRequestRef.current !== requestId) return;
         setForecast(null);
         setCommercialPrice(null);
+        setForecastError("No se pudo obtener la proyección. Reintentá en unos momentos.");
         setForecastLoading(false);
       } finally {
         if (forecastRequestRef.current === requestId) {
@@ -355,19 +338,29 @@ export function App() {
 
   const loadSerieData = useCallback(
     async ({ materialId = selectedMaterialId, from = desde, to = hasta, horizon = forecastHorizon } = {}) => {
-      const result = await loadMaterialAnalysis({
-        materialId,
-        from,
-        to,
-        horizon,
-        materials: materiales,
-        token,
-        includeForecast: false,
-        includeCommercial: false,
-      });
-      setSerie(result.serie);
+      forecastRequestRef.current += 1;
+      setSerie([]);
       setForecast(null);
       setCommercialPrice(null);
+      setForecastError("");
+      setForecastLoading(true);
+      let result;
+      try {
+        result = await loadMaterialAnalysis({
+          materialId,
+          from,
+          to,
+          horizon,
+          materials: materiales,
+          token,
+          includeForecast: false,
+          includeCommercial: false,
+        });
+      } catch (loadError) {
+        setForecastLoading(false);
+        throw loadError;
+      }
+      setSerie(result.serie);
       if (comparisonReady) {
         loadComparisonData({ materials: materiales, from, to, activeToken: token }).catch(() => {});
       }
@@ -382,6 +375,7 @@ export function App() {
     setSerie([]);
     setForecast(null);
     setCommercialPrice(null);
+    setForecastError("");
     setForecastLoading(false);
     setComparisonRows([]);
     setComparisonLoading(false);
@@ -606,7 +600,18 @@ export function App() {
                     onHastaChange={setHasta}
                     onRefresh={handleRefresh}
                   />
-                  <DecisionSummaryCard forecast={forecast} serie={serie} selectedMaterial={selectedMaterial} showPrices={showPrices} />
+                  <DecisionSummaryCard
+                    forecast={forecast}
+                    serie={serie}
+                    selectedMaterial={selectedMaterial}
+                    showPrices={showPrices}
+                    loading={forecastLoading}
+                    error={forecastError}
+                    onAnalyzePurchase={() => {
+                      setActiveView("costs");
+                      setCostWorkflow("single");
+                    }}
+                  />
                   <MetricsGrid serie={serie} showPrices={showPrices} selectedMaterial={selectedMaterial} />
                   <InsightStrip serie={serie} selectedMaterial={selectedMaterial} showPrices={showPrices} />
                   {forecast ? (
@@ -620,20 +625,27 @@ export function App() {
                         <Box className="grid gap-0 md:grid-cols-[minmax(0,1fr)_320px]">
                           <Box className="p-4 md:p-5">
                             <Typography variant="overline" color="text.secondary">
-                              Recomendación
+                              {summaryDecisionPresentation.eyebrow}
                             </Typography>
                             <Typography mt={0.75} variant="h2" lineHeight={1.1}>
-                              {summaryForecastDeltaPct === null
-                                ? "Sin decisión"
-                                : summaryForecastDeltaPct > 0
-                                  ? "Anticipar compra"
-                                  : summaryForecastDeltaPct < 0
-                                    ? "Esperar si no es urgente"
-                                    : "Revisar urgencia"}
+                              {summaryDecisionPresentation.title}
                             </Typography>
                             <Typography mt={1} color="text.secondary">
-                              {summaryForecastRecommendation}
+                              {summaryDecisionPresentation.description}
                             </Typography>
+                            <Typography mt={1} color="text.secondary" variant="body2" fontWeight={800}>
+                              {summaryDecisionPresentation.provenance}
+                            </Typography>
+                            <Button
+                              sx={{ mt: 2 }}
+                              variant="outlined"
+                              onClick={() => {
+                                setActiveView("costs");
+                                setCostWorkflow("single");
+                              }}
+                            >
+                              Analizar compra
+                            </Button>
                           </Box>
                           <Box className="grid gap-3 border-t border-slate-200 bg-slate-50 p-4 md:border-l md:border-t-0">
                             <Box>
@@ -657,6 +669,15 @@ export function App() {
                               </Typography>
                               <Typography color="text.secondary" variant="body2">
                                 {summaryNextForecastPoint ? dayjs(summaryNextForecastPoint.fecha).format("DD/MM/YY") : "Sin horizonte"}
+                              </Typography>
+                            </Box>
+                            <Divider />
+                            <Box>
+                              <Typography color="text.secondary" variant="body2" fontWeight={800}>
+                                Datos observados hasta
+                              </Typography>
+                              <Typography mt={0.25} fontWeight={900}>
+                                {forecast.ultima_fecha_observada ? dayjs(forecast.ultima_fecha_observada).format("DD/MM/YYYY") : "Sin dato"}
                               </Typography>
                             </Box>
                           </Box>
@@ -720,6 +741,8 @@ export function App() {
                         serie={serie}
                         horizonteMeses={forecastHorizon}
                         showPrices={showPrices}
+                        loading={forecastLoading}
+                        error={forecastError}
                         onChangeHorizon={(value) => {
                           setForecastHorizon(value);
                           loadSerieData({ materialId: selectedMaterialId, horizon: value }).catch((loadError) => setError(loadError.message));
