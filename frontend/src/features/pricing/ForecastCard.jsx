@@ -3,11 +3,12 @@ import dayjs from "dayjs";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
+import { getMapePresentation } from "./forecastMetrics.js";
 import { ForecastModelDetails } from "./ForecastModelDetails.jsx";
 import { getModelDisplayName } from "./forecastModelLabels.js";
 import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
 
-export function ForecastCard({ forecast, serie, horizonteMeses, onChangeHorizon, showPrices }) {
+export function ForecastCard({ forecast, serie, horizonteMeses, onChangeHorizon, showPrices, loading = false, error = "" }) {
   const baseValue = serie.length ? Number(serie[0].precio_promedio_normalizado) : 0;
   const lastObservedValue = forecast ? Number(forecast.ultimo_precio_observado) : 0;
   const presentation = getMaterialPresentation(forecast?.material_nombre, forecast?.unidad_base);
@@ -16,6 +17,7 @@ export function ForecastCard({ forecast, serie, horizonteMeses, onChangeHorizon,
   const displayLastObserved = forecast ? getDisplayPrice(forecast.ultimo_precio_observado, forecast.material_nombre, forecast.unidad_base) : 0;
   const estimatedMonthlyVariation =
     nextForecastPoint && lastObservedValue > 0 ? ((Number(nextForecastPoint.precio_proyectado) - lastObservedValue) / lastObservedValue) * 100 : 0;
+  const mape = getMapePresentation(forecast?.metricas?.mape);
 
   return (
     <Card className="mt-3">
@@ -35,21 +37,29 @@ export function ForecastCard({ forecast, serie, horizonteMeses, onChangeHorizon,
           }
         />
 
-        {!forecast ? (
+        {loading ? (
+          <Alert severity="info">Actualizando la proyección para este material y horizonte.</Alert>
+        ) : error ? (
+          <Alert severity="error">{error}</Alert>
+        ) : !forecast ? (
           <Alert severity="info">Seleccioná un material con serie mensual suficiente para ver el forecast.</Alert>
         ) : (
           <Stack spacing={2.5}>
             <Box className="grid gap-3 md:grid-cols-4">
-              <MetricMini label="MAPE" value={`${formatNumber(forecast.metricas.mape)}%`} helper={`Backtesting ${forecast.horizonte_meses} meses`} />
+              <MetricMini label={mape.label} value={mape.value} helper="Cuanto menor, menor fue el error histórico promedio" />
               <MetricMini label={showPrices ? "MAE" : "Folds"} value={showPrices ? formatNumber(forecast.metricas.mae) : String(forecast.metricas.folds)} helper={showPrices ? `${forecast.metricas.folds} folds` : "Backtesting temporal"} />
-              <MetricMini label="Efectividad" value={`${formatNumber(forecast.metricas.efectividad_informal)}%`} helper="100 - MAPE" />
+              <MetricMini
+                label="Datos observados hasta"
+                value={forecast.ultima_fecha_observada ? dayjs(forecast.ultima_fecha_observada).format("DD/MM/YYYY") : "Sin dato"}
+                helper={`Fecha base · horizonte ${forecast.horizonte_meses} meses`}
+              />
               <MetricMini
                 label={showPrices ? presentation.primaryPriceLabel : "Modelo"}
                 value={showPrices ? `${formatCurrency(displayLastObserved)}` : getModelDisplayName(forecast.modelo)}
                 helper={
                   showPrices
-                    ? `${presentation.displayUnitLabel} · ${dayjs(forecast.ultima_fecha_observada).format("DD/MM/YY")}`
-                    : dayjs(forecast.ultima_fecha_observada).format("DD/MM/YY")
+                    ? `${presentation.displayUnitLabel} · último precio observado`
+                    : "Último precio observado"
                 }
               />
             </Box>
@@ -72,7 +82,7 @@ export function ForecastCard({ forecast, serie, horizonteMeses, onChangeHorizon,
             ) : null}
 
             <Alert severity="info">
-              La fiabilidad se interpreta principalmente con `MAPE`. `MAE`, cantidad de folds y efectividad informal complementan la lectura del resultado.
+              {mape.explanation}
             </Alert>
 
             <Alert severity="warning">{forecast.supuesto_regresores}</Alert>
