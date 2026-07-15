@@ -990,7 +990,14 @@ export function App() {
                   ) : null}
 
                   {historyWorkflow === "table" ? (
-                    <HistoryTable serie={serie} showPrices={showPrices} selectedMaterial={selectedMaterial} />
+                    <HistoryTable
+                      serie={serie}
+                      showPrices={showPrices}
+                      selectedMaterial={selectedMaterial}
+                      token={token}
+                      desde={desde}
+                      hasta={hasta}
+                    />
                   ) : null}
                 </>
               ) : null}

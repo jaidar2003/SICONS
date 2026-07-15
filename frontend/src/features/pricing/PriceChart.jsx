@@ -39,6 +39,11 @@ export function PriceChart({
     baseValue === 0 ? 0 : ((Number(point.precio_promedio_normalizado) - baseValue) / baseValue) * 100
   );
   const forecastPoints = forecast?.puntos ?? [];
+  const hasEstimatedHistory = serie.some((point) => point.origenes_dato?.includes("ESTIMADO"));
+  const historicalPointColors = serie.map((point) => point.origenes_dato?.includes("ESTIMADO") ? "#fff7ed" : "#FEFBFF");
+  const historicalSegments = {
+    borderDash: (context) => serie[context.p1DataIndex]?.origenes_dato?.includes("ESTIMADO") ? [6, 4] : undefined,
+  };
   const labels = [...serie.map((point) => point.fecha), ...forecastPoints.map((point) => point.fecha.slice(0, 7))];
   const projectedVariationSeries = forecastPoints.map((point) =>
     baseValue === 0 ? 0 : ((Number(point.precio_proyectado) - baseValue) / baseValue) * 100
@@ -99,21 +104,22 @@ export function PriceChart({
         : showPrices
           ? "Evolucion historica del precio de referencia"
           : "Evolucion historica porcentual";
-  const forecastBoundaryNote = forecastPoints.length ? " La franja naranja marca el tramo estimado." : "";
+  const forecastBoundaryNote = forecastPoints.length ? " La franja naranja marca el forecast." : "";
+  const estimatedHistoryNote = hasEstimatedHistory ? " Los puntos históricos estimados se muestran con trazo discontinuo y no son observaciones reales." : "";
   const chartDescription =
     showPrices && chartMode === "commercial"
       ? canShowCostDetails
-        ? `Precio minorista derivado del forecast de costo${hasCommercialMargin ? ` con margen ${formatNumber(commercialMarginNumber)}%` : ""}.${forecastBoundaryNote}`
-        : `Precio minorista proyectado para el material seleccionado.${forecastBoundaryNote}`
+        ? `Precio minorista derivado del forecast de costo${hasCommercialMargin ? ` con margen ${formatNumber(commercialMarginNumber)}%` : ""}.${estimatedHistoryNote}${forecastBoundaryNote}`
+        : `Precio minorista proyectado para el material seleccionado.${estimatedHistoryNote}${forecastBoundaryNote}`
       : showPrices && chartMode === "comparative"
-        ? `La curva azul es el precio de costo y la verde el precio minorista.${forecastBoundaryNote}`
+        ? `La curva azul es el precio de costo y la verde el precio minorista.${estimatedHistoryNote}${forecastBoundaryNote}`
         : selectedMaterial
           ? showPrices
-            ? `${selectedMaterial.nombre}: ${presentation.primaryPriceLabel.toLowerCase()} en ${presentation.displayUnitLabel}${forecastPoints.length ? " con proyeccion mensual" : ""}.${forecastBoundaryNote}`
-            : `${selectedMaterial.nombre}: variacion acumulada respecto del inicio del periodo${forecastPoints.length ? " con forecast proyectado" : ""}.${forecastBoundaryNote}`
+            ? `${selectedMaterial.nombre}: ${presentation.primaryPriceLabel.toLowerCase()} en ${presentation.displayUnitLabel}${forecastPoints.length ? " con proyeccion mensual" : ""}.${estimatedHistoryNote}${forecastBoundaryNote}`
+            : `${selectedMaterial.nombre}: variacion acumulada respecto del inicio del periodo${forecastPoints.length ? " con forecast proyectado" : ""}.${estimatedHistoryNote}${forecastBoundaryNote}`
           : showPrices
-            ? `Precio de referencia del material.${forecastBoundaryNote}`
-            : `Variacion acumulada del periodo.${forecastBoundaryNote}`;
+            ? `Precio de referencia del material.${estimatedHistoryNote}${forecastBoundaryNote}`
+            : `Variacion acumulada del periodo.${estimatedHistoryNote}${forecastBoundaryNote}`;
   const chartBadge =
     canShowCostDetails && showPrices && chartMode === "commercial" && hasCommercialMargin
       ? `Margen ${formatNumber(commercialMarginNumber)}%`
@@ -138,9 +144,10 @@ export function PriceChart({
             tension: 0.26,
             pointRadius: 3,
             pointHoverRadius: 6,
-            pointBackgroundColor: "#FEFBFF",
+            pointBackgroundColor: historicalPointColors,
             pointBorderColor: "#002395",
             pointBorderWidth: 2,
+            segment: historicalSegments,
           },
           ...(forecastPoints.length
             ? [
@@ -186,9 +193,10 @@ export function PriceChart({
             tension: 0.26,
             pointRadius: 3,
             pointHoverRadius: 6,
-            pointBackgroundColor: "#ecfdf5",
+            pointBackgroundColor: historicalPointColors,
             pointBorderColor: "#0f766e",
             pointBorderWidth: 2,
+            segment: historicalSegments,
           },
           ...(forecastPoints.length
             ? [
@@ -227,9 +235,10 @@ export function PriceChart({
             tension: 0.22,
             pointRadius: 3,
             pointHoverRadius: 6,
-            pointBackgroundColor: "#FEFBFF",
+            pointBackgroundColor: historicalPointColors,
             pointBorderColor: "#002395",
             pointBorderWidth: 2,
+            segment: historicalSegments,
           },
           {
             label: "Precio minorista",
@@ -263,9 +272,10 @@ export function PriceChart({
           tension: 0.26,
           pointRadius: 3,
           pointHoverRadius: 6,
-          pointBackgroundColor: "#FEFBFF",
+          pointBackgroundColor: historicalPointColors,
           pointBorderColor: "#002395",
           pointBorderWidth: 2,
+          segment: historicalSegments,
         },
         ...(forecastPoints.length
           ? [
@@ -458,6 +468,7 @@ export function PriceChart({
             if (showPrices) {
               const publicLines = [
                 `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`,
+                `Procedencia: ${point.origenes_dato?.includes("ESTIMADO") ? "Estimado" : "Real observado"}`,
                 `Variacion anterior: ${point.variacion_porcentual_anterior === null ? "-" : `${formatNumber(point.variacion_porcentual_anterior)}%`}`,
               ];
               if (!canShowCostDetails) return publicLines;
@@ -466,11 +477,13 @@ export function PriceChart({
                 chartMode === "base" && showBagEquivalents ? `Referencia 50 kg: ${formatCurrency(point.precio_equivalente_50kg)}` : null,
                 `Muestra: ${point.cantidad_registros} ${point.cantidad_registros === 1 ? "precio" : "precios"}`,
                 publicLines[1],
+                publicLines[2],
                 `Fuentes: ${point.fuentes.join(", ") || "-"}`,
               ];
             }
             return [
               `Variacion acumulada: ${formatNumber(variationSeries[context.dataIndex])}%`,
+              `Procedencia: ${point.origenes_dato?.includes("ESTIMADO") ? "Estimado" : "Real observado"}`,
               `Variacion anterior: ${point.variacion_porcentual_anterior === null ? "-" : `${formatNumber(point.variacion_porcentual_anterior)}%`}`,
               `Muestra: ${point.cantidad_registros} ${point.cantidad_registros === 1 ? "precio" : "precios"}`,
               `Fuentes: ${point.fuentes.join(", ") || "-"}`,
