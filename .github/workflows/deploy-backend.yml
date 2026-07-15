@@ -84,8 +84,8 @@ jobs:
           trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
           docker compose -f docker-compose.openstack.yml --env-file .env.openstack pull api
-          docker compose -f docker-compose.openstack.yml --env-file .env.openstack up -d --no-build --wait --wait-timeout 300
-          docker compose -f docker-compose.openstack.yml --env-file .env.openstack ps
+          docker compose -f docker-compose.openstack.yml --env-file .env.openstack up -d --no-build --wait --wait-timeout 300 api
+          docker compose -f docker-compose.openstack.yml --env-file .env.openstack ps api postgres
           docker compose -f docker-compose.openstack.yml --env-file .env.openstack exec -T api \
             python -c "import json, urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=10))['status'] == 'ok'"
 
@@ -93,5 +93,5 @@ jobs:
         if: failure()
         run: |
           cd /home/ubuntu/BuildWise
-          docker compose -f docker-compose.openstack.yml --env-file .env.openstack ps || true
-          docker compose -f docker-compose.openstack.yml --env-file .env.openstack logs --no-color --tail=150 api caddy || true
+          docker compose -f docker-compose.openstack.yml --env-file .env.openstack ps api postgres || true
+          docker compose -f docker-compose.openstack.yml --env-file .env.openstack logs --no-color --tail=150 api || true

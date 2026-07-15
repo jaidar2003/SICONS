@@ -119,6 +119,7 @@ El workflow `Deploy Backend` se ejecuta despues de que `CI` aprueba un push a `m
 - verifica que el commit a desplegar sea exactamente el validado por CI;
 - actualiza `main` solamente mediante fast-forward;
 - descarga la imagen identificada por el SHA validado y aplica migraciones Alembic al iniciar la API;
+- recrea solamente la API; Caddy, el tunel y PostgreSQL permanecen activos;
 - espera el health check y registra logs si falla.
 
 La ejecucion manual equivalente es:
