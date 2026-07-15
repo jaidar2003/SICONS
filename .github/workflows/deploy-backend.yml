@@ -1,42 +1,50 @@
 name: Deploy Backend
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/deploy-backend.yml"
-      - "app/**"
-      - "db/**"
-      - "deploy/**"
-      - "alembic.ini"
-      - "docker-compose.openstack.yml"
-      - "Dockerfile"
-      - "requirements.txt"
-      - "requirements-dev.txt"
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
   group: deploy-backend-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main')
+    runs-on: [self-hosted, linux, x64, buildwise-production]
+    environment: production
+    timeout-minutes: 30
     steps:
-      - name: Deploy backend on VM
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.OPENSTACK_VM_HOST }}
-          username: ${{ secrets.OPENSTACK_VM_USER }}
-          key: ${{ secrets.OPENSTACK_VM_SSH_KEY }}
-          port: ${{ secrets.OPENSTACK_VM_PORT || '22' }}
-          script_stop: true
-          command_timeout: 30m
-          script: |
-            cd /home/ubuntu/BuildWise
-            git fetch --all --prune
-            git checkout main
-            git pull --ff-only origin main
-            docker compose -f docker-compose.openstack.yml --env-file .env.openstack up -d --build
-            docker compose -f docker-compose.openstack.yml --env-file .env.openstack ps
+      - name: Deploy validated main revision
+        env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          cd /home/ubuntu/BuildWise
+          git fetch origin main
+          git switch main
+          git pull --ff-only origin main
+
+          actual_sha="$(git rev-parse HEAD)"
+          if [ "$actual_sha" != "$DEPLOY_SHA" ]; then
+            echo "Refusing to deploy $actual_sha: CI validated $DEPLOY_SHA" >&2
+            exit 1
+          fi
+
+          docker compose -f docker-compose.openstack.yml --env-file .env.openstack up -d --build --wait --wait-timeout 300
+          docker compose -f docker-compose.openstack.yml --env-file .env.openstack ps
+          docker compose -f docker-compose.openstack.yml --env-file .env.openstack exec -T api \
+            python -c "import json, urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=10))['status'] == 'ok'"
+
+      - name: Show service logs after failure
+        if: failure()
+        run: |
+          cd /home/ubuntu/BuildWise
+          docker compose -f docker-compose.openstack.yml --env-file .env.openstack ps || true
+          docker compose -f docker-compose.openstack.yml --env-file .env.openstack logs --no-color --tail=150 api caddy || true

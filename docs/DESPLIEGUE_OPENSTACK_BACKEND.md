@@ -114,9 +114,18 @@ Despues hacer `Redeploy`.
 
 ## 8. Actualizar backend
 
-Cuando haya cambios nuevos:
+El workflow `Deploy Backend` se ejecuta en el runner autoservido de la VM despues de que `CI` aprueba un push a `main`. El deploy:
+
+- verifica que el commit a desplegar sea exactamente el validado por CI;
+- actualiza `main` solamente mediante fast-forward;
+- reconstruye las imagenes y aplica migraciones Alembic al iniciar la API;
+- espera el health check y registra logs si falla.
+
+La ejecucion manual equivalente es:
 
 ```bash
-git pull
-docker compose -f docker-compose.openstack.yml --env-file .env.openstack up -d --build
+git pull --ff-only origin main
+docker compose -f docker-compose.openstack.yml --env-file .env.openstack up -d --build --wait --wait-timeout 300
 ```
+
+El runner debe tener las etiquetas `self-hosted`, `linux`, `x64` y `buildwise-production`. La configuracion `.env.openstack` permanece solamente en la VM.
