@@ -4,7 +4,7 @@ import DownloadIconModule from "@mui/icons-material/Download";
 import ExpandMoreIconModule from "@mui/icons-material/ExpandMore";
 import OpenInNewIconModule from "@mui/icons-material/OpenInNew";
 import TimelineOutlinedIconModule from "@mui/icons-material/TimelineOutlined";
-import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent, Chip, CircularProgress, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent, CircularProgress, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
@@ -12,6 +12,7 @@ import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
 import { fetchForecast, fetchSerie } from "../pricing/pricing.api.js";
 import { PriceChart } from "../pricing/PriceChart.jsx";
+import { getMessageDetailPresentation, VISUALIZATION_LABELS } from "./chatPresentation.js";
 import { INSUFFICIENT_CHART_DATA_MESSAGE, shouldShowInsufficientChartDataMessage } from "./chatVisualizationState.js";
 import {
   askChatQuestion,
@@ -29,20 +30,6 @@ const DownloadIcon = resolveMuiIcon(DownloadIconModule);
 const ExpandMoreIcon = resolveMuiIcon(ExpandMoreIconModule);
 const OpenInNewIcon = resolveMuiIcon(OpenInNewIconModule);
 const TimelineOutlinedIcon = resolveMuiIcon(TimelineOutlinedIconModule);
-const PROVIDER_LABELS = {
-  facultad: "UM",
-  claude: "Claude",
-};
-const VISUALIZATION_LABELS = {
-  PRICE_HISTORY: "Histórico de precios",
-  FORECAST: "Forecast",
-  PRICE_HISTORY_FORECAST: "Histórico + forecast",
-};
-const MATERIAL_RESOLUTION_LABELS = {
-  pregunta: "Pregunta",
-  contexto: "Conversación",
-  seleccionado: "Selector",
-};
 const PHASES = [
   { value: "estructura", label: "Estructura" },
   { value: "terminaciones", label: "Terminaciones" },
@@ -107,8 +94,8 @@ function initialMessage(isAdmin) {
   return {
     role: "assistant",
     text: isAdmin
-      ? "Podés consultarme precios, forecast, recomendaciones, estrategias de compra, presupuestos, prioridades y optimización. Las operaciones administrativas requieren confirmación."
-      : "Podés consultarme precios, forecast, recomendaciones, estrategias de compra, presupuestos, prioridades y optimización.",
+      ? "Hola. Puedo ayudarte con precios, proyecciones, presupuestos y decisiones de compra. También puedo orientarte con tareas administrativas; antes de aplicar cambios te pediré confirmación."
+      : "Hola. Puedo ayudarte con precios, proyecciones, presupuestos y decisiones de compra. ¿Qué necesitás consultar?",
   };
 }
 
@@ -517,52 +504,44 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
       <CardContent>
         <SectionHeader
           title="Asistente BuildWise"
-          description={`Opera con datos calculados de ${selectedMaterial?.nombre || "los materiales"} a ${forecastHorizon} meses. Las consultas externas se rechazan antes de llamar al proveedor de IA.`}
+          description={`Consultá sobre ${selectedMaterial?.nombre || "materiales"}, compará alternativas y entendé los resultados en lenguaje claro.`}
         />
 
-        <Box className="mb-3 grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
-          <TextField
-            select
-            size="small"
-            label="Conversación"
-            value={activeConversationId || ""}
-            onChange={(event) => handleSelectConversation(event.target.value ? Number(event.target.value) : null)}
-          >
-            {!conversations.length ? <MenuItem value="">Sin conversaciones guardadas</MenuItem> : null}
-            {conversations.map((conversation) => (
-              <MenuItem key={conversation.id} value={conversation.id}>
-                {conversation.titulo}
-              </MenuItem>
-            ))}
-          </TextField>
-          <Button variant="outlined" onClick={handleNewConversation}>
-            Nueva conversación
-          </Button>
-          <Button variant="outlined" color="secondary" onClick={handleArchiveConversation} disabled={!activeConversationId}>
-            Archivar
-          </Button>
-          <TextField
-            size="small"
-            label="Título"
-            value={conversationTitleDraft}
-            disabled={!activeConversationId}
-            onChange={(event) => setConversationTitleDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                handleRenameConversation();
-              }
-            }}
-            className="md:col-span-2"
-          />
-          <Button
-            variant="outlined"
-            onClick={handleRenameConversation}
-            disabled={!activeConversationId || renamingConversation || conversationTitleDraft.trim() === activeConversation?.titulo}
-          >
-            {renamingConversation ? "Guardando..." : "Guardar título"}
-          </Button>
-        </Box>
+        <Accordion className="mb-3 border border-slate-200 bg-slate-50" disableGutters elevation={0}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box>
+              <Typography fontWeight={900}>{activeConversation?.titulo || "Conversación actual"}</Typography>
+              <Typography variant="body2" color="text.secondary">Nueva conversación, historial y nombre</Typography>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Box className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
+              <TextField select size="small" label="Conversación" value={activeConversationId || ""} onChange={(event) => handleSelectConversation(event.target.value ? Number(event.target.value) : null)}>
+                {!conversations.length ? <MenuItem value="">Sin conversaciones guardadas</MenuItem> : null}
+                {conversations.map((conversation) => <MenuItem key={conversation.id} value={conversation.id}>{conversation.titulo}</MenuItem>)}
+              </TextField>
+              <Button variant="outlined" onClick={handleNewConversation}>Nueva conversación</Button>
+              <Button variant="outlined" color="secondary" onClick={handleArchiveConversation} disabled={!activeConversationId}>Archivar</Button>
+              <TextField
+                size="small"
+                label="Nombre de la conversación"
+                value={conversationTitleDraft}
+                disabled={!activeConversationId}
+                onChange={(event) => setConversationTitleDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    handleRenameConversation();
+                  }
+                }}
+                className="md:col-span-2"
+              />
+              <Button variant="outlined" onClick={handleRenameConversation} disabled={!activeConversationId || renamingConversation || conversationTitleDraft.trim() === activeConversation?.titulo}>
+                {renamingConversation ? "Guardando..." : "Guardar nombre"}
+              </Button>
+            </Box>
+          </AccordionDetails>
+        </Accordion>
 
         {error ? <Alert severity="error" className="mb-3">{error}</Alert> : null}
 
@@ -583,28 +562,12 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           {messages.map((message, index) => (
             <Box
               key={`${message.role}-${index}`}
-              className={`${message.visualization ? "max-w-full" : "max-w-[85%]"} rounded-xl px-4 py-3 ${message.role === "user" ? "ml-auto bg-teal-700 text-white" : "bg-white text-slate-800 shadow-sm"}`}
+              className={`${message.visualization ? "max-w-full" : "max-w-[88%] md:max-w-[78%]"} rounded-xl px-4 py-3 ${message.role === "user" ? "ml-auto bg-teal-700 text-white" : "bg-white text-slate-800 shadow-sm"}`}
             >
               <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
                 {message.text}
               </Typography>
-              {message.role === "assistant" && !message.rejected ? (
-                <Box className="mt-2 flex flex-wrap gap-1.5">
-                  <Chip label={message.providerUsed ? `IA usada: ${PROVIDER_LABELS[message.provider] || message.provider || "desconocida"}` : "Sin IA"} size="small" variant="outlined" sx={{ fontWeight: 800 }} />
-                  {message.fallbackUsed ? <Chip label="Fallback activado" size="small" color="warning" sx={{ fontWeight: 800 }} /> : null}
-                  {message.intent ? <Chip label={`Intención: ${message.intent}`} size="small" variant="outlined" sx={{ fontWeight: 800 }} /> : null}
-                  {message.contextUsed ? <Chip label="RAG backend" size="small" color="success" variant="outlined" sx={{ fontWeight: 800 }} /> : null}
-                  {message.resolvedMaterial ? <Chip label={`Material: ${message.resolvedMaterial}`} size="small" variant="outlined" sx={{ fontWeight: 800 }} /> : null}
-                  {message.intent !== "HISTORICO" && message.resolvedHorizon ? <Chip label={`Horizonte: ${message.resolvedHorizon} meses`} size="small" variant="outlined" sx={{ fontWeight: 800 }} /> : null}
-                  {(message.sources || []).map((source) => (
-                    <Chip key={source} label={source} size="small" variant="outlined" sx={{ fontWeight: 800 }} />
-                  ))}
-                </Box>
-              ) : null}
-              {message.role === "assistant" && !message.rejected && (message.contextUsed || message.visualization) ? (
-                <RagEvidencePanel message={message} />
-              ) : null}
-              {message.role === "assistant" && !message.rejected ? <ChatMessageActions message={message} /> : null}
+              {message.role === "assistant" && !message.rejected ? <MessageDetailsPanel message={message} /> : null}
               {message.visualization ? (
                 <ChatVisualization
                   visualization={message.visualization}
@@ -625,7 +588,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           {loading ? (
             <Box className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-slate-600 shadow-sm">
               <CircularProgress size={16} />
-              <Typography variant="body2">Consultando asistente...</Typography>
+              <Typography variant="body2">Pensando...</Typography>
             </Box>
           ) : null}
           {conversationLoading ? (
@@ -657,16 +620,6 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
             {!commercialMaterials.length ? (
               <Alert severity="warning">No hay productos del MVP disponibles para presupuestación de compra.</Alert>
             ) : null}
-            <Box className="flex flex-wrap gap-1.5">
-              <Chip label="Interpretado por IA" size="small" color="info" variant="outlined" sx={{ fontWeight: 800 }} />
-              <Chip
-                label={`IA usada: ${PROVIDER_LABELS[interpretation.proveedor_ia] || interpretation.proveedor_ia || "no disponible"}`}
-                size="small"
-                variant="outlined"
-                sx={{ fontWeight: 800 }}
-              />
-              {interpretation.fallback_usado ? <Chip label="Fallback activado" size="small" color="warning" sx={{ fontWeight: 800 }} /> : null}
-            </Box>
             <Typography variant="body2" fontWeight={900} color="text.secondary">
               Datos confirmados por el usuario
             </Typography>
@@ -746,30 +699,40 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
               <ProposalValue label="Diferencia estimada" value={proposal.diferencia_estimada === null ? "-" : formatCurrency(proposal.diferencia_estimada)} />
               <ProposalValue label="Decisión" value={DECISION_LABELS[proposal.decision] || proposal.decision} />
             </Box>
-            <Typography variant="body2" color="text.secondary">
-              Confianza: {proposal.confiabilidad}
-              {proposal.mape === null ? "" : ` / MAPE ${formatNumber(proposal.mape)}%`}. {proposal.justificacion}
-            </Typography>
-            <Stack direction="row" flexWrap="wrap" gap={1}>
-              <Chip label={`Fuente: ${proposal.fuente_decision || "backend_deterministico"}`} size="small" variant="outlined" sx={{ fontWeight: 800 }} />
-              <Chip label={`Redacción: ${proposal.propuesta_generada_por || "llm_validado"}`} size="small" variant="outlined" sx={{ fontWeight: 800 }} />
-            </Stack>
+            <Typography variant="body2" color="text.secondary">{proposal.justificacion}</Typography>
+            <Accordion disableGutters elevation={0} className="border border-slate-200 bg-white">
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography variant="body2" fontWeight={900}>Ver cómo se calculó</Typography></AccordionSummary>
+              <AccordionDetails>
+                <Typography variant="body2" color="text.secondary">
+                  Confiabilidad: {proposal.confiabilidad}{proposal.mape === null ? "" : ` · Error porcentual promedio (MAPE): ${formatNumber(proposal.mape)}%`}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" mt={0.5}>Fuente de la decisión: {proposal.fuente_decision || "motor de decisión de BuildWise"}</Typography>
+              </AccordionDetails>
+            </Accordion>
             {proposal.advertencias?.length ? <Alert severity="warning">{proposal.advertencias.join(" ")}</Alert> : null}
           </Box>
         ) : null}
 
-        <Box component="form" onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row">
+        <Box component="form" onSubmit={handleSubmit} className="sticky bottom-3 z-10 flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-md1 sm:flex-row sm:items-end">
           <TextField
             fullWidth
             size="small"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
             label="Pregunta"
-            placeholder="Ej.: Necesito comprar 500 kg de cemento en 6 meses, ¿qué conviene?"
+            placeholder="Escribí tu consulta..."
+            multiline
+            maxRows={4}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                handleSubmit(event);
+              }
+            }}
             inputProps={{ maxLength: 1000 }}
             disabled={loading}
           />
-          <Button type="submit" variant="contained" disabled={!question.trim() || loading}>
+          <Button type="submit" variant="contained" disabled={!question.trim() || loading} sx={{ minHeight: 40 }}>
             Enviar
           </Button>
         </Box>
@@ -778,52 +741,58 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
   );
 }
 
-function RagEvidencePanel({ message }) {
-  const rows = [
-    ["Intención", message.intent || "-"],
-    ["Material", message.resolvedMaterial || "-"],
-    ["Resolución material", MATERIAL_RESOLUTION_LABELS[message.materialResolutionSource] || message.materialResolutionSource || "-"],
-    ...(message.intent === "HISTORICO" ? [] : [["Horizonte", message.resolvedHorizon ? `${message.resolvedHorizon} meses` : "-"]]),
-    ["Fuentes", message.sources?.length ? message.sources.join(", ") : "-"],
-    ["Visualización", message.visualization ? VISUALIZATION_LABELS[message.visualization.tipo] || message.visualization.tipo : "-"],
-  ];
-  const summary = [
-    message.intent ? `Intención: ${message.intent}` : null,
-    message.resolvedMaterial ? `Material: ${message.resolvedMaterial}` : null,
-    message.resolvedHorizon ? `Horizonte: ${message.resolvedHorizon} meses` : null,
-    message.sources?.length ? `Fuentes: ${message.sources.length}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+function MessageDetailsPanel({ message }) {
+  const { rows, summary } = getMessageDetailPresentation(message);
+
+  async function copyAnswer() {
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(message.text || "");
+  }
+
+  function downloadEvidence() {
+    const blob = new Blob([JSON.stringify(buildEvidencePayload(message), null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `buildwise-evidencia-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
-    <Accordion className="mt-3 rounded-lg border border-slate-200 bg-slate-50" disableGutters elevation={0} defaultExpanded={false}>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Box className="min-w-0">
+    <Box className="mt-2">
+      <Tooltip title="Copiar respuesta">
+        <IconButton size="small" aria-label="Copiar respuesta" onClick={copyAnswer}>
+          <ContentCopyIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Accordion className="mt-1 rounded-lg border border-slate-200 bg-slate-50" disableGutters elevation={0} defaultExpanded={false}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Box className="min-w-0">
           <Typography variant="body2" fontWeight={900} color="text.secondary">
-            Datos usados por el RAG
+              Ver fuentes y detalles
           </Typography>
           <Typography variant="body2" color="text.secondary" noWrap title={summary || "Sin detalle disponible"}>
-            {summary || "Resumen corto disponible al expandir"}
+              {summary || "Cómo se obtuvo esta respuesta"}
           </Typography>
-        </Box>
-      </AccordionSummary>
-      <AccordionDetails>
-        <Box className="grid gap-2 md:grid-cols-2">
-          {rows.map(([label, value]) => (
-            <Box key={label} className="rounded-md bg-white px-3 py-2">
-              <Typography variant="caption" color="text.secondary" fontWeight={800}>
-                {label}
-              </Typography>
-              <Typography variant="body2" fontWeight={800}>
-                {value}
-              </Typography>
-            </Box>
-          ))}
-        </Box>
-        {message.sourceEvidence?.length ? <SourceEvidenceList evidence={message.sourceEvidence} /> : null}
-      </AccordionDetails>
-    </Accordion>
+          </Box>
+        </AccordionSummary>
+        <AccordionDetails>
+          {message.fallbackUsed ? <Alert severity="info" className="mb-3">La respuesta principal no estuvo disponible y BuildWise utilizó una respuesta segura basada en sus datos.</Alert> : null}
+          <Box className="grid gap-2 md:grid-cols-2">
+            {rows.map(([label, value]) => (
+              <Box key={label} className="rounded-md bg-white px-3 py-2">
+                <Typography variant="caption" color="text.secondary" fontWeight={800}>{label}</Typography>
+                <Typography variant="body2" fontWeight={800}>{value}</Typography>
+              </Box>
+            ))}
+          </Box>
+          {message.sourceEvidence?.length ? <SourceEvidenceList evidence={message.sourceEvidence} /> : null}
+          <Button className="mt-3" size="small" variant="outlined" startIcon={<DownloadIcon fontSize="small" />} onClick={downloadEvidence}>
+            Descargar evidencia
+          </Button>
+        </AccordionDetails>
+      </Accordion>
+    </Box>
   );
 }
 
@@ -834,7 +803,7 @@ function SourceEvidenceList({ evidence }) {
         <Accordion key={sourceEvidence.source} disableGutters elevation={0} className="border border-slate-200">
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="body2" fontWeight={900}>
-              Fuente expandible: {sourceEvidence.source}
+              Fuente: {sourceEvidence.source}
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
@@ -886,72 +855,6 @@ function buildEvidencePayload(message) {
     fallback_usado: Boolean(message.fallbackUsed),
     visualizacion_sugerida: message.visualization || null,
   };
-}
-
-function buildSummaryText(message) {
-  const payload = buildEvidencePayload(message);
-  return [
-    `Pregunta: ${payload.pregunta || "-"}`,
-    `Respuesta: ${payload.respuesta || "-"}`,
-    `Intención: ${payload.tipo_intencion || "-"}`,
-    `Material: ${payload.material_resuelto || "-"}`,
-    ...(payload.tipo_intencion === "HISTORICO" ? [] : [`Horizonte: ${payload.horizonte_resuelto ? `${payload.horizonte_resuelto} meses` : "-"}`]),
-    `Fuentes: ${payload.fuentes_recuperadas.length ? payload.fuentes_recuperadas.join(", ") : "-"}`,
-    `Visualización: ${payload.visualizacion_sugerida ? VISUALIZATION_LABELS[payload.visualizacion_sugerida.tipo] || payload.visualizacion_sugerida.tipo : "-"}`,
-  ].join("\n");
-}
-
-function ChatMessageActions({ message }) {
-  async function copySummary() {
-    const text = buildSummaryText(message);
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-    }
-  }
-
-  function downloadEvidence() {
-    const blob = new Blob([JSON.stringify(buildEvidencePayload(message), null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `buildwise-rag-evidencia-${Date.now()}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
-  return (
-    <Box className="mt-3 grid gap-2">
-      <Box className="flex flex-wrap gap-2">
-        <Button size="small" variant="outlined" startIcon={<ContentCopyIcon fontSize="small" />} onClick={copySummary}>
-          Copiar resumen
-        </Button>
-        <Button size="small" variant="outlined" startIcon={<DownloadIcon fontSize="small" />} onClick={downloadEvidence}>
-          Descargar evidencia
-        </Button>
-      </Box>
-      <Accordion disableGutters elevation={0} className="border border-slate-200">
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="body2" fontWeight={900}>
-            Modo auditoría/demo
-          </Typography>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Box className="grid gap-2 md:grid-cols-2">
-            {Object.entries(buildEvidencePayload(message)).map(([key, value]) => (
-              <Box key={key} className="rounded-md bg-slate-50 p-2">
-                <Typography variant="caption" color="text.secondary" fontWeight={800}>
-                  {key}
-                </Typography>
-                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                  {typeof value === "object" ? JSON.stringify(value, null, 2) : String(value ?? "-")}
-                </Typography>
-              </Box>
-            ))}
-          </Box>
-        </AccordionDetails>
-      </Accordion>
-    </Box>
-  );
 }
 
 function ProposalValue({ label, value }) {
