@@ -17,6 +17,7 @@ services:
       - api
 
   api:
+    image: ${BACKEND_IMAGE:-buildwise-api:local}
     build: .
     container_name: buildwise-api
     restart: unless-stopped
@@ -46,6 +47,7 @@ services:
       uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
   bootstrap:
+    image: ${BACKEND_IMAGE:-buildwise-api:local}
     build: .
     container_name: buildwise-bootstrap
     profiles: ["ops"]
