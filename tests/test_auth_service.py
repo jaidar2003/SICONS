@@ -25,6 +25,14 @@ from app.shared.notifications.email import EmailDeliveryResult, EmailDeliverySta
 from app.shared.security.tokens import hash_password, verify_password
 
 
+@pytest.fixture(autouse=True)
+def stub_admin_registration_email(monkeypatch):
+    monkeypatch.setattr(
+        "app.modules.auth.application.service.send_pending_registration_admin_email",
+        lambda **_kwargs: EmailDeliveryResult(EmailDeliveryStatus.ADMIN_EMAIL_NOT_CONFIGURED),
+    )
+
+
 def make_session():
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
