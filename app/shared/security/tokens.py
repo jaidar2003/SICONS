@@ -92,3 +92,31 @@ def decode_password_reset_token(token: str) -> dict:
     if payload.get("purpose") != "password_reset":
         raise ValueError("Token invalido")
     return payload
+
+
+def registration_action_fingerprint(email: str) -> str:
+    digest = hmac.new(settings.auth_secret_key.encode("utf-8"), email.lower().encode("utf-8"), hashlib.sha256).hexdigest()
+    return digest[:32]
+
+
+def create_registration_action_token(*, user_id: int, email: str, action: str) -> tuple[str, datetime]:
+    if action not in {"approve", "reject"}:
+        raise ValueError("Accion de registro invalida")
+    expires_at = datetime.now(UTC) + timedelta(minutes=settings.registration_action_token_ttl_minutes)
+    payload = {
+        "sub": user_id,
+        "purpose": "registration_action",
+        "action": action,
+        "email": registration_action_fingerprint(email),
+        "exp": int(expires_at.timestamp()),
+    }
+    payload_part = _b64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    signature = hmac.new(settings.auth_secret_key.encode("utf-8"), payload_part.encode("ascii"), hashlib.sha256).digest()
+    return f"{payload_part}.{_b64url_encode(signature)}", expires_at
+
+
+def decode_registration_action_token(token: str) -> dict:
+    payload = decode_access_token(token)
+    if payload.get("purpose") != "registration_action" or payload.get("action") not in {"approve", "reject"}:
+        raise ValueError("Token invalido")
+    return payload
