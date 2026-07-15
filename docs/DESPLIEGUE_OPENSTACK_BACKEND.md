@@ -114,18 +114,19 @@ Despues hacer `Redeploy`.
 
 ## 8. Actualizar backend
 
-El workflow `Deploy Backend` se ejecuta en el runner autoservido de la VM despues de que `CI` aprueba un push a `main`. El deploy:
+El workflow `Deploy Backend` se ejecuta despues de que `CI` aprueba un push a `main`. Un runner de GitHub construye una imagen inmutable en GHCR; el runner autoservido de la VM solamente la descarga y reinicia los servicios. El deploy:
 
 - verifica que el commit a desplegar sea exactamente el validado por CI;
 - actualiza `main` solamente mediante fast-forward;
-- reconstruye las imagenes y aplica migraciones Alembic al iniciar la API;
+- descarga la imagen identificada por el SHA validado y aplica migraciones Alembic al iniciar la API;
 - espera el health check y registra logs si falla.
 
 La ejecucion manual equivalente es:
 
 ```bash
 git pull --ff-only origin main
-docker compose -f docker-compose.openstack.yml --env-file .env.openstack up -d --build --wait --wait-timeout 300
+BACKEND_IMAGE=ghcr.io/juanmanuelaidar/buildwise-api:<sha> \
+  docker compose -f docker-compose.openstack.yml --env-file .env.openstack up -d --no-build --wait --wait-timeout 300
 ```
 
 El runner debe tener las etiquetas `self-hosted`, `linux`, `x64` y `buildwise-production`. La configuracion `.env.openstack` permanece solamente en la VM.
