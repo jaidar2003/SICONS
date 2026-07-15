@@ -482,6 +482,45 @@ def test_obtener_serie_precios_mensual():
     assert exc.value.status_code == 422
 
 
+def test_obtener_serie_observaciones_expone_procedencia_y_presentacion():
+    mock_material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+    mock_repo = MagicMock()
+    mock_repo.get_by_id.return_value = mock_material
+    mock_pricing_repo = MagicMock()
+    mock_pricing_repo.get_historical_prices.return_value = [
+        SimpleNamespace(
+            id=7,
+            fecha=date(2025, 11, 26),
+            precio_normalizado=Decimal("178.4213"),
+            precio_original=Decimal("8921.07"),
+            moneda="ARS",
+            numero_comprobante="0256-00046834",
+            origen_dato="REAL",
+            metodo_estimacion=None,
+            created_at=datetime(2025, 11, 26, 15, 30),
+            fuente=SimpleNamespace(nombre="Factura compra"),
+            presentacion=SimpleNamespace(
+                nombre_presentacion="Bolsa 50 kg",
+                cantidad_base=Decimal("50"),
+                unidad_presentacion="bolsa",
+            ),
+        )
+    ]
+
+    result = pricing_routes.obtener_serie_precios_material(
+        material_id=1,
+        agrupacion="observaciones",
+        material_repo=mock_repo,
+        pricing_repo=mock_pricing_repo,
+        current_user=None,
+    )
+
+    assert result[0].origen_dato == "REAL"
+    assert result[0].presentacion_nombre == "Bolsa 50 kg"
+    assert result[0].precio_original == Decimal("8921.07")
+    assert result[0].numero_comprobante == "0256-00046834"
+
+
 def test_obtener_variacion_entre_fechas_error():
     mock_material = MagicMock(id=1, nombre="M", unidad_base="kg")
     mock_repo = MagicMock()

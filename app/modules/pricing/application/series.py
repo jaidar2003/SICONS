@@ -1,6 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from statistics import median
 
@@ -13,6 +13,14 @@ class PrecioSerieInput:
     fuente: str | None = None
     numero_comprobante: str | None = None
     registro_id: int | None = None
+    origen_dato: str | None = None
+    metodo_estimacion: str | None = None
+    presentacion_nombre: str | None = None
+    presentacion_cantidad_base: Decimal | None = None
+    presentacion_unidad: str | None = None
+    precio_original: Decimal | None = None
+    moneda: str | None = None
+    created_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -40,6 +48,16 @@ class PuntoSeriePrecio:
     explicacion_anomalia: str | None = None
     variables_relevantes_anomalia: list[str] | None = None
     observacion_id: int | None = None
+    origen_dato: str | None = None
+    metodo_estimacion: str | None = None
+    presentacion_nombre: str | None = None
+    presentacion_cantidad_base: Decimal | None = None
+    presentacion_unidad: str | None = None
+    precio_original: Decimal | None = None
+    moneda: str | None = None
+    numero_comprobante: str | None = None
+    created_at: datetime | None = None
+    origenes_dato: list[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -112,6 +130,10 @@ def _contar_facturas(registros: list[PrecioSerieInput]) -> int:
 
 def _usa_equivalencias_bolsa(unidad_base: str, fuentes: list[str]) -> bool:
     return unidad_base == "kg" and "Factura compra" in fuentes
+
+
+def _origenes_dato(registros: list[PrecioSerieInput]) -> list[str]:
+    return sorted({registro.origen_dato for registro in registros if registro.origen_dato})
 
 
 def _mediana(valores: list[float]) -> float | None:
@@ -270,6 +292,7 @@ def construir_serie_precios(
                 cantidad_facturas=_contar_facturas(registros_fecha),
                 fuentes=fuentes,
                 variacion_porcentual_anterior=variacion,
+                origenes_dato=_origenes_dato(registros_fecha),
             )
         )
         precio_anterior = promedio
@@ -306,6 +329,16 @@ def construir_serie_observaciones(
                 fuentes=fuentes,
                 variacion_porcentual_anterior=variacion,
                 observacion_id=registro.registro_id,
+                origen_dato=registro.origen_dato,
+                metodo_estimacion=registro.metodo_estimacion,
+                presentacion_nombre=registro.presentacion_nombre,
+                presentacion_cantidad_base=registro.presentacion_cantidad_base,
+                presentacion_unidad=registro.presentacion_unidad,
+                precio_original=registro.precio_original,
+                moneda=registro.moneda,
+                numero_comprobante=registro.numero_comprobante,
+                created_at=registro.created_at,
+                origenes_dato=[registro.origen_dato] if registro.origen_dato else [],
             )
         )
         precio_anterior = precio
@@ -902,6 +935,7 @@ def construir_serie_mensual(
                 cantidad_facturas=_contar_facturas(registros_mes),
                 fuentes=fuentes,
                 variacion_porcentual_anterior=variacion,
+                origenes_dato=_origenes_dato(registros_mes),
             )
         )
         precio_anterior = promedio

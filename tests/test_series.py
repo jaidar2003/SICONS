@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
@@ -18,9 +18,9 @@ from app.modules.pricing.application.series import (
 def test_construir_serie_precios_agrupa_por_fecha_y_calcula_equivalencias() -> None:
     serie = construir_serie_precios(
         [
-            PrecioSerieInput(date(2026, 3, 3), Decimal("260.0000"), "kg", "Factura compra"),
-            PrecioSerieInput(date(2026, 3, 3), Decimal("262.0000"), "kg", "Factura compra"),
-            PrecioSerieInput(date(2026, 3, 25), Decimal("272.3980"), "kg", "Factura compra"),
+            PrecioSerieInput(date(2026, 3, 3), Decimal("260.0000"), "kg", "Factura compra", origen_dato="REAL"),
+            PrecioSerieInput(date(2026, 3, 3), Decimal("262.0000"), "kg", "Factura compra", origen_dato="ESTIMADO"),
+            PrecioSerieInput(date(2026, 3, 25), Decimal("272.3980"), "kg", "Factura compra", origen_dato="REAL"),
         ]
     )
 
@@ -32,6 +32,7 @@ def test_construir_serie_precios_agrupa_por_fecha_y_calcula_equivalencias() -> N
     assert serie[0].cantidad_registros == 2
     assert serie[0].cantidad_facturas == 2
     assert serie[0].fuentes == ["Factura compra"]
+    assert serie[0].origenes_dato == ["ESTIMADO", "REAL"]
     assert serie[0].variacion_porcentual_anterior is None
     assert serie[1].variacion_porcentual_anterior == Decimal("4.3670")
 
@@ -53,6 +54,38 @@ def test_construir_serie_observaciones_conserva_cada_precio_del_mismo_dia() -> N
         Decimal("272.3980"),
     ]
     assert serie[1].variacion_porcentual_anterior == Decimal("0.7692")
+
+
+def test_construir_serie_observaciones_conserva_procedencia_y_presentacion_comprada() -> None:
+    created_at = datetime(2025, 11, 26, 15, 30, tzinfo=UTC)
+    serie = construir_serie_observaciones(
+        [
+            PrecioSerieInput(
+                fecha=date(2025, 11, 26),
+                precio_normalizado=Decimal("178.4213"),
+                unidad_base="kg",
+                fuente="Factura compra",
+                numero_comprobante="0256-00046834",
+                registro_id=25,
+                origen_dato="REAL",
+                presentacion_nombre="Bolsa 50 kg",
+                presentacion_cantidad_base=Decimal("50"),
+                presentacion_unidad="bolsa",
+                precio_original=Decimal("8921.07"),
+                moneda="ARS",
+                created_at=created_at,
+            )
+        ]
+    )
+
+    point = serie[0]
+    assert point.origen_dato == "REAL"
+    assert point.presentacion_nombre == "Bolsa 50 kg"
+    assert point.presentacion_cantidad_base == Decimal("50")
+    assert point.presentacion_unidad == "bolsa"
+    assert point.precio_original == Decimal("8921.07")
+    assert point.numero_comprobante == "0256-00046834"
+    assert point.created_at == created_at
 
 
 def test_construir_serie_precios_aplica_random_forest_sin_promedio_mensual() -> None:
