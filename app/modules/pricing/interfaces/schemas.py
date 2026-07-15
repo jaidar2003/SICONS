@@ -58,6 +58,16 @@ class PuntoSeriePrecioRead(BaseModel):
     explicacion_anomalia: str | None = None
     variables_relevantes_anomalia: list[str] | None = None
     observacion_id: int | None = None
+    origen_dato: Literal["REAL", "ESTIMADO"] | None = None
+    metodo_estimacion: str | None = None
+    presentacion_nombre: str | None = None
+    presentacion_cantidad_base: Decimal | None = None
+    presentacion_unidad: str | None = None
+    precio_original: Decimal | None = None
+    moneda: str | None = None
+    numero_comprobante: str | None = None
+    created_at: datetime | None = None
+    origenes_dato: list[Literal["REAL", "ESTIMADO"]] = Field(default_factory=list)
 
 
 class AnomalyEvaluationCreate(BaseModel):

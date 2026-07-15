@@ -14,7 +14,10 @@ class SQLAlchemyPricingRepository(PricingRepository):
     def get_historical_prices(self, material_id: int, since: date) -> list[PrecioHistorico]:
         stmt = (
             select(PrecioHistorico)
-            .options(joinedload(PrecioHistorico.fuente))
+            .options(
+                joinedload(PrecioHistorico.fuente),
+                joinedload(PrecioHistorico.presentacion),
+            )
             .where(
                 PrecioHistorico.material_id == material_id,
                 PrecioHistorico.fecha >= since,

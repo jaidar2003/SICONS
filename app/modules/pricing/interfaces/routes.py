@@ -193,6 +193,14 @@ def obtener_serie_precios_material(
             fuente=precio.fuente.nombre if precio.fuente else None,
             numero_comprobante=precio.numero_comprobante,
             registro_id=getattr(precio, "id", None),
+            origen_dato=getattr(precio, "origen_dato", None),
+            metodo_estimacion=getattr(precio, "metodo_estimacion", None),
+            presentacion_nombre=getattr(getattr(precio, "presentacion", None), "nombre_presentacion", None),
+            presentacion_cantidad_base=getattr(getattr(precio, "presentacion", None), "cantidad_base", None),
+            presentacion_unidad=getattr(getattr(precio, "presentacion", None), "unidad_presentacion", None),
+            precio_original=getattr(precio, "precio_original", None),
+            moneda=getattr(precio, "moneda", None),
+            created_at=getattr(precio, "created_at", None),
         )
         for precio in precios
     ]
