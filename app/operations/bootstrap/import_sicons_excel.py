@@ -14,6 +14,7 @@ from app.modules.catalog.infrastructure.models import Fuente, Material, Presenta
 from app.modules.pricing.domain.rules import calcular_precio_normalizado
 from app.modules.pricing.infrastructure.models import PrecioHistorico
 from app.operations.bootstrap.common import get_or_create_fuente, get_or_create_material, get_or_create_presentacion
+from app.operations.data_quality.cement_invoice_dates import normalize_confirmed_invoice_date
 from app.shared.database.session import SessionLocal
 
 WORKBOOK_NS = {
@@ -172,18 +173,25 @@ def iter_excel_precios(path: Path, sheet_name: str = "Holcim") -> tuple[list[Exc
                 _, _, cantidad_base, _ = article_metadata(articulo)
                 precio_original = parse_decimal(values.get(column_by_field["precio_original"], ""))
                 precio_normalizado = calcular_precio_normalizado(precio_original, cantidad_base)
-                precios.append(
-                    ExcelPrecio(
-                        fecha=parse_excel_date(values.get(column_by_field["fecha"], "")),
-                        empresa=values.get(column_by_field["empresa"], ""),
-                        numero_comprobante=normalize_invoice(values.get(column_by_field["numero_comprobante"], "")),
-                        articulo=articulo,
-                        precio_original=precio_original.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
-                        precio_normalizado=precio_normalizado.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP),
-                    )
+                numero_comprobante = normalize_invoice(values.get(column_by_field["numero_comprobante"], ""))
+                fecha = normalize_confirmed_invoice_date(
+                    numero_comprobante,
+                    parse_excel_date(values.get(column_by_field["fecha"], "")),
                 )
             except ValueError:
                 skipped_invalid += 1
+                continue
+
+            precios.append(
+                ExcelPrecio(
+                    fecha=fecha,
+                    empresa=values.get(column_by_field["empresa"], ""),
+                    numero_comprobante=numero_comprobante,
+                    articulo=articulo,
+                    precio_original=precio_original.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+                    precio_normalizado=precio_normalizado.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP),
+                )
+            )
 
     return precios, skipped_invalid
 
