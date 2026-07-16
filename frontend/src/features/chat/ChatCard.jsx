@@ -1,6 +1,5 @@
 import AutoGraphIconModule from "@mui/icons-material/AutoGraph";
 import ContentCopyIconModule from "@mui/icons-material/ContentCopy";
-import DownloadIconModule from "@mui/icons-material/Download";
 import ExpandMoreIconModule from "@mui/icons-material/ExpandMore";
 import OpenInNewIconModule from "@mui/icons-material/OpenInNew";
 import TimelineOutlinedIconModule from "@mui/icons-material/TimelineOutlined";
@@ -12,7 +11,7 @@ import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
 import { fetchForecast, fetchSerie } from "../pricing/pricing.api.js";
 import { PriceChart } from "../pricing/PriceChart.jsx";
-import { getMessageDetailPresentation, VISUALIZATION_LABELS } from "./chatPresentation.js";
+import { VISUALIZATION_LABELS } from "./chatPresentation.js";
 import { INSUFFICIENT_CHART_DATA_MESSAGE, shouldShowInsufficientChartDataMessage } from "./chatVisualizationState.js";
 import {
   askChatQuestion,
@@ -26,7 +25,6 @@ import {
 
 const AutoGraphIcon = resolveMuiIcon(AutoGraphIconModule);
 const ContentCopyIcon = resolveMuiIcon(ContentCopyIconModule);
-const DownloadIcon = resolveMuiIcon(DownloadIconModule);
 const ExpandMoreIcon = resolveMuiIcon(ExpandMoreIconModule);
 const OpenInNewIcon = resolveMuiIcon(OpenInNewIconModule);
 const TimelineOutlinedIcon = resolveMuiIcon(TimelineOutlinedIconModule);
@@ -742,20 +740,8 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
 }
 
 function MessageDetailsPanel({ message }) {
-  const { rows, summary } = getMessageDetailPresentation(message);
-
   async function copyAnswer() {
     if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(message.text || "");
-  }
-
-  function downloadEvidence() {
-    const blob = new Blob([JSON.stringify(buildEvidencePayload(message), null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `buildwise-evidencia-${Date.now()}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
   }
 
   return (
@@ -765,96 +751,8 @@ function MessageDetailsPanel({ message }) {
           <ContentCopyIcon fontSize="small" />
         </IconButton>
       </Tooltip>
-      <Accordion className="mt-1 rounded-lg border border-slate-200 bg-slate-50" disableGutters elevation={0} defaultExpanded={false}>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Box className="min-w-0">
-          <Typography variant="body2" fontWeight={900} color="text.secondary">
-              Ver fuentes y detalles
-          </Typography>
-          <Typography variant="body2" color="text.secondary" noWrap title={summary || "Sin detalle disponible"}>
-              {summary || "Cómo se obtuvo esta respuesta"}
-          </Typography>
-          </Box>
-        </AccordionSummary>
-        <AccordionDetails>
-          {message.fallbackUsed ? <Alert severity="info" className="mb-3">La respuesta principal no estuvo disponible y BuildWise utilizó una respuesta segura basada en sus datos.</Alert> : null}
-          <Box className="grid gap-2 md:grid-cols-2">
-            {rows.map(([label, value]) => (
-              <Box key={label} className="rounded-md bg-white px-3 py-2">
-                <Typography variant="caption" color="text.secondary" fontWeight={800}>{label}</Typography>
-                <Typography variant="body2" fontWeight={800}>{value}</Typography>
-              </Box>
-            ))}
-          </Box>
-          {message.sourceEvidence?.length ? <SourceEvidenceList evidence={message.sourceEvidence} /> : null}
-          <Button className="mt-3" size="small" variant="outlined" startIcon={<DownloadIcon fontSize="small" />} onClick={downloadEvidence}>
-            Descargar evidencia
-          </Button>
-        </AccordionDetails>
-      </Accordion>
     </Box>
   );
-}
-
-function SourceEvidenceList({ evidence }) {
-  return (
-    <Box className="mt-3 grid gap-2">
-      {evidence.map((sourceEvidence) => (
-        <Accordion key={sourceEvidence.source} disableGutters elevation={0} className="border border-slate-200">
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="body2" fontWeight={900}>
-              Fuente: {sourceEvidence.source}
-            </Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            {sourceEvidence.records?.length ? (
-              <Box className="grid gap-2">
-                {sourceEvidence.records.map((record, index) => (
-                  <Box key={`${sourceEvidence.source}-${record.fecha || index}`} className="rounded-md bg-white p-3">
-                    <Typography variant="body2" fontWeight={900}>
-                      {record.fecha || "Sin fecha"}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Precio: {record.precio_normalizado ? `ARS ${record.precio_normalizado}` : "-"} {record.unidad_base ? `por ${record.unidad_base}` : ""}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Fuente: {record.fuente || "-"}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Comprobante: {record.comprobante || "-"}
-                    </Typography>
-                  </Box>
-                ))}
-              </Box>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                La fuente fue usada, pero no hay registros detallados para mostrar.
-              </Typography>
-            )}
-          </AccordionDetails>
-        </Accordion>
-      ))}
-    </Box>
-  );
-}
-
-function buildEvidencePayload(message) {
-  return {
-    pregunta: message.question || null,
-    respuesta: message.text,
-    tipo_intencion: message.intent || null,
-    contexto_usado: Boolean(message.contextUsed),
-    fuentes_recuperadas: message.sources || [],
-    fuentes_evidencia: message.sourceEvidence || [],
-    material_resuelto_id: message.resolvedMaterialId || null,
-    material_resuelto: message.resolvedMaterial || null,
-    material_resolution_source: message.materialResolutionSource || null,
-    horizonte_resuelto: message.intent === "HISTORICO" ? null : message.resolvedHorizon || null,
-    proveedor_utilizado: Boolean(message.providerUsed),
-    proveedor_ia: message.provider || null,
-    fallback_usado: Boolean(message.fallbackUsed),
-    visualizacion_sugerida: message.visualization || null,
-  };
 }
 
 function ProposalValue({ label, value }) {
