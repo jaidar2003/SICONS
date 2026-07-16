@@ -10,6 +10,12 @@ from decimal import ROUND_DOWN, Decimal, InvalidOperation
 from sqlalchemy.orm import Session
 
 from app.modules.catalog.application.utils import derive_material_key
+from app.modules.chat.application.interpretation import (
+    extract_budget,
+    extract_horizon,
+    extract_quantity,
+    resolve_material,
+)
 from app.modules.chat.application.service import ChatCompletionClient
 from app.modules.chat.domain.commercial_units import CURRENT_CEMENT_BAG_KG
 from app.modules.chat.domain.exceptions import CommercialInterpretationError, InvalidCommercialRequest
@@ -282,7 +288,7 @@ def interpretar_necesidad_comercial(
     if fecha_objetivo is None and horizonte is None:
         missing.add("fecha_objetivo_uso_o_horizonte_meses")
     for item in parsed.get("datos_faltantes") or []:
-        if item in {"producto", "cantidad", "fase_obra", "fecha_objetivo_uso_o_horizonte_meses", "presupuesto_maximo"}:
+        if item in {"producto", "cantidad", "fase_obra", "fecha_objetivo_uso_o_horizonte_meses"}:
             missing.add(item)
 
     return CommercialNeedInterpretation(
@@ -296,6 +302,54 @@ def interpretar_necesidad_comercial(
         presupuesto_maximo=presupuesto,
         tolerancia_riesgo=tolerancia,
         datos_faltantes=tuple(sorted(missing)),
+    )
+
+
+def interpretar_necesidad_comercial_deterministica(
+    solicitud: str,
+    *,
+    materials,
+) -> CommercialNeedInterpretation:
+    supported = _supported_materials(materials)
+    material_field = resolve_material(solicitud)
+    matched = next(
+        (
+            material
+            for material in supported
+            if derive_material_key(material.nombre) == material_field.value
+        ),
+        None,
+    )
+    quantity_field, _unit, _normalized_quantity, _base_unit = extract_quantity(
+        solicitud,
+        material_field.value if isinstance(material_field.value, str) else None,
+    )
+    budget_field = extract_budget(solicitud)
+    horizon_field = extract_horizon(solicitud)
+    normalized = unicodedata.normalize("NFKD", solicitud.lower()).encode("ascii", "ignore").decode("ascii")
+    phase = next((candidate for candidate in VALID_PHASES if candidate in normalized), None)
+
+    missing = []
+    if matched is None:
+        missing.append("producto")
+    if quantity_field.value is None:
+        missing.append("cantidad")
+    if phase is None:
+        missing.append("fase_obra")
+    if horizon_field.value is None:
+        missing.append("fecha_objetivo_uso_o_horizonte_meses")
+
+    return CommercialNeedInterpretation(
+        solicitud_original=solicitud,
+        material_id=matched.id if matched is not None else None,
+        producto_nombre=matched.nombre if matched is not None else None,
+        cantidad=quantity_field.value if isinstance(quantity_field.value, Decimal) else None,
+        fase_obra=phase,
+        fecha_objetivo_uso=None,
+        horizonte_meses=horizon_field.value if isinstance(horizon_field.value, int) else None,
+        presupuesto_maximo=budget_field.value if isinstance(budget_field.value, Decimal) else None,
+        tolerancia_riesgo="media",
+        datos_faltantes=tuple(missing),
     )
 
 

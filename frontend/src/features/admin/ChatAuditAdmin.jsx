@@ -455,9 +455,17 @@ export function ChatAuditAdmin({ token }) {
                       <Box className="flex flex-wrap gap-1">
                         {row.proveedor_ia ? <Chip size="small" label={row.proveedor_ia} variant="outlined" /> : null}
                         {row.fallback_usado ? <Chip size="small" label="Fallback" color="warning" /> : null}
+                        {row.respuesta_deterministica ? <Chip size="small" label="Determinística" color="success" variant="outlined" /> : null}
+                        {row.etapa_fallida ? <Chip size="small" label={`Error: ${row.etapa_fallida}`} color="error" variant="outlined" /> : null}
                       </Box>
                     </TableCell>
-                    <TableCell align="right">{row.duration_ms != null ? `${row.duration_ms} ms` : "-"}</TableCell>
+                    <TableCell align="right">
+                      <Tooltip
+                        title={`Interpretación: ${row.interpretation_ms ?? "-"} ms · Backend: ${row.backend_ms ?? "-"} ms · IA: ${row.provider_ms ?? "-"} ms`}
+                      >
+                        <span>{row.duration_ms != null ? `${row.duration_ms} ms` : "-"}</span>
+                      </Tooltip>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

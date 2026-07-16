@@ -110,7 +110,14 @@ class ChatAuditLogRead(BaseModel):
     horizonte_resuelto: int | None = None
     proveedor_ia: str | None = None
     fallback_usado: bool | None = None
+    respuesta_deterministica: bool | None = None
+    respuesta_alternativa: bool | None = None
+    tipo_fallo: str | None = None
+    etapa_fallida: str | None = None
     duration_ms: int | None = None
+    interpretation_ms: int | None = None
+    backend_ms: int | None = None
+    provider_ms: int | None = None
     ip_address: str | None = None
 
 

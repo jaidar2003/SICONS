@@ -75,6 +75,29 @@ def main() -> None:
     if catalog_answer.get("proveedor_utilizado"):
         raise AssertionError("La consulta deterministica de catalogo no debe depender de un LLM")
 
+    deterministic_help = {
+        "que puedo hacer con este asistente": "consultar materiales y precios",
+        "que significa mape": "error porcentual promedio",
+        "que es una anomalia": "variacion de precio fuera",
+        "como funciona la recomendacion": "la calcula BuildWise, no la IA",
+    }
+    for question, expected_text in deterministic_help.items():
+        answer = expect("POST", "/chat/consultas", 200, token=client_token, payload={"pregunta": question})
+        if answer.get("proveedor_utilizado"):
+            raise AssertionError(f"La ayuda deterministica invoco al proveedor: {question}")
+        if expected_text not in answer.get("respuesta", ""):
+            raise AssertionError(f"Respuesta de ayuda inesperada para: {question}")
+
+    interpreted = expect(
+        "POST",
+        "/chat/presupuestacion/interpretar",
+        200,
+        token=client_token,
+        payload={"necesidad": "Necesito 30 bolsas de cemento a 3 meses"},
+    )
+    if interpreted.get("cantidad") != "30" or interpreted.get("presupuesto_maximo") is not None:
+        raise AssertionError(f"Interpretacion comercial parcial inesperada: {interpreted}")
+
     print("BuildWise API smoke: OK")
 
 
