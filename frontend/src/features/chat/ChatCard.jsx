@@ -4,7 +4,7 @@ import ExpandMoreIconModule from "@mui/icons-material/ExpandMore";
 import OpenInNewIconModule from "@mui/icons-material/OpenInNew";
 import TimelineOutlinedIconModule from "@mui/icons-material/TimelineOutlined";
 import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent, CircularProgress, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from "@mui/material";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { resolveMuiIcon } from "../../shared/components/resolveMuiIcon.js";
@@ -12,6 +12,7 @@ import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
 import { fetchForecast, fetchSerie } from "../pricing/pricing.api.js";
 import { PriceChart } from "../pricing/PriceChart.jsx";
 import { VISUALIZATION_LABELS } from "./chatPresentation.js";
+import { getFollowUpSuggestions, getMissingDataPrompt, getRecoverableChatError } from "./chatExperience.js";
 import { INSUFFICIENT_CHART_DATA_MESSAGE, shouldShowInsufficientChartDataMessage } from "./chatVisualizationState.js";
 import {
   askChatQuestion,
@@ -159,7 +160,9 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
   const [loading, setLoading] = useState(false);
   const [proposalLoading, setProposalLoading] = useState(false);
   const [error, setError] = useState("");
+  const [lastFailedQuestion, setLastFailedQuestion] = useState("");
   const [lastResolvedMaterialId, setLastResolvedMaterialId] = useState(null);
+  const requestControllerRef = useRef(null);
   const draftQuantity = Number(draft.quantity);
   const proposalDisabled =
     proposalLoading ||
@@ -173,6 +176,8 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
     [activeConversationId, conversations]
   );
   const messagePage = Math.floor(messageOffset / MESSAGE_PAGE_SIZE) + 1;
+
+  useEffect(() => () => requestControllerRef.current?.abort(), []);
 
   async function loadConversations() {
     if (!token) return;
@@ -335,9 +340,12 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
 
     setQuestion("");
     setError("");
+    setLastFailedQuestion(trimmed);
     setProposal(null);
     setMessages((current) => [...current, { role: "user", text: trimmed }]);
     setLoading(true);
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
     try {
       if (looksLikePurchaseNeed(trimmed)) {
         if (!showPrices) {
@@ -351,7 +359,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           ]);
           return;
         }
-        const result = await interpretCommercialNeed({ necesidad: trimmed }, token);
+        const result = await interpretCommercialNeed({ necesidad: trimmed }, token, { signal: controller.signal });
         setInterpretation(result);
         setDraft({
           materialId: result.material_id ? String(result.material_id) : selectedMaterial?.id ? String(selectedMaterial.id) : "",
@@ -367,7 +375,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           ...current,
           {
             role: "assistant",
-            text: "Detecté una necesidad de compra. Revisá los datos interpretados y confirmá la propuesta desde el panel de validación.",
+            text: getMissingDataPrompt(result.datos_faltantes, commercialMaterials.map((material) => material.nombre)),
             provider: result.proveedor_ia,
             providerUsed: Boolean(result.proveedor_utilizado),
             fallbackUsed: Boolean(result.fallback_usado),
@@ -399,7 +407,8 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           ...(shouldSendHorizon ? { horizonte_meses: forecastHorizon } : {}),
           historial,
         },
-        token
+        token,
+        { signal: controller.signal },
       );
       if (result.material_resuelto_id) {
         setLastResolvedMaterialId(result.material_resuelto_id);
@@ -434,10 +443,15 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
       }
       loadConversations().catch(() => {});
     } catch (chatError) {
-      setError(chatError.message);
+      setError(getRecoverableChatError(chatError));
     } finally {
+      if (requestControllerRef.current === controller) requestControllerRef.current = null;
       setLoading(false);
     }
+  }
+
+  function stopCurrentRequest() {
+    requestControllerRef.current?.abort();
   }
 
   function updateDraft(field, value) {
@@ -541,7 +555,26 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           </AccordionDetails>
         </Accordion>
 
-        {error ? <Alert severity="error" className="mb-3">{error}</Alert> : null}
+        {error ? (
+          <Alert
+            severity="error"
+            className="mb-3"
+            action={lastFailedQuestion ? (
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => {
+                  setQuestion(lastFailedQuestion);
+                  setError("");
+                }}
+              >
+                Reintentar
+              </Button>
+            ) : null}
+          >
+            {error}
+          </Alert>
+        ) : null}
 
         <Box className="mb-4 flex min-h-[300px] flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <Box className="flex flex-wrap items-center justify-between gap-2">
@@ -566,6 +599,9 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
                 {message.text}
               </Typography>
               {message.role === "assistant" && !message.rejected ? <MessageDetailsPanel message={message} /> : null}
+              {message.role === "assistant" && index === messages.length - 1 ? (
+                <MessageFollowUps message={message} onSelect={setQuestion} />
+              ) : null}
               {message.visualization ? (
                 <ChatVisualization
                   visualization={message.visualization}
@@ -586,7 +622,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           {loading ? (
             <Box className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-slate-600 shadow-sm">
               <CircularProgress size={16} />
-              <Typography variant="body2">Pensando...</Typography>
+              <Typography variant="body2">Consultando BuildWise...</Typography>
             </Box>
           ) : null}
           {conversationLoading ? (
@@ -730,9 +766,15 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
             inputProps={{ maxLength: 1000 }}
             disabled={loading}
           />
-          <Button type="submit" variant="contained" disabled={!question.trim() || loading} sx={{ minHeight: 40 }}>
-            Enviar
-          </Button>
+          {loading ? (
+            <Button type="button" variant="outlined" color="secondary" onClick={stopCurrentRequest} sx={{ minHeight: 40 }}>
+              Detener
+            </Button>
+          ) : (
+            <Button type="submit" variant="contained" disabled={!question.trim()} sx={{ minHeight: 40 }}>
+              Enviar
+            </Button>
+          )}
         </Box>
       </CardContent>
     </Card>
@@ -751,6 +793,26 @@ function MessageDetailsPanel({ message }) {
           <ContentCopyIcon fontSize="small" />
         </IconButton>
       </Tooltip>
+    </Box>
+  );
+}
+
+function MessageFollowUps({ message, onSelect }) {
+  const suggestions = getFollowUpSuggestions(message);
+  if (!suggestions.length) return null;
+  return (
+    <Box className="mt-3 flex flex-wrap gap-2" aria-label="Preguntas sugeridas">
+      {suggestions.map((suggestion) => (
+        <Button
+          key={suggestion}
+          size="small"
+          variant="outlined"
+          onClick={() => onSelect(suggestion)}
+          sx={{ borderRadius: 2, textTransform: "none" }}
+        >
+          {suggestion}
+        </Button>
+      ))}
     </Box>
   );
 }

@@ -28,7 +28,7 @@ export async function apiGet(path, token) {
   return response.json();
 }
 
-export async function apiPost(path, payload, token) {
+export async function apiPost(path, payload, token, options = {}) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -36,6 +36,7 @@ export async function apiPost(path, payload, token) {
     method: "POST",
     headers,
     body: JSON.stringify(payload),
+    signal: options.signal,
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {

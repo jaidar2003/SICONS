@@ -1,8 +1,8 @@
 import { apiPost } from "../../shared/api/http.js";
 import { apiGet, apiPatch } from "../../shared/api/http.js";
 
-export function askChatQuestion(payload, token) {
-  return apiPost("/chat/consultas", payload, token);
+export function askChatQuestion(payload, token, options = {}) {
+  return apiPost("/chat/consultas", payload, token, options);
 }
 
 export function fetchChatConversations(token) {
@@ -30,8 +30,8 @@ export function updateChatConversation(conversationId, payload, token) {
   return apiPatch(`/chat/conversaciones/${conversationId}`, payload, token);
 }
 
-export function interpretCommercialNeed(payload, token) {
-  return apiPost("/chat/presupuestacion/interpretar", payload, token);
+export function interpretCommercialNeed(payload, token, options = {}) {
+  return apiPost("/chat/presupuestacion/interpretar", payload, token, options);
 }
 
 export function generateCommercialProposal(payload, token) {
