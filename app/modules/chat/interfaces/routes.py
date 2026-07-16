@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.auth.infrastructure.models import Usuario
 from app.modules.auth.interfaces.dependencies import get_current_user
+from app.modules.catalog.application.utils import derive_material_key
 from app.modules.catalog.domain.repositories import MaterialRepository
 from app.modules.catalog.infrastructure.models import Fuente, Presentacion
 from app.modules.catalog.interfaces.dependencies import get_material_repository
@@ -29,6 +30,11 @@ from app.modules.chat.application.conversational_support import (
     render_help_answer,
     unavailable_calculation_answer,
     unsupported_material_mention,
+)
+from app.modules.chat.application.interpretation import (
+    advance_conversation_state,
+    interpret_query,
+    rebuild_conversation_state,
 )
 from app.modules.chat.application.operations import (
     execute_operation,
@@ -57,7 +63,7 @@ from app.modules.chat.infrastructure.llm_client import (
     LLMProviderError,
     OpenAICompatibleChatClient,
 )
-from app.modules.chat.infrastructure.models import ChatMessage, ChatProviderSetting
+from app.modules.chat.infrastructure.models import ChatConversation, ChatMessage, ChatProviderSetting
 from app.modules.chat.infrastructure.provider_config import (
     LAST_PROVIDER_STATUS as _LAST_PROVIDER_STATUS,
 )
@@ -86,6 +92,7 @@ from app.modules.chat.interfaces.conversation_routes import (
 from app.modules.chat.interfaces.conversation_routes import (
     persist_conversation_turn as _persist_conversation_turn,
 )
+from app.modules.chat.interfaces.conversation_routes import recent_user_messages as _recent_user_messages
 from app.modules.chat.interfaces.conversation_routes import (
     router as conversation_router,
 )
@@ -101,6 +108,7 @@ from app.modules.chat.interfaces.schemas import (
     ChatProviderStatusRead,
     ChatQueryCreate,
     ChatResponseRead,
+    ChatUnderstandingRead,
     CommercialNeedCreate,
     CommercialNeedInterpretationRead,
     CommercialProposalCreate,
@@ -118,6 +126,19 @@ from app.shared.database.session import get_db
 router = APIRouter(prefix="/chat", tags=["chat"])
 router.include_router(conversation_router)
 settings = provider_config.settings
+
+
+def _follow_up_suggestions(intent: str | None, *, missing_fields: tuple[str, ...] = ()) -> list[str]:
+    if "material" in missing_fields:
+        return ["Ver materiales disponibles"]
+    suggestions = {
+        "CATALOGO": ["Ver precio del cemento", "Comparar materiales", "Armar un presupuesto"],
+        "HISTORICO": ["Ver la proyeccion", "Consultar la fuente", "Comparar con otro material"],
+        "FORECAST": ["Cambiar a 6 meses", "Explicar el MAPE", "Evaluar una compra"],
+        "RECOMENDACION": ["Cambiar cantidad", "Cambiar presupuesto", "Comparar con esperar"],
+        "PRESUPUESTO": ["Cambiar cantidad", "Cambiar presupuesto", "Evaluar compra por etapas"],
+    }
+    return suggestions.get(intent, ["Ver materiales", "Consultar un precio", "Armar un presupuesto"])
 
 
 def _chat_config_from_settings() -> dict[str, str | None]:
@@ -988,6 +1009,12 @@ def consultar_chat(
     material_for_calculated_context = None
     if payload.conversation_id is not None:
         conversation = _get_owned_conversation(db, payload.conversation_id, current_user.id)
+    previous_state = rebuild_conversation_state(
+        _recent_user_messages(db, conversation) if isinstance(conversation, ChatConversation) else []
+    )
+    structured_interpretation = interpret_query(payload.pregunta, previous_state)
+    state_transition = advance_conversation_state(previous_state, structured_interpretation)
+    interpreted_material = None
     latest_assistant = _latest_assistant_message(db, conversation) if conversation is not None else None
     help_topic = classify_help_question(payload.pregunta)
     unsupported_material = unsupported_material_mention(payload.pregunta)
@@ -996,9 +1023,14 @@ def consultar_chat(
         if help_topic is not None or unsupported_material is not None
         else _semantic_question_for_conversation(payload.pregunta, latest_assistant)
     )
-    effective_material_id = payload.material_id or (conversation.material_actual_id if conversation is not None else None)
+    effective_material_id = (
+        payload.material_id
+        or (conversation.material_actual_id if conversation is not None else None)
+    )
     effective_horizon = (
-        payload.horizonte_meses
+        structured_interpretation.horizon_months.value
+        if isinstance(structured_interpretation.horizon_months.value, int)
+        else payload.horizonte_meses
         if payload.horizonte_meses is not None
         else (conversation.horizonte_actual if conversation is not None else 3)
     )
@@ -1014,11 +1046,46 @@ def consultar_chat(
             admin_only=admin_only,
         )
     )
+    interpreted_intent = structured_interpretation.intent.value
+    if (
+        not direct_support_question
+        and isinstance(interpreted_intent, str)
+        and interpreted_intent != "FUERA_ALCANCE"
+        and structured_interpretation.intent.origin == "inherited"
+    ):
+        tipo_intencion = interpreted_intent
     interpretation_ms = int((perf_counter() - started_at) * 1000)
     backend_started_at = perf_counter()
     provider_started_at: float | None = None
     backend_ms: int | None = None
     provider_ms: int | None = None
+
+    def response_understanding() -> ChatUnderstandingRead:
+        if direct_support_question:
+            return ChatUnderstandingRead()
+        state = state_transition.state
+        return ChatUnderstandingRead(
+            material_id=getattr(interpreted_material, "id", effective_material_id),
+            material=getattr(interpreted_material, "nombre", None) or material_resuelto,
+            horizon_months=(
+                state.horizon_months
+                or (
+                    horizonte_resuelto or effective_horizon
+                    if tipo_intencion in {"FORECAST", "RECOMENDACION"}
+                    else None
+                )
+            ),
+            quantity=state.quantity,
+            input_unit=state.input_unit,
+            budget=state.budget,
+            inherited_fields=list(state_transition.inherited_fields),
+            cleared_fields=list(state_transition.cleared_fields),
+        )
+
+    suggestions = _follow_up_suggestions(
+        tipo_intencion,
+        missing_fields=structured_interpretation.missing_fields,
+    )
     if current_user.rol != "admin" and admin_only:
         response = ChatResponseRead(
             aceptada=False,
@@ -1026,6 +1093,8 @@ def consultar_chat(
             proveedor_utilizado=False,
             tipo_intencion=tipo_intencion,
             conversation_id=conversation.id if conversation is not None else None,
+            entendimiento=response_understanding(),
+            sugerencias=suggestions,
         )
         if conversation is not None:
             _persist_conversation_turn(db, conversation=conversation, question=payload.pregunta, response=response)
@@ -1040,12 +1109,37 @@ def consultar_chat(
             backend_ms=0,
         )
         return response
+    should_resolve_interpreted_material = (
+        state_transition.state.material_key is not None
+        and hasattr(material_repo, "list_active")
+        and (
+            effective_material_id is None
+            or structured_interpretation.material.origin in {"explicit", "inferred"}
+        )
+    )
+    if should_resolve_interpreted_material:
+        interpreted_material = next(
+            (
+                candidate
+                for candidate in material_repo.list_active()
+                if derive_material_key(candidate.nombre) == state_transition.state.material_key
+            ),
+            None,
+        )
+        if interpreted_material is not None:
+            effective_material_id = interpreted_material.id
     try:
         if should_load_context:
             material = material_repo.get_by_id(effective_material_id) if effective_material_id is not None else None
             if material is not None:
                 material_resuelto_id = getattr(material, "id", None)
-                material_resolution_source = "seleccionado" if payload.material_id is not None else "contexto"
+                material_resolution_source = (
+                    "pregunta"
+                    if structured_interpretation.material.origin in {"explicit", "inferred"}
+                    else "seleccionado"
+                    if payload.material_id is not None
+                    else "contexto"
+                )
             horizon = resolve_horizon(semantic_question, effective_horizon)
             horizonte_resuelto = horizon
             if needs_operation_plan(semantic_question):
@@ -1261,6 +1355,8 @@ def consultar_chat(
                 if context
                 else None,
                 conversation_id=conversation.id if conversation is not None else None,
+                entendimiento=response_understanding(),
+                sugerencias=suggestions,
             )
             if conversation is not None:
                 _persist_conversation_turn(db, conversation=conversation, question=payload.pregunta, response=response)
@@ -1315,6 +1411,8 @@ def consultar_chat(
             if context
             else None,
             conversation_id=conversation.id if conversation is not None else None,
+            entendimiento=response_understanding(),
+            sugerencias=suggestions,
         )
         if conversation is not None:
             _persist_conversation_turn(db, conversation=conversation, question=payload.pregunta, response=response)
@@ -1355,6 +1453,8 @@ def consultar_chat(
         if result.aceptada and context
         else None,
         conversation_id=conversation.id if conversation is not None else None,
+        entendimiento=response_understanding(),
+        sugerencias=suggestions,
     )
     if conversation is not None:
         _persist_conversation_turn(db, conversation=conversation, question=payload.pregunta, response=response)

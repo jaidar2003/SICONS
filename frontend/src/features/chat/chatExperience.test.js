@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { getFollowUpSuggestions, getMissingDataPrompt, getRecoverableChatError } from "./chatExperience.js";
+import { formatUnderstanding, getFollowUpSuggestions, getMissingDataPrompt, getRecoverableChatError, splitProgressiveAnswer, updateCommercialDraftContext } from "./chatExperience.js";
 
 describe("chat follow-up experience", () => {
   it("offers relevant forecast follow-ups without internal terminology", () => {
@@ -30,5 +30,43 @@ describe("chat follow-up experience", () => {
 
   it("does not require a budget when quantity is enough", () => {
     assert.doesNotMatch(getMissingDataPrompt([]), /presupuesto/i);
+  });
+
+  it("uses suggestions returned for the current conversational state", () => {
+    assert.deepEqual(
+      getFollowUpSuggestions({ intent: "FORECAST", suggestions: ["Cambiar material", "Ver fuente"] }),
+      ["Cambiar material", "Ver fuente"],
+    );
+  });
+
+  it("formats the editable understanding without internal terminology", () => {
+    assert.equal(
+      formatUnderstanding({
+        material: "Cemento Portland",
+        quantity: "30",
+        input_unit: "bag",
+        budget: "200000",
+        horizon_months: 3,
+      }),
+      "Cemento Portland · 30 bolsas · presupuesto $200000 · 3 meses",
+    );
+  });
+
+  it("separates the result from progressive explanation", () => {
+    assert.deepEqual(splitProgressiveAnswer("Resultado principal.\n\nExplicación breve.\n\nPróximo paso."), {
+      result: "Resultado principal.",
+      explanation: ["Explicación breve.", "Próximo paso."],
+    });
+  });
+
+  it("clears incompatible purchase values when material changes", () => {
+    assert.deepEqual(
+      updateCommercialDraftContext(
+        { materialId: "1", quantity: "30", budget: "200000", horizon: "3", request: "cemento" },
+        "materialId",
+        "2",
+      ),
+      { materialId: "2", quantity: "", budget: "", horizon: "3", request: "" },
+    );
   });
 });
