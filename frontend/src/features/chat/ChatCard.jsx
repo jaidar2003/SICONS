@@ -12,7 +12,7 @@ import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
 import { fetchForecast, fetchSerie } from "../pricing/pricing.api.js";
 import { PriceChart } from "../pricing/PriceChart.jsx";
 import { VISUALIZATION_LABELS } from "./chatPresentation.js";
-import { getFollowUpSuggestions, getMissingDataPrompt, getRecoverableChatError } from "./chatExperience.js";
+import { formatUnderstanding, getFollowUpSuggestions, getMissingDataPrompt, getRecoverableChatError, splitProgressiveAnswer, updateCommercialDraftContext } from "./chatExperience.js";
 import { INSUFFICIENT_CHART_DATA_MESSAGE, shouldShowInsufficientChartDataMessage } from "./chatVisualizationState.js";
 import {
   askChatQuestion,
@@ -431,6 +431,8 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           materialResolutionSource: result.material_resolution_source || null,
           resolvedHorizon: result.horizonte_resuelto,
           visualization: result.visualizacion_sugerida || null,
+          understanding: result.entendimiento || null,
+          suggestions: result.sugerencias || [],
           rejected: !result.aceptada,
         },
       ]);
@@ -455,7 +457,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
   }
 
   function updateDraft(field, value) {
-    setDraft((current) => ({ ...current, [field]: value }));
+    setDraft((current) => updateCommercialDraftContext(current, field, value));
     setProposal(null);
   }
 
@@ -595,9 +597,12 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
               key={`${message.role}-${index}`}
               className={`${message.visualization ? "max-w-full" : "max-w-[88%] md:max-w-[78%]"} rounded-xl px-4 py-3 ${message.role === "user" ? "ml-auto bg-teal-700 text-white" : "bg-white text-slate-800 shadow-sm"}`}
             >
-              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                {message.text}
-              </Typography>
+              {message.role === "assistant" ? <ProgressiveMessageText text={message.text} /> : (
+                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{message.text}</Typography>
+              )}
+              {message.role === "assistant" && index === messages.length - 1 && message.understanding ? (
+                <UnderstandingLine understanding={message.understanding} onApply={setQuestion} />
+              ) : null}
               {message.role === "assistant" && !message.rejected ? <MessageDetailsPanel message={message} /> : null}
               {message.role === "assistant" && index === messages.length - 1 ? (
                 <MessageFollowUps message={message} onSelect={setQuestion} />
@@ -637,7 +642,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
           <Box className="mb-4 grid gap-3 rounded-xl border border-teal-200 bg-white p-4">
             <Box className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
               <Box>
-                <Typography variant="h3">Validar necesidad de compra</Typography>
+                <Typography variant="h3">Entendí tu necesidad</Typography>
                 <Typography variant="body2" color="text.secondary" mt={0.5}>
                   La IA interpreta el pedido; BuildWise calcula la propuesta solo con los datos confirmados por el usuario.
                 </Typography>
@@ -655,7 +660,7 @@ export function ChatCard({ token, selectedMaterial, forecastHorizon, isAdmin, ma
               <Alert severity="warning">No hay productos del MVP disponibles para presupuestación de compra.</Alert>
             ) : null}
             <Typography variant="body2" fontWeight={900} color="text.secondary">
-              Datos confirmados por el usuario
+              Podés editar estos datos antes de que BuildWise calcule la propuesta
             </Typography>
             <Box className="grid gap-3 md:grid-cols-3">
               <TextField select size="small" label="Producto" value={draft.materialId} onChange={(event) => updateDraft("materialId", String(event.target.value))}>
@@ -793,6 +798,60 @@ function MessageDetailsPanel({ message }) {
           <ContentCopyIcon fontSize="small" />
         </IconButton>
       </Tooltip>
+    </Box>
+  );
+}
+
+function ProgressiveMessageText({ text }) {
+  const content = splitProgressiveAnswer(text);
+  return (
+    <Stack spacing={1}>
+      <Typography variant="body2" fontWeight={700} sx={{ whiteSpace: "pre-wrap" }}>
+        {content.result}
+      </Typography>
+      {content.explanation.map((paragraph) => (
+        <Typography key={paragraph} variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-wrap" }}>
+          {paragraph}
+        </Typography>
+      ))}
+    </Stack>
+  );
+}
+
+function UnderstandingLine({ understanding, onApply }) {
+  const summary = formatUnderstanding(understanding);
+  const [editing, setEditing] = useState(false);
+  const [draftValue, setDraftValue] = useState(summary);
+  useEffect(() => setDraftValue(summary), [summary]);
+  if (!summary) return null;
+  if (editing) {
+    return (
+      <Box className="mt-3 flex flex-col gap-2 rounded-md border border-teal-200 bg-teal-50 p-2 sm:flex-row sm:items-center">
+        <TextField
+          fullWidth
+          size="small"
+          label="Corregir lo entendido"
+          value={draftValue}
+          onChange={(event) => setDraftValue(event.target.value)}
+        />
+        <Button
+          size="small"
+          variant="contained"
+          onClick={() => {
+            onApply(draftValue);
+            setEditing(false);
+          }}
+          disabled={!draftValue.trim()}
+        >
+          Usar corrección
+        </Button>
+      </Box>
+    );
+  }
+  return (
+    <Box className="mt-3 flex flex-wrap items-center gap-2" aria-label={`Entendí: ${summary}`}>
+      <Typography variant="caption" color="text.secondary"><strong>Entendí:</strong> {summary}</Typography>
+      <Button size="small" onClick={() => setEditing(true)}>Editar</Button>
     </Box>
   );
 }

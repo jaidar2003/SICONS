@@ -14,7 +14,36 @@ const SUGGESTIONS_BY_INTENT = {
 
 export function getFollowUpSuggestions(message) {
   if (!message || message.rejected) return [];
+  if (Array.isArray(message.suggestions) && message.suggestions.length) return message.suggestions.slice(0, 4);
   return SUGGESTIONS_BY_INTENT[message.intent] || DEFAULT_SUGGESTIONS;
+}
+
+export function formatUnderstanding(understanding) {
+  if (!understanding) return "";
+  const parts = [];
+  if (understanding.material) parts.push(understanding.material);
+  if (understanding.quantity != null) {
+    const unit = understanding.input_unit === "bag" ? "bolsas" : understanding.input_unit || "unidades";
+    parts.push(`${understanding.quantity} ${unit}`);
+  }
+  if (understanding.budget != null) parts.push(`presupuesto $${understanding.budget}`);
+  if (understanding.horizon_months != null) parts.push(`${understanding.horizon_months} meses`);
+  return parts.join(" · ");
+}
+
+export function splitProgressiveAnswer(text) {
+  const paragraphs = String(text || "").split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+  return {
+    result: paragraphs[0] || "",
+    explanation: paragraphs.slice(1),
+  };
+}
+
+export function updateCommercialDraftContext(current, field, value) {
+  if (field === "materialId" && String(current.materialId) !== String(value)) {
+    return { ...current, materialId: String(value), quantity: "", budget: "", request: "" };
+  }
+  return { ...current, [field]: value };
 }
 
 export function getRecoverableChatError(error) {
