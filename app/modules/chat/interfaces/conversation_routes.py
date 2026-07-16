@@ -54,6 +54,18 @@ def latest_assistant_message(db: Session, conversation: ChatConversation) -> Cha
     )
 
 
+def recent_user_messages(db: Session, conversation: ChatConversation, limit: int = 12) -> list[str]:
+    rows = list(
+        db.scalars(
+            select(ChatMessage)
+            .where(ChatMessage.conversation_id == conversation.id, ChatMessage.role == "user")
+            .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+            .limit(limit)
+        )
+    )
+    return [message.content for message in reversed(rows)]
+
+
 def message_read(message: ChatMessage) -> ChatMessageRead:
     return ChatMessageRead(
         id=message.id,

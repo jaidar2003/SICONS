@@ -67,3 +67,8 @@ def test_chat_audit_diagnostics_are_strictly_additive() -> None:
         "backend_ms",
         "provider_ms",
     }.issubset(properties)
+
+
+def test_chat_continuity_fields_are_strictly_additive() -> None:
+    properties = app.openapi()["components"]["schemas"]["ChatResponseRead"]["properties"]
+    assert {"entendimiento", "sugerencias"}.issubset(properties)

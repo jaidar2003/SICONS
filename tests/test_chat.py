@@ -1497,6 +1497,17 @@ def test_endpoint_chat_llama_proveedor_para_consulta_admitida(monkeypatch: pytes
         "horizonte_resuelto": 3,
         "visualizacion_sugerida": None,
         "conversation_id": None,
+        "entendimiento": {
+            "material_id": 1,
+            "material": "Cemento Portland",
+            "horizon_months": 3,
+            "quantity": None,
+            "input_unit": None,
+            "budget": None,
+            "inherited_fields": [],
+            "cleared_fields": [],
+        },
+        "sugerencias": ["Cambiar a 6 meses", "Explicar el MAPE", "Evaluar una compra"],
     }
     assert len(provider.calls) == 1
 
@@ -1659,6 +1670,17 @@ def test_endpoint_chat_cliente_rechaza_acciones_admin_sin_proveedor(question: st
         "horizonte_resuelto": None,
         "visualizacion_sugerida": None,
         "conversation_id": None,
+        "entendimiento": {
+            "material_id": None,
+            "material": None,
+            "horizon_months": None,
+            "quantity": None,
+            "input_unit": None,
+            "budget": None,
+            "inherited_fields": [],
+            "cleared_fields": [],
+        },
+        "sugerencias": ["Ver materiales", "Consultar un precio", "Armar un presupuesto"],
     }
     assert provider.calls == []
 

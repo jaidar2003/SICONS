@@ -37,6 +37,17 @@ class ChatSourceEvidenceRead(BaseModel):
     records: list[ChatSourceEvidenceRecordRead] = Field(default_factory=list)
 
 
+class ChatUnderstandingRead(BaseModel):
+    material_id: int | None = None
+    material: str | None = None
+    horizon_months: int | None = Field(default=None, ge=1, le=12)
+    quantity: Decimal | None = None
+    input_unit: str | None = None
+    budget: Decimal | None = None
+    inherited_fields: list[str] = Field(default_factory=list)
+    cleared_fields: list[str] = Field(default_factory=list)
+
+
 class ChatResponseRead(BaseModel):
     aceptada: bool
     respuesta: str
@@ -53,6 +64,8 @@ class ChatResponseRead(BaseModel):
     horizonte_resuelto: int | None = None
     visualizacion_sugerida: ChatVisualizationRead | None = None
     conversation_id: int | None = None
+    entendimiento: ChatUnderstandingRead | None = None
+    sugerencias: list[str] = Field(default_factory=list, max_length=4)
 
 
 class ChatConversationCreate(BaseModel):

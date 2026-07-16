@@ -45,6 +45,13 @@ class ConversationState:
     budget: Decimal | None = None
 
 
+@dataclass(frozen=True)
+class ConversationStateTransition:
+    state: ConversationState
+    inherited_fields: tuple[str, ...] = ()
+    cleared_fields: tuple[str, ...] = ()
+
+
 MATERIAL_ALIASES = {
     "cemento-portland": ("cemento portland", "cemento", "portland", "semento", "sementoo", "cemnto"),
     "pastina": ("pastina", "pastina klaukol", "klaukol"),
@@ -115,6 +122,8 @@ def classify_intent(text: str, inherited: str | None = None) -> InterpretedField
     if inherited and re.fullmatch(r"[?\s]*(y|ahora|eso|a)?(?:\s+la\s+[a-z]+)?(?:\s+a)?\s*(?:\d+|un|uno|tres|seis|doce)?\s*(?:mes|meses)?[?\s]*", normalized):
         return InterpretedField(inherited, "inherited")
     if inherited and re.search(r"\b(?:\d+|un|uno|tres|seis|doce)\s+mes", normalized):
+        return InterpretedField(inherited, "inherited")
+    if inherited and known_material and len(normalized.split()) <= 4:
         return InterpretedField(inherited, "inherited")
     return InterpretedField("FUERA_ALCANCE", "inferred", "medium")
 
@@ -221,7 +230,7 @@ def interpret_query(text: str, state: ConversationState | None = None) -> Conver
     budget = extract_budget(text)
 
     # Commercial quantities and budgets never leak into an unrelated material or a later request.
-    if intent.origin == "inherited" and state.intent == "PRESUPUESTO" and material.origin == "inherited":
+    if intent.value == "PRESUPUESTO" and state.intent == "PRESUPUESTO" and material.origin == "inherited":
         if quantity.value is None and state.quantity is not None:
             quantity = replace(quantity, value=state.quantity, origin="inherited")
             unit = replace(unit, value=state.input_unit, origin="inherited")
@@ -247,3 +256,68 @@ def interpret_query(text: str, state: ConversationState | None = None) -> Conver
         requires_confirmation=bool(missing or ambiguous),
         security_flags=flags,
     )
+
+
+def advance_conversation_state(
+    state: ConversationState,
+    interpretation: ConversationalInterpretation,
+) -> ConversationStateTransition:
+    material_key = interpretation.material.value if isinstance(interpretation.material.value, str) else state.material_key
+    material_changed = (
+        interpretation.material.origin in {"explicit", "inferred"}
+        and state.material_key is not None
+        and material_key != state.material_key
+    )
+    inherited = tuple(
+        name
+        for name, field in (
+            ("intent", interpretation.intent),
+            ("material", interpretation.material),
+            ("horizon", interpretation.horizon_months),
+            ("quantity", interpretation.quantity),
+            ("budget", interpretation.budget),
+        )
+        if field.origin == "inherited" and field.value is not None
+    )
+    cleared = ("quantity", "budget") if material_changed and (state.quantity is not None or state.budget is not None) else ()
+
+    quantity = None if material_changed else state.quantity
+    input_unit = None if material_changed else state.input_unit
+    budget = None if material_changed else state.budget
+    if interpretation.quantity.value is not None:
+        quantity = interpretation.quantity.value if isinstance(interpretation.quantity.value, Decimal) else quantity
+        input_unit = interpretation.input_unit.value if isinstance(interpretation.input_unit.value, str) else input_unit
+    if interpretation.budget.value is not None:
+        budget = interpretation.budget.value if isinstance(interpretation.budget.value, Decimal) else budget
+
+    interpreted_intent = interpretation.intent.value if isinstance(interpretation.intent.value, str) else None
+    intent = state.intent if interpreted_intent == "FUERA_ALCANCE" and state.intent is not None else interpreted_intent or state.intent
+    if intent != "PRESUPUESTO":
+        quantity = None
+        input_unit = None
+        budget = None
+
+    return ConversationStateTransition(
+        state=ConversationState(
+            intent=intent,
+            material_key=material_key,
+            horizon_months=(
+                interpretation.horizon_months.value
+                if isinstance(interpretation.horizon_months.value, int)
+                else state.horizon_months
+            ),
+            quantity=quantity,
+            input_unit=input_unit,
+            budget=budget,
+        ),
+        inherited_fields=inherited,
+        cleared_fields=cleared,
+    )
+
+
+def rebuild_conversation_state(messages: list[str]) -> ConversationState:
+    state = ConversationState()
+    for message in messages:
+        interpretation = interpret_query(message, state)
+        state = advance_conversation_state(state, interpretation).state
+    return state
