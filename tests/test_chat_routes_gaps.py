@@ -44,11 +44,14 @@ def test_interpretar_necesidad_llm_errors(monkeypatch):
     app.dependency_overrides[get_material_repository] = lambda: mock_repo
     client = TestClient(app)
     response = client.post("/chat/presupuestacion/interpretar", json={"necesidad": "hola"})
-    assert response.status_code == 503
+    assert response.status_code == 200
+    assert response.json()["fallback_usado"] is True
+    assert response.json()["proveedor_utilizado"] is False
     
     monkeypatch.setattr("app.modules.chat.interfaces.routes.interpretar_necesidad_comercial", MagicMock(side_effect=LLMProviderError("provider error")))
     response = client.post("/chat/presupuestacion/interpretar", json={"necesidad": "hola"})
-    assert response.status_code == 502
+    assert response.status_code == 200
+    assert response.json()["fallback_usado"] is True
     app.dependency_overrides.clear()
 
 def test_generar_propuesta_material_not_found():

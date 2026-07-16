@@ -13,6 +13,7 @@ from app.modules.chat.application import commercial_assistant
 from app.modules.chat.application.commercial_assistant import (
     generar_propuesta_comercial,
     interpretar_necesidad_comercial,
+    interpretar_necesidad_comercial_deterministica,
 )
 from app.modules.chat.interfaces.routes import get_chat_client
 from app.modules.pricing.application.contextual_purchase_recommendations import ContextualPurchaseRecommendationResult
@@ -69,6 +70,30 @@ def test_interpretar_necesidad_marca_producto_fuera_del_mvp_y_faltantes() -> Non
 
     assert result.material_id is None
     assert set(result.datos_faltantes) == {"producto", "cantidad", "fase_obra", "fecha_objetivo_uso_o_horizonte_meses"}
+
+
+def test_interpretacion_deterministica_conserva_pedido_parcial_sin_presupuesto() -> None:
+    materials = [SimpleNamespace(id=1, nombre="Cemento Portland")]
+
+    result = interpretar_necesidad_comercial_deterministica(
+        "Necesito 30 bolsas de cemento a 3 meses",
+        materials=materials,
+    )
+
+    assert result.material_id == 1
+    assert result.cantidad == Decimal("30")
+    assert result.horizonte_meses == 3
+    assert result.presupuesto_maximo is None
+    assert "presupuesto_maximo" not in result.datos_faltantes
+
+
+def test_interpretacion_deterministica_pide_cantidad_sin_exigir_presupuesto() -> None:
+    materials = [SimpleNamespace(id=1, nombre="Cemento Portland")]
+
+    result = interpretar_necesidad_comercial_deterministica("Necesito cemento a 3 meses", materials=materials)
+
+    assert result.datos_faltantes[0] == "cantidad"
+    assert "presupuesto_maximo" not in result.datos_faltantes
 
 
 def test_generar_propuesta_usa_precio_comercial_y_recomendacion_calculada(monkeypatch) -> None:

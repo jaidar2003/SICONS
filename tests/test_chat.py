@@ -1,3 +1,4 @@
+import re
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -12,6 +13,13 @@ from app.modules.auth.interfaces.dependencies import get_current_user
 from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.chat.application import retrieval as chat_retrieval
 from app.modules.chat.application.context import build_material_context, resolve_horizon
+from app.modules.chat.application.conversational_support import (
+    HelpTopic,
+    classify_help_question,
+    provider_failure_answer,
+    render_help_answer,
+    unavailable_calculation_answer,
+)
 from app.modules.chat.application.operations import execute_operation, plan_operation
 from app.modules.chat.application.retrieval import (
     build_backend_retrieval_context,
@@ -425,11 +433,151 @@ def test_classify_chat_intent(question: str, expected: str) -> None:
     ],
 )
 def test_capabilities_question_detecta_consultas_generales(question: str) -> None:
-    assert chat_routes._is_capabilities_question(question) is True
+    assert classify_help_question(question) == HelpTopic.CAPABILITIES
 
 
 def test_capabilities_question_no_intercepta_presupuesto() -> None:
-    assert chat_routes._is_capabilities_question("que puedo hacer con 200 mil pesos?") is False
+    assert classify_help_question("que puedo hacer con 200 mil pesos?") is None
+
+
+@pytest.mark.parametrize(
+    ("question", "topic"),
+    [
+        ("que puedo hacer con este asistente", HelpTopic.CAPABILITIES),
+        ("que puedo hacer con esto", HelpTopic.CAPABILITIES),
+        ("¿Qué hace este asistente?", HelpTopic.CAPABILITIES),
+        ("ke puedo hacer con esto???", HelpTopic.CAPABILITIES),
+        ("¿Para qué sirve BuildWise?", HelpTopic.CAPABILITIES),
+        ("No sé por dónde empezar.", HelpTopic.CAPABILITIES),
+        ("qué materiales hay", HelpTopic.MATERIALS),
+        ("Mostrame qué materiales manejan.", HelpTopic.MATERIALS),
+        ("como hago un presupuesto", HelpTopic.BUDGET),
+        ("¿Cómo calculo una compra?", HelpTopic.BUDGET),
+        ("qué significa mape", HelpTopic.MAPE),
+        ("¿Qué quiere decir ese porcentaje de error?", HelpTopic.MAPE),
+        ("qué es una anomalía", HelpTopic.ANOMALY),
+        ("¿Por qué aparece una anomalía?", HelpTopic.ANOMALY),
+        ("cómo funciona la recomendación", HelpTopic.RECOMMENDATION),
+        ("¿Cómo decide si comprar o esperar?", HelpTopic.RECOMMENDATION),
+    ],
+)
+def test_clasificacion_ayuda_contextual_normaliza_variantes(question: str, topic: HelpTopic) -> None:
+    assert classify_help_question(question) == topic
+
+
+def test_ayuda_mape_no_lo_presenta_como_probabilidad_o_efectividad() -> None:
+    answer = render_help_answer(HelpTopic.MAPE)
+    assert "error porcentual promedio" in answer
+    assert "No es una probabilidad" in answer
+    assert "efectividad" not in answer.lower()
+
+
+def test_ayuda_recomendacion_atribuye_decision_a_buildwise() -> None:
+    answer = render_help_answer(HelpTopic.RECOMMENDATION)
+    assert "la calcula BuildWise, no la IA" in answer
+
+
+def test_fallback_proveedor_con_contexto_conserva_hechos_sin_tecnicismos() -> None:
+    answer = provider_failure_answer(
+        context=(
+            "CONTEXTO CALCULADO POR BUILDWISE:\n"
+            "- Material seleccionado: Cemento Portland. Unidad base: kg.\n"
+            "- Decision del motor: COMPRAR_AHORA.\n"
+            "- MAPE del modelo: 4.22%."
+        ),
+        intent="RECOMENDACION",
+    )
+    assert "Decision calculada por BuildWise: COMPRAR_AHORA" in answer
+    assert "Error porcentual promedio (MAPE): 4.22%" in answer
+    assert not re.search(r"\b(RAG|snapshot|fallback|proveedor|pipeline|excepcion|regresor)\b", answer, re.IGNORECASE)
+
+
+def test_fallback_proveedor_sin_contexto_es_accionable() -> None:
+    answer = provider_failure_answer(context=None, intent="CATALOGO")
+    assert "Podes reintentar" in answer
+    assert "ultimo precio del cemento" in answer
+
+
+def test_forecast_no_disponible_ofrece_alternativas_sin_tecnicismos() -> None:
+    answer = unavailable_calculation_answer(
+        context=(
+            "CONTEXTO RECUPERADO DE BUILDWISE:\n"
+            "- Advertencia: No fue posible calcular forecast/recomendacion en esta consulta; responder con el contexto disponible."
+        ),
+        intent="FORECAST",
+        material_name="Pastina",
+    )
+    assert answer is not None
+    assert "No hay una proyeccion disponible para Pastina" in answer
+    assert "cambiar el horizonte" in answer
+    assert not re.search(r"\b(snapshot|fallback|proveedor|pipeline|excepcion|regresor)\b", answer, re.IGNORECASE)
+
+
+def test_endpoint_proveedor_caido_con_datos_devuelve_resultado_util_y_audita_fallo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.modules.chat.infrastructure.llm_client import LLMProviderError
+
+    class FailingClient:
+        provider_name = "facultad"
+
+        def complete(self, _messages):
+            raise LLMProviderError("timeout secreto que no debe mostrarse")
+
+    material = SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")
+    audit_calls = []
+    monkeypatch.setattr(
+        chat_routes,
+        "build_backend_retrieval_context",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            context=(
+                "CONTEXTO CALCULADO POR BUILDWISE:\n"
+                "- Material seleccionado: Cemento Portland. Unidad base: kg.\n"
+                "- Decision del motor: COMPRAR_AHORA."
+            ),
+            sources=("purchase_recommendations",),
+            source_evidence=(),
+            material=material,
+            material_resolution_source="pregunta",
+            horizon=3,
+        ),
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "build_material_context",
+        lambda *_args, **_kwargs: (
+            "CONTEXTO CALCULADO POR BUILDWISE:\n"
+            "- Material seleccionado: Cemento Portland. Unidad base: kg.\n"
+            "- Decision del motor: COMPRAR_AHORA."
+        ),
+    )
+    monkeypatch.setattr(chat_routes, "_demo_direct_answer", lambda **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_calculated_direct_answer", lambda **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "register_audit_log", lambda _db, **kwargs: audit_calls.append(kwargs))
+    app.dependency_overrides[get_db] = lambda: FakeDb()
+    app.dependency_overrides[get_chat_client] = lambda: FailingClient()
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(
+        get_by_id=lambda _id: material,
+        list_active=lambda: [material],
+    )
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={"pregunta": "Explicame la decision del cemento", "material_id": 1},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["fallback_usado"] is True
+    assert "Decision calculada por BuildWise: COMPRAR_AHORA" in body["respuesta"]
+    assert "timeout secreto" not in body["respuesta"]
+    assert audit_calls[0]["cambios"]["tipo_fallo"] == "LLMProviderError"
+    assert audit_calls[0]["cambios"]["etapa_fallida"] == "provider"
+    assert audit_calls[0]["cambios"]["provider_ms"] is not None
 
 
 def test_endpoint_capacidades_responde_sin_proveedor_aunque_haya_material_seleccionado() -> None:
@@ -458,8 +606,117 @@ def test_endpoint_capacidades_responde_sin_proveedor_aunque_haya_material_selecc
     assert body["tipo_intencion"] == "CATALOGO"
     assert body["proveedor_utilizado"] is False
     assert body["fallback_usado"] is False
-    assert "precios actuales e historicos" in body["respuesta"]
-    assert "los calcula BuildWise" in body["respuesta"]
+    assert "consultar materiales y precios" in body["respuesta"]
+    assert "calculos economicos los realiza BuildWise" in body["respuesta"]
+    assert provider.calls == []
+
+
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("que puedo hacer con este asistente", "consultar materiales y precios"),
+        ("que puedo hacer con esto", "consultar materiales y precios"),
+        ("qué materiales hay", "Cemento Portland (kg)"),
+        ("como hago un presupuesto", "material y una cantidad o un presupuesto"),
+        ("qué significa mape", "error porcentual promedio"),
+        ("qué es una anomalía", "variacion de precio fuera"),
+        ("cómo funciona la recomendación", "la calcula BuildWise, no la IA"),
+    ],
+)
+def test_endpoint_ayuda_deterministica_no_invoca_proveedor(question: str, expected: str) -> None:
+    provider = FakeChatClient()
+    materials = [
+        SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg"),
+        SimpleNamespace(id=2, nombre="Pastina", unidad_base="kg"),
+        SimpleNamespace(id=3, nombre="Membrana Megaflex", unidad_base="m2"),
+    ]
+    app.dependency_overrides[get_db] = lambda: FakeDb()
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(
+        get_by_id=lambda _id: materials[0],
+        list_active=lambda: materials,
+    )
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    try:
+        response = TestClient(app).post("/chat/consultas", json={"pregunta": question, "material_id": 1})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert expected in response.json()["respuesta"]
+    assert response.json()["proveedor_utilizado"] is False
+    assert provider.calls == []
+
+
+def test_endpoint_catalogo_vacio_responde_sin_proveedor() -> None:
+    provider = FakeChatClient()
+    app.dependency_overrides[get_db] = lambda: FakeDb()
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(list_active=lambda: [])
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    try:
+        response = TestClient(app).post("/chat/consultas", json={"pregunta": "qué materiales hay"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert "No hay materiales activos" in response.json()["respuesta"]
+    assert provider.calls == []
+
+
+def test_material_no_soportado_muestra_catalogo_real_sin_usar_material_seleccionado() -> None:
+    provider = FakeChatClient()
+    materials = [SimpleNamespace(id=1, nombre="Cemento Portland", unidad_base="kg")]
+    app.dependency_overrides[get_db] = lambda: FakeDb()
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(list_active=lambda: materials)
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={"pregunta": "Cual es el precio del ladrillo?", "material_id": 1},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert "No encontre 'ladrillo'" in response.json()["respuesta"]
+    assert "Cemento Portland" in response.json()["respuesta"]
+    assert provider.calls == []
+
+
+def test_ayuda_en_conversacion_existente_no_hereda_intencion_previa(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = FakeChatClient()
+    conversation = ChatConversation(id=9, usuario_id=1, titulo="Forecast cemento", material_actual_id=1, horizonte_actual=3)
+    previous = ChatMessage(
+        id=20,
+        conversation_id=9,
+        role="assistant",
+        content="Proyeccion previa",
+        tipo_intencion="FORECAST",
+        visualizacion_sugerida={"tipo": "FORECAST"},
+    )
+    monkeypatch.setattr(chat_routes, "_get_owned_conversation", lambda *_args: conversation)
+    monkeypatch.setattr(chat_routes, "_latest_assistant_message", lambda *_args: previous)
+    app.dependency_overrides[get_db] = lambda: FakeDb()
+    app.dependency_overrides[get_chat_client] = lambda: provider
+    app.dependency_overrides[get_material_repository] = lambda: SimpleNamespace(list_active=lambda: [])
+    app.dependency_overrides[get_pricing_repository] = lambda: SimpleNamespace()
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1, rol="cliente")
+    try:
+        response = TestClient(app).post(
+            "/chat/consultas",
+            json={"pregunta": "¿Qué significa ese error?", "conversation_id": 9},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert "error porcentual promedio" in response.json()["respuesta"]
+    assert response.json()["proveedor_utilizado"] is False
     assert provider.calls == []
 
 
@@ -1271,6 +1528,11 @@ def test_endpoint_chat_registra_auditoria(monkeypatch: pytest.MonkeyPatch) -> No
     assert audit["cambios"]["pregunta"] == "Que materiales hay?"
     assert audit["cambios"]["tipo_intencion"] == "CATALOGO"
     assert "duration_ms" in audit["cambios"]
+    assert audit["cambios"]["respuesta_deterministica"] is True
+    assert audit["cambios"]["proveedor_utilizado"] is False
+    assert "interpretation_ms" in audit["cambios"]
+    assert "backend_ms" in audit["cambios"]
+    assert "provider_ms" in audit["cambios"]
 
 
 def test_endpoint_chat_incluye_contexto_calculado_del_material(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1486,12 +1748,14 @@ def test_consultar_chat_llm_config_error(monkeypatch):
     try:
         response = TestClient(app).post(
             "/chat/consultas",
-            json={"pregunta": "Hola", "historial": []},
+            json={"pregunta": "Explicame las presentaciones", "historial": []},
         )
     finally:
         app.dependency_overrides.clear()
-    assert response.status_code == 503
-    assert "configurada" in response.json()["detail"]
+    assert response.status_code == 200
+    assert response.json()["fallback_usado"] is True
+    assert response.json()["proveedor_utilizado"] is False
+    assert "Podes reintentar" in response.json()["respuesta"]
 
 def test_consultar_chat_llm_provider_error(monkeypatch):
     from app.modules.chat.infrastructure.llm_client import LLMProviderError
@@ -1502,12 +1766,13 @@ def test_consultar_chat_llm_provider_error(monkeypatch):
     try:
         response = TestClient(app).post(
             "/chat/consultas",
-            json={"pregunta": "Hola", "historial": []},
+            json={"pregunta": "Explicame las presentaciones", "historial": []},
         )
     finally:
         app.dependency_overrides.clear()
-    assert response.status_code == 502
-    assert "error provider" in response.json()["detail"]
+    assert response.status_code == 200
+    assert response.json()["fallback_usado"] is True
+    assert "Podes reintentar" in response.json()["respuesta"]
 
 def test_consultar_chat_with_operation_plan(monkeypatch):
     monkeypatch.setattr("app.modules.chat.interfaces.routes.needs_operation_plan", lambda x: True)

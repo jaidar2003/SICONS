@@ -18,8 +18,18 @@ from app.modules.catalog.interfaces.dependencies import get_material_repository
 from app.modules.chat.application.commercial_assistant import (
     generar_propuesta_comercial,
     interpretar_necesidad_comercial,
+    interpretar_necesidad_comercial_deterministica,
 )
 from app.modules.chat.application.context import build_material_context, resolve_horizon
+from app.modules.chat.application.conversational_support import (
+    HelpTopic,
+    clarification_answer,
+    classify_help_question,
+    provider_failure_answer,
+    render_help_answer,
+    unavailable_calculation_answer,
+    unsupported_material_mention,
+)
 from app.modules.chat.application.operations import (
     execute_operation,
     is_explicit_confirmation,
@@ -244,30 +254,6 @@ def _catalog_direct_answer(
             lines.append("No tiene presentaciones activas registradas.")
         return " ".join(lines)
     return None
-
-
-def _is_capabilities_question(question: str) -> bool:
-    normalized = unicodedata.normalize("NFKD", question.lower()).encode("ascii", "ignore").decode("ascii")
-    if re.search(r"\d|\$|\bars\b", normalized):
-        return False
-    return bool(
-        re.search(r"\b(que|como)\s+(puedo|se puede)\s+(hacer|consultar|preguntar)(?:\s+con\s+(esto|el asistente|buildwise))?\b", normalized)
-        or re.search(r"\b(para que sirve|como se usa|como usar)\s+(esto|el asistente|buildwise)\b", normalized)
-        or re.fullmatch(r"\s*(ayuda|que funciones tiene|cuales son tus funciones)\s*[?.!]*\s*", normalized)
-    )
-
-
-def _capabilities_direct_answer(*, is_admin: bool) -> str:
-    capabilities = (
-        "Podes pedirme que consulte precios actuales e historicos; explique variaciones, proyecciones, MAPE y anomalias; "
-        "compare estrategias de compra; evalue si conviene comprar ahora, esperar o comprar por etapas; y prepare "
-        "presupuestos u optimizaciones con una cantidad y un limite de dinero. Tambien podes pedirme las fuentes o que "
-        "te explique un resultado con palabras mas simples."
-    )
-    admin_capability = " Si sos administrador, tambien puedo orientarte sobre usuarios, margenes y auditoria." if is_admin else ""
-    example = " Por ejemplo: 'Necesito 30 bolsas de cemento, tengo 200 mil pesos y las necesito en agosto'."
-    responsibility = " Los precios, proyecciones, importes y recomendaciones los calcula BuildWise; yo los consulto y te los explico."
-    return f"{capabilities}{admin_capability}{example}{responsibility}"
 
 
 def _calculated_direct_answer(
@@ -576,7 +562,14 @@ def _audit_log_read(log: AuditLog, username: str | None) -> ChatAuditLogRead:
         horizonte_resuelto=changes.get("horizonte_resuelto"),
         proveedor_ia=changes.get("proveedor_ia"),
         fallback_usado=changes.get("fallback_usado"),
+        respuesta_deterministica=changes.get("respuesta_deterministica"),
+        respuesta_alternativa=changes.get("respuesta_alternativa"),
+        tipo_fallo=changes.get("tipo_fallo"),
+        etapa_fallida=changes.get("etapa_fallida"),
         duration_ms=changes.get("duration_ms"),
+        interpretation_ms=changes.get("interpretation_ms"),
+        backend_ms=changes.get("backend_ms"),
+        provider_ms=changes.get("provider_ms"),
         ip_address=log.ip_address,
     )
 
@@ -838,6 +831,11 @@ def _register_chat_audit(
     duration_ms: int,
     ip_address: str | None,
     validation_status: str | None = None,
+    interpretation_ms: int | None = None,
+    backend_ms: int | None = None,
+    provider_ms: int | None = None,
+    failure_type: str | None = None,
+    failed_stage: str | None = None,
 ) -> None:
     try:
         register_audit_log(
@@ -859,8 +857,15 @@ def _register_chat_audit(
                 "proveedor_utilizado": response.proveedor_utilizado,
                 "proveedor_ia": response.proveedor_ia,
                 "fallback_usado": response.fallback_usado,
+                "respuesta_deterministica": not response.proveedor_utilizado,
+                "respuesta_alternativa": response.fallback_usado,
+                "tipo_fallo": failure_type,
+                "etapa_fallida": failed_stage,
                 "validacion_respuesta": validation_status,
                 "duration_ms": duration_ms,
+                "interpretation_ms": interpretation_ms,
+                "backend_ms": backend_ms,
+                "provider_ms": provider_ms,
             },
             ip_address=ip_address,
         )
@@ -984,8 +989,13 @@ def consultar_chat(
     if payload.conversation_id is not None:
         conversation = _get_owned_conversation(db, payload.conversation_id, current_user.id)
     latest_assistant = _latest_assistant_message(db, conversation) if conversation is not None else None
-    semantic_question = _semantic_question_for_conversation(payload.pregunta, latest_assistant)
-    capabilities_question = _is_capabilities_question(semantic_question)
+    help_topic = classify_help_question(payload.pregunta)
+    unsupported_material = unsupported_material_mention(payload.pregunta)
+    semantic_question = (
+        payload.pregunta
+        if help_topic is not None or unsupported_material is not None
+        else _semantic_question_for_conversation(payload.pregunta, latest_assistant)
+    )
     effective_material_id = payload.material_id or (conversation.material_actual_id if conversation is not None else None)
     effective_horizon = (
         payload.horizonte_meses
@@ -993,16 +1003,22 @@ def consultar_chat(
         else (conversation.horizonte_actual if conversation is not None else 3)
     )
     admin_only = is_admin_only_request(semantic_question)
-    should_load_context = False if capabilities_question else is_in_scope(semantic_question, has_context=effective_material_id is not None)
+    direct_support_question = help_topic is not None or unsupported_material is not None
+    should_load_context = False if direct_support_question else is_in_scope(semantic_question, has_context=effective_material_id is not None)
     tipo_intencion = (
         "CATALOGO"
-        if capabilities_question
+        if direct_support_question
         else classify_chat_intent(
             semantic_question,
             accepted_scope=should_load_context,
             admin_only=admin_only,
         )
     )
+    interpretation_ms = int((perf_counter() - started_at) * 1000)
+    backend_started_at = perf_counter()
+    provider_started_at: float | None = None
+    backend_ms: int | None = None
+    provider_ms: int | None = None
     if current_user.rol != "admin" and admin_only:
         response = ChatResponseRead(
             aceptada=False,
@@ -1020,6 +1036,8 @@ def consultar_chat(
             response=response,
             duration_ms=int((perf_counter() - started_at) * 1000),
             ip_address=request.client.host if request.client else None,
+            interpretation_ms=interpretation_ms,
+            backend_ms=0,
         )
         return response
     try:
@@ -1147,19 +1165,49 @@ def consultar_chat(
                     material_resuelto_id = getattr(material_for_calculated_context, "id", material_resuelto_id)
                     horizonte_resuelto = retrieval.horizon
 
-        direct_answer = (
-            _capabilities_direct_answer(is_admin=current_user.rol == "admin")
-            if capabilities_question
-            else _demo_direct_answer(
+        help_answer = None
+        if help_topic is not None:
+            material_names = (
+                [f"{material.nombre} ({material.unidad_base})" for material in material_repo.list_active()]
+                if help_topic == HelpTopic.MATERIALS
+                else []
+            )
+            help_answer = render_help_answer(
+                help_topic,
+                material_names=material_names,
+                is_admin=current_user.rol == "admin",
+            )
+        direct_answer = help_answer
+        if direct_answer is None:
+            needs_material_options = unsupported_material is not None or (
+                tipo_intencion in {"HISTORICO", "FORECAST", "RECOMENDACION"} and material_resuelto is None
+            )
+            active_material_names = (
+                [material.nombre for material in material_repo.list_active()]
+                if needs_material_options
+                else []
+            )
+            direct_answer = clarification_answer(
+                intent=tipo_intencion,
+                material_name=material_resuelto,
+                material_names=active_material_names,
+                unsupported_material=unsupported_material,
+            )
+        if direct_answer is None:
+            direct_answer = _demo_direct_answer(
                 question=semantic_question,
                 intent=tipo_intencion,
                 material=material_for_calculated_context,
                 horizon=horizonte_resuelto or effective_horizon,
                 pricing_repo=pricing_repo,
             )
-        )
         if direct_answer is not None:
-            fuentes_recuperadas.append("asistente.capacidades" if capabilities_question else "demo.respuesta_deterministica")
+            if help_answer is not None:
+                fuentes_recuperadas.append("asistente.ayuda")
+            elif material_resuelto is None:
+                fuentes_recuperadas.append("asistente.aclaracion")
+            else:
+                fuentes_recuperadas.append("demo.respuesta_deterministica")
 
         if direct_answer is None:
             direct_answer = (
@@ -1181,6 +1229,12 @@ def consultar_chat(
                 material=material_for_calculated_context,
                 horizon=horizonte_resuelto or effective_horizon,
                 pricing_repo=pricing_repo,
+            )
+        if direct_answer is None:
+            direct_answer = unavailable_calculation_answer(
+                context=context,
+                intent=tipo_intencion,
+                material_name=material_resuelto,
             )
         if direct_answer is not None:
             display_horizon = _historical_display_horizon(tipo_intencion, horizonte_resuelto)
@@ -1217,36 +1271,35 @@ def consultar_chat(
                 response=response,
                 duration_ms=int((perf_counter() - started_at) * 1000),
                 ip_address=request.client.host if request.client else None,
+                interpretation_ms=interpretation_ms,
+                backend_ms=int((perf_counter() - backend_started_at) * 1000),
             )
             return response
 
         history = _conversation_history(db, conversation) if conversation is not None else [message.model_dump() for message in payload.historial]
+        backend_ms = int((perf_counter() - backend_started_at) * 1000)
+        provider_started_at = perf_counter()
         result = answer_question(
             semantic_question,
             client,
             context=context,
             history=history,
         )
+        provider_ms = int((perf_counter() - provider_started_at) * 1000)
         if result.proveedor_utilizado:
             _remember_provider_success(client)
-    except LLMConfigurationError as exc:
+    except (LLMConfigurationError, LLMProviderError) as exc:
+        if provider_started_at is not None:
+            provider_ms = int((perf_counter() - provider_started_at) * 1000)
         _remember_provider_error(client, exc)
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
-    except LLMProviderError as exc:
-        _remember_provider_error(client, exc)
-        if not context:
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
         response = ChatResponseRead(
             aceptada=True,
-            respuesta=(
-                "No fue posible redactar la respuesta con IA, pero BuildWise recupero datos del backend. "
-                "Revisa las fuentes y la evidencia calculada de esta consulta."
-            ),
-            proveedor_utilizado=True,
+            respuesta=provider_failure_answer(context=context, intent=tipo_intencion),
+            proveedor_utilizado=not isinstance(exc, LLMConfigurationError),
             proveedor_ia=_resolve_provider_metadata(client)[0],
-            fallback_usado=_resolve_provider_metadata(client)[1],
+            fallback_usado=True,
             tipo_intencion=tipo_intencion,
-            contexto_usado=True,
+            contexto_usado=bool(context),
             fuentes_recuperadas=list(dict.fromkeys(fuentes_recuperadas)),
             fuentes_evidencia=fuentes_evidencia,
             material_resuelto_id=material_resuelto_id,
@@ -1272,6 +1325,11 @@ def consultar_chat(
             response=response,
             duration_ms=int((perf_counter() - started_at) * 1000),
             ip_address=request.client.host if request.client else None,
+            interpretation_ms=interpretation_ms,
+            backend_ms=backend_ms,
+            provider_ms=provider_ms,
+            failure_type=type(exc).__name__,
+            failed_stage="provider",
         )
         return response
     response = ChatResponseRead(
@@ -1308,6 +1366,11 @@ def consultar_chat(
         duration_ms=int((perf_counter() - started_at) * 1000),
         ip_address=request.client.host if request.client else None,
         validation_status=result.validacion_respuesta,
+        interpretation_ms=interpretation_ms,
+        backend_ms=backend_ms,
+        provider_ms=provider_ms,
+        failure_type="response_validation" if result.validacion_respuesta.startswith("rejected:") else None,
+        failed_stage="validation" if result.validacion_respuesta.startswith("rejected:") else None,
     )
     return response
 
@@ -1319,18 +1382,19 @@ def interpretar_necesidad_para_presupuesto(
     material_repo: MaterialRepository = Depends(get_material_repository),
     current_user: Usuario = Depends(get_current_user),
 ) -> CommercialNeedInterpretationRead:
+    materials = material_repo.list_active()
+    provider_used = True
+    fallback_used = False
     try:
         result = interpretar_necesidad_comercial(
             payload.necesidad,
-            materials=material_repo.list_active(),
+            materials=materials,
             client=client,
         )
-    except LLMConfigurationError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
-    except LLMProviderError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
-    except CommercialInterpretationError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    except (LLMConfigurationError, LLMProviderError, CommercialInterpretationError):
+        result = interpretar_necesidad_comercial_deterministica(payload.necesidad, materials=materials)
+        provider_used = False
+        fallback_used = True
     return CommercialNeedInterpretationRead(
         **{
             "solicitud_original": result.solicitud_original,
@@ -1343,9 +1407,9 @@ def interpretar_necesidad_para_presupuesto(
             "presupuesto_maximo": result.presupuesto_maximo,
             "tolerancia_riesgo": result.tolerancia_riesgo,
             "datos_faltantes": list(result.datos_faltantes),
-            "proveedor_utilizado": True,
-            "proveedor_ia": _resolve_provider_metadata(client)[0],
-            "fallback_usado": _resolve_provider_metadata(client)[1],
+            "proveedor_utilizado": provider_used,
+            "proveedor_ia": _resolve_provider_metadata(client)[0] if provider_used else None,
+            "fallback_usado": fallback_used or _resolve_provider_metadata(client)[1],
         }
     )
 

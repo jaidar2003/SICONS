@@ -54,3 +54,16 @@ def test_chat_routes_are_registered_once() -> None:
         if getattr(route, "path", "").startswith("/chat")
     ]
     assert len(registrations) == len(set(registrations))
+
+
+def test_chat_audit_diagnostics_are_strictly_additive() -> None:
+    properties = app.openapi()["components"]["schemas"]["ChatAuditLogRead"]["properties"]
+    assert {
+        "respuesta_deterministica",
+        "respuesta_alternativa",
+        "tipo_fallo",
+        "etapa_fallida",
+        "interpretation_ms",
+        "backend_ms",
+        "provider_ms",
+    }.issubset(properties)
