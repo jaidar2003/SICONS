@@ -9,6 +9,7 @@ from app.modules.pricing.interfaces.schemas import (
     CommercialMarginCreate,
     CommercialMarginUpdate,
     ContextualPurchaseRecommendationCreate,
+    PuntoSeriePrecioRead,
     PurchaseTemporalSimulationCreate,
 )
 
@@ -82,3 +83,20 @@ def test_commercial_proposal_create_validation():
     )
     assert payload.fecha_objetivo_uso == date(2024, 1, 1)
     assert payload.horizonte_meses is None
+
+
+def test_price_series_response_normalizes_null_data_origins():
+    point = PuntoSeriePrecioRead.model_validate(
+        {
+            "fecha": "2026-01-01",
+            "precio_promedio_normalizado": "100.0000",
+            "unidad_base": "kg",
+            "cantidad_registros": 1,
+            "cantidad_facturas": 1,
+            "fuentes": ["Factura compra"],
+            "variacion_porcentual_anterior": None,
+            "origenes_dato": None,
+        }
+    )
+
+    assert point.origenes_dato == []

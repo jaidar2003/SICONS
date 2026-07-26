@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class PrecioHistoricoCreate(BaseModel):
@@ -68,6 +68,11 @@ class PuntoSeriePrecioRead(BaseModel):
     numero_comprobante: str | None = None
     created_at: datetime | None = None
     origenes_dato: list[Literal["REAL", "ESTIMADO"]] = Field(default_factory=list)
+
+    @field_validator("origenes_dato", mode="before")
+    @classmethod
+    def normalizar_origenes_dato_nulos(cls, value):
+        return [] if value is None else value
 
 
 class AnomalyEvaluationCreate(BaseModel):
