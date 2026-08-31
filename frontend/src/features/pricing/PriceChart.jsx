@@ -1,4 +1,4 @@
-import { Alert, Card, CardContent } from "@mui/material";
+import { Alert, Box, Card, CardContent, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material";
 import {
   CategoryScale,
   Chart as ChartJS,
@@ -14,8 +14,16 @@ import { Line } from "react-chartjs-2";
 import { SectionHeader } from "../../shared/components/SectionHeader.jsx";
 import { formatCurrency, formatNumber } from "../../shared/utils/formatters.js";
 import { getDisplayPrice, getMaterialPresentation } from "./materialPresentation.js";
+import { buildComparativeChartPoints } from "./priceChartDetail.js";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
+
+const chartDateFormatter = new Intl.DateTimeFormat("es-AR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "UTC",
+});
 
 export function PriceChart({
   serie,
@@ -93,8 +101,14 @@ export function PriceChart({
     ...(serie.length ? [commercialHistoricalDataset[commercialHistoricalDataset.length - 1]] : []),
     ...commercialForecastDataset,
   ];
-  const baseCombinedLine = [...historicalDataset, ...forecastDataset];
-  const commercialCombinedLine = [...commercialHistoricalDataset, ...commercialForecastDataset];
+  const comparativePoints = buildComparativeChartPoints({
+    serie,
+    forecastPoints,
+    historicalCostPrices: historicalDataset,
+    historicalRetailPrices: commercialHistoricalDataset,
+    forecastCostPrices: forecastDataset,
+    forecastRetailPrices: commercialForecastDataset,
+  });
 
   const chartTitle =
     showPrices && chartMode === "commercial"
@@ -223,11 +237,11 @@ export function PriceChart({
 
     if (chartMode === "comparative" && hasCommercialMargin) {
       return {
-        labels,
+        labels: comparativePoints.map((point) => point.date),
         datasets: [
           {
             label: "Precio de costo",
-            data: baseCombinedLine,
+            data: comparativePoints.map((point) => point.costPrice),
             borderColor: "#002395",
             backgroundColor: "rgba(0, 35, 149, 0.10)",
             fill: false,
@@ -242,7 +256,7 @@ export function PriceChart({
           },
           {
             label: "Precio minorista",
-            data: commercialCombinedLine,
+            data: comparativePoints.map((point) => point.retailPrice),
             borderColor: "#0f766e",
             backgroundColor: "rgba(15, 118, 110, 0.10)",
             fill: false,
@@ -429,12 +443,12 @@ export function PriceChart({
               return getCommercialTooltipLines(point, datasetLabel);
             }
 
-            if (chartMode === "comparative" && datasetLabel === "Precio minorista" && forecastPoints.length) {
-              const point = serie[context.dataIndex];
+            if (chartMode === "comparative" && datasetLabel === "Precio minorista") {
+              const point = comparativePoints[context.dataIndex];
               if (showPrices) {
                 return [
                   `Precio minorista: ${formatCurrency(context.parsed.y)}`,
-                  `Precio de costo: ${formatCurrency(getDisplayPrice(point.precio_promedio_normalizado, selectedMaterial?.nombre, point.unidad_base))}`,
+                  `Precio de costo: ${point?.costPrice === null ? "—" : formatCurrency(point?.costPrice)}`,
                 ];
               }
               return [
@@ -540,6 +554,44 @@ export function PriceChart({
             redraw
           />
         </div>
+        {showPrices && chartMode === "comparative" && hasCommercialMargin ? (
+          <Box sx={{ mt: 3, border: 1, borderColor: "divider", borderRadius: 2, overflow: "hidden" }}>
+            <Box sx={{ p: { xs: 2, sm: 2.5 }, pb: 1 }}>
+              <SectionHeader
+                title="Detalle de valores"
+                description="Valores exactos correspondientes a los puntos mostrados en el gráfico."
+              />
+            </Box>
+            <TableContainer sx={{ maxHeight: 420, overflowX: "auto" }}>
+              <Table size="small" stickyHeader aria-label="Detalle de precios de costo y minorista">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ whiteSpace: "nowrap" }}>Fecha</TableCell>
+                    <TableCell align="right">Precio de costo</TableCell>
+                    <TableCell align="right">Precio minorista</TableCell>
+                    <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>Tipo de dato</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {comparativePoints.map((point) => (
+                    <TableRow key={point.key} hover>
+                      <TableCell sx={{ whiteSpace: "nowrap" }}>
+                        {chartDateFormatter.format(new Date(`${point.date}T00:00:00Z`))}
+                      </TableCell>
+                      <TableCell align="right">{point.costPrice === null ? "—" : formatCurrency(point.costPrice)}</TableCell>
+                      <TableCell align="right" sx={{ color: "#0f766e", fontWeight: 800 }}>
+                        {point.retailPrice === null ? "—" : formatCurrency(point.retailPrice)}
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip size="small" color={point.origin.color} variant="outlined" label={point.origin.label} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        ) : null}
       </CardContent>
     </Card>
   );
