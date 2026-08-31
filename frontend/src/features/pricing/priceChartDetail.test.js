@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { buildComparativeChartPoints, getChartPointOrigin } from "./priceChartDetail.js";
+import { getDisplayPrice } from "./materialPresentation.js";
 
 describe("price chart detail", () => {
   it("uses the chart values, sorts dates and marks forecast points as estimated", () => {
@@ -40,5 +41,13 @@ describe("price chart detail", () => {
 
   it("keeps mixed provenance visible", () => {
     assert.equal(getChartPointOrigin(["ESTIMADO", "REAL"]).label, "Observado y estimado");
+  });
+
+  it("uses the 25 kg bag presentation for cement cost and retail prices", () => {
+    const normalizedCost = 185.3052;
+    const retailMargin = 1.2;
+
+    assert.equal(getDisplayPrice(normalizedCost, "Cemento Portland", "kg"), normalizedCost * 25);
+    assert.equal(getDisplayPrice(normalizedCost * retailMargin, "Cemento Portland", "kg"), normalizedCost * retailMargin * 25);
   });
 });

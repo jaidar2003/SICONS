@@ -554,7 +554,7 @@ export function PriceChart({
             redraw
           />
         </div>
-        {showPrices && chartMode === "comparative" && hasCommercialMargin ? (
+        {showPrices && (chartMode === "base" || hasCommercialMargin) ? (
           <Box sx={{ mt: 3, border: 1, borderColor: "divider", borderRadius: 2, overflow: "hidden" }}>
             <Box sx={{ p: { xs: 2, sm: 2.5 }, pb: 1 }}>
               <SectionHeader
@@ -567,8 +567,8 @@ export function PriceChart({
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ whiteSpace: "nowrap" }}>Fecha</TableCell>
-                    <TableCell align="right">Precio de costo</TableCell>
-                    <TableCell align="right">Precio minorista</TableCell>
+                    {chartMode !== "commercial" ? <TableCell align="right">Precio de costo</TableCell> : null}
+                    {chartMode !== "base" ? <TableCell align="right">Precio minorista</TableCell> : null}
                     <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>Tipo de dato</TableCell>
                   </TableRow>
                 </TableHead>
@@ -578,10 +578,14 @@ export function PriceChart({
                       <TableCell sx={{ whiteSpace: "nowrap" }}>
                         {chartDateFormatter.format(new Date(`${point.date}T00:00:00Z`))}
                       </TableCell>
-                      <TableCell align="right">{point.costPrice === null ? "—" : formatCurrency(point.costPrice)}</TableCell>
-                      <TableCell align="right" sx={{ color: "#0f766e", fontWeight: 800 }}>
-                        {point.retailPrice === null ? "—" : formatCurrency(point.retailPrice)}
-                      </TableCell>
+                      {chartMode !== "commercial" ? (
+                        <TableCell align="right">{point.costPrice === null ? "—" : formatCurrency(point.costPrice)}</TableCell>
+                      ) : null}
+                      {chartMode !== "base" ? (
+                        <TableCell align="right" sx={{ color: "#0f766e", fontWeight: 800 }}>
+                          {point.retailPrice === null ? "—" : formatCurrency(point.retailPrice)}
+                        </TableCell>
+                      ) : null}
                       <TableCell align="center">
                         <Chip size="small" color={point.origin.color} variant="outlined" label={point.origin.label} />
                       </TableCell>

@@ -955,16 +955,44 @@ export function App() {
                   ) : null}
 
                   {historyWorkflow === "chart" ? (
-                    <PriceChart
-                      className="mt-3"
-                      serie={serie}
-                      forecast={forecast}
-                      selectedMaterial={selectedMaterial}
-                      showPrices={showPrices}
-                      chartMode={forecastChartMode}
-                      commercialMarginPct={commercialPrice?.margen_ganancia_pct ?? null}
-                      canShowCostDetails={isAdmin}
-                    />
+                    <>
+                      {showPrices && isAdmin ? (
+                        <Box
+                          className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-4 py-3"
+                          sx={{ boxShadow: "0 8px 20px rgba(15, 23, 42, 0.06)" }}
+                        >
+                          <Box>
+                            <Typography variant="body2" fontWeight={800} color="text.secondary">
+                              Cómo ver la curva
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Elegí el precio que querés ver en el gráfico y su detalle.
+                            </Typography>
+                          </Box>
+                          <ButtonGroup size="small" variant="outlined">
+                            <Button variant={forecastPriceView === "base" ? "contained" : "outlined"} onClick={() => setForecastPriceView("base")}>
+                              Solo costo
+                            </Button>
+                            <Button variant={forecastPriceView === "commercial" ? "contained" : "outlined"} onClick={() => setForecastPriceView("commercial")}>
+                              Solo precio minorista
+                            </Button>
+                            <Button variant={forecastPriceView === "comparative" ? "contained" : "outlined"} onClick={() => setForecastPriceView("comparative")}>
+                              Comparar ambas
+                            </Button>
+                          </ButtonGroup>
+                        </Box>
+                      ) : null}
+                      <PriceChart
+                        className="mt-3"
+                        serie={serie}
+                        forecast={forecast}
+                        selectedMaterial={selectedMaterial}
+                        showPrices={showPrices}
+                        chartMode={forecastChartMode}
+                        commercialMarginPct={commercialPrice?.margen_ganancia_pct ?? null}
+                        canShowCostDetails={isAdmin}
+                      />
+                    </>
                   ) : null}
 
                   {isAdmin && historyWorkflow === "load" ? (
