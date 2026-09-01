@@ -127,6 +127,7 @@ class ForecastMetricasRead(BaseModel):
 class ForecastPuntoRead(BaseModel):
     fecha: date
     precio_proyectado: Decimal
+    precio_lista_proyectado: Decimal | None = None
     precio_optimista: Decimal | None = None
     precio_pesimista: Decimal | None = None
     precio_equivalente_25kg: Decimal | None = None

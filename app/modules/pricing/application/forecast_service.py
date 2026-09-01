@@ -20,6 +20,7 @@ from app.modules.pricing.application.forecasting import (
 )
 from app.modules.pricing.application.model_selector import ForecastModelSelection, resolve_model_selection
 from app.modules.pricing.application.series import PrecioSerieInput, PuntoSeriePrecio, construir_serie_mensual
+from app.modules.pricing.domain.economic_price import economic_price_rule_for
 from app.modules.pricing.domain.exceptions import (
     ExternalRegressorUnavailableError,
     ForecastSnapshotRequired,
@@ -50,6 +51,7 @@ class ForecastMaterialResult:
     seleccion_modelo: ForecastSelectionRead | None = None
     serie_mensual: list[PuntoSeriePrecio] | None = None
     resolution_source: str = "computed"
+    economic_scale_applied: bool = False
 
 
 @dataclass(frozen=True)
@@ -226,6 +228,58 @@ def guardar_forecast_cacheado(
 
 def limpiar_forecast_cache() -> None:
     _forecast_cache.clear()
+
+
+def _scale_forecast_result_for_economic_price(
+    result: ForecastMaterialResult,
+    material_key: str,
+) -> ForecastMaterialResult:
+    rule = economic_price_rule_for(material_key)
+    if rule is None or result.economic_scale_applied:
+        return result
+
+    def scale(value: Decimal | None) -> Decimal | None:
+        return rule.net_price(value) if value is not None else None
+
+    scaled_points = [
+        point.model_copy(
+            update={
+                "precio_lista_proyectado": point.precio_proyectado,
+                "precio_proyectado": scale(point.precio_proyectado),
+                "precio_optimista": scale(point.precio_optimista),
+                "precio_pesimista": scale(point.precio_pesimista),
+                "precio_equivalente_25kg": scale(point.precio_equivalente_25kg),
+                "precio_equivalente_50kg": scale(point.precio_equivalente_50kg),
+            }
+        )
+        for point in result.forecast
+    ]
+    scaled_series = None
+    if result.serie_mensual is not None:
+        monetary_fields = (
+            "precio_promedio_normalizado",
+            "precio_equivalente_25kg",
+            "precio_equivalente_50kg",
+            "precio_esperado_anomalia",
+            "rango_esperado_min_anomalia",
+            "rango_esperado_max_anomalia",
+            "precio_original",
+        )
+        scaled_series = [
+            replace(point, **{field: scale(getattr(point, field)) for field in monetary_fields})
+            if isinstance(point, PuntoSeriePrecio)
+            else point
+            for point in result.serie_mensual
+        ]
+
+    return replace(
+        result,
+        dataset=[ProphetRow(ds=row.ds, y=float(rule.net_price(Decimal(str(row.y))))) for row in result.dataset],
+        metricas=result.metricas.model_copy(update={"mae": scale(result.metricas.mae)}),
+        forecast=scaled_points,
+        serie_mensual=scaled_series,
+        economic_scale_applied=True,
+    )
 
 
 def _cargar_forecast_cacheado_o_snapshot(
@@ -409,6 +463,7 @@ def forecast_material(
     pricing_repo: PricingRepository,
     usar_selector_modelo: bool = False,
 ) -> ForecastMaterialResult:
+    material_key = derive_material_key(material.nombre)
     puntos = serie_mensual_material(material, pricing_repo)
     dataset = construir_dataset_prophet(puntos, objetivo="precio_promedio_normalizado")
     if len(dataset) < 24 + horizonte_meses:
@@ -423,7 +478,7 @@ def forecast_material(
             dataset_signature=dataset_signature,
         )
         if forecast_cacheado is not None:
-            return forecast_cacheado
+            return _scale_forecast_result_for_economic_price(forecast_cacheado, material_key)
 
         _require_synchronous_compute_allowed(material, horizonte_meses)
 
@@ -440,9 +495,9 @@ def forecast_material(
             seleccion_modelo=forecast_result.seleccion_modelo,
             serie_mensual=puntos,
         )
-        return guardar_forecast_cacheado(material.id, horizonte_meses, dataset_signature, forecast_result)
+        cached_result = guardar_forecast_cacheado(material.id, horizonte_meses, dataset_signature, forecast_result)
+        return _scale_forecast_result_for_economic_price(cached_result, material_key)
 
-    material_key = derive_material_key(material.nombre)
     selection = resolve_model_selection(material_key, horizonte_meses)
     dataset_signature = f"{signature_base}:{FORECAST_SELECTOR_ENABLED_SIGNATURE}:{selection.modelo}"
     forecast_cacheado = _cargar_forecast_cacheado_o_snapshot(
@@ -451,7 +506,7 @@ def forecast_material(
         dataset_signature=dataset_signature,
     )
     if forecast_cacheado is not None:
-        return forecast_cacheado
+        return _scale_forecast_result_for_economic_price(forecast_cacheado, material_key)
 
     cmdstanpy, pd, Prophet, CmdStanPyBackend, IStanBackend = importar_dependencias_forecast()
     plan = _resolver_plan_ejecucion(material_key, horizonte_meses, usar_selector_modelo, pd)
@@ -463,7 +518,7 @@ def forecast_material(
         dataset_signature=dataset_signature,
     )
     if forecast_cacheado is not None:
-        return forecast_cacheado
+        return _scale_forecast_result_for_economic_price(forecast_cacheado, material_key)
 
     _require_synchronous_compute_allowed(material, horizonte_meses)
     configurar_cmdstan(cmdstanpy, CmdStanPyBackend, IStanBackend)
@@ -478,7 +533,8 @@ def forecast_material(
         seleccion_modelo=forecast_result.seleccion_modelo,
         serie_mensual=puntos,
     )
-    return guardar_forecast_cacheado(material.id, horizonte_meses, dataset_signature, forecast_result)
+    cached_result = guardar_forecast_cacheado(material.id, horizonte_meses, dataset_signature, forecast_result)
+    return _scale_forecast_result_for_economic_price(cached_result, material_key)
 
 
 def precomputar_forecasts_materiales(

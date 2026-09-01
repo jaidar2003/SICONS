@@ -155,8 +155,8 @@ def build_prices() -> list[MembranaPrecio]:
                 numero_comprobante=row.numero_comprobante,
                 articulo=row.articulo,
                 precio_sin_iva=row.precio_sin_iva,
-                precio_original=row.precio_con_iva,
-                precio_normalizado=calcular_precio_normalizado(row.precio_con_iva, Decimal("20")).quantize(
+                precio_original=row.precio_sin_iva,
+                precio_normalizado=calcular_precio_normalizado(row.precio_sin_iva, Decimal("20")).quantize(
                     Decimal("0.0001"), rounding=ROUND_HALF_UP
                 ),
             )

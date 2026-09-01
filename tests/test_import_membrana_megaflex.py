@@ -31,15 +31,15 @@ def test_membrana_parsers_normalizan_fecha_importe_y_comprobante() -> None:
     assert normalize_invoice("253-04115") == "0253-00004115"
 
 
-def test_build_prices_calcula_normalizado_sobre_20kg() -> None:
+def test_build_prices_usa_precio_lista_sin_iva_y_normaliza_sobre_20kg() -> None:
     prices = build_prices()
 
     assert len(prices) == 52
     first = prices[0]
     assert first.numero_comprobante == "ESTIMADO-2022-01-01"
     assert first.fecha == date(2022, 1, 1)
-    assert first.precio_original == Decimal("8878.41")
-    assert first.precio_normalizado == Decimal("443.9205")
+    assert first.precio_original == Decimal("7337.53")
+    assert first.precio_normalizado == Decimal("366.8765")
 
 
 def test_upsert_membrana_inserta_si_no_existe() -> None:
